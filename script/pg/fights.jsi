@@ -1,0 +1,1283 @@
+/** 
+ * @filename fights.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var Blacklist = new Object();
+var FightStats = new Object();
+var FightBbCode = new Object();
+var FightTables = new Object();
+var FightHelpers = new Object();
+var UpDownFight = new Object();
+var PreferredFights = new Object();
+
+Registry.register("Blacklist", Blacklist);
+Registry.register("FightStats", FightStats);
+Registry.register("FightBbCode", FightBbCode);
+Registry.register("FightTables", FightTables);
+Registry.register("FightHelpers", FightHelpers);
+Registry.register("UpDownFight", UpDownFight);
+Registry.register("PreferredFights", PreferredFights);
+
+// ############ Blacklist #############
+
+Blacklist.init = function() {
+
+    Blacklist.eBlNone = 0;
+    Blacklist.eBlNormal = 1;
+    Blacklist.eBlRage = 2;
+
+    Blacklist.getCfgPrefix = function() {
+        return UrlHandler.configPrefix + "_blacklist_for_" + UserInfo.uid + "_to_";
+    };
+
+    Blacklist.getFromCfg = function() {
+        return Config.blacklist;
+    };
+
+    Blacklist.setToCfg = function(bl) {
+        Config.blacklist = bl;
+        Config.save();
+    };
+
+    // the user is in the "normal" blacklist; that means, you will never want to attack him
+    Blacklist.isBlacklisted = function(uid) {
+        var bl = Blacklist.getFromCfg();
+        return bl[uid] == Blacklist.eBlNormal;
+    };
+
+    // the user is in the "blacklist when we don't have rage";
+    // that means, you don't want to attack him if there is no rage, but you do if rage is on
+    Blacklist.isRageBlacklisted = function(uid) {
+        var bl = Blacklist.getFromCfg();
+        return bl[uid] == Blacklist.eBlRage;
+    };
+
+    Blacklist.set = function(uid, value, cb) {
+        var bl = Blacklist.getFromCfg();
+        bl[uid] = value;
+        Blacklist.setToCfg(bl);
+        if (cb) cb();
+    };
+
+    Blacklist.get = function() {
+        var bl = Blacklist.getFromCfg();
+        var blacklist = new Array();
+        for (var uid in bl) {
+            if (bl[uid]) {
+                blacklist.push(uid);
+            }
+        }
+        return blacklist;
+    };
+
+    Blacklist.removeAll = function() {
+        Blacklist.setToCfg(new Object());
+    };
+
+};
+
+// ############ Fight Statistik #############
+
+FightStats.init = function () {
+    const eFightResultWonIn = 1;
+    const eFightResultWonOut = 2;
+    const eFightResultLostIn = 3;
+    const eFightResultLostOut = 4;
+    const eFightResultRemisIn = 5;
+    const eFightResultRemisOut = 6;
+    const eFightResultEvade = 7;
+
+    FightStats.noPages = 0;
+    FightStats.collectedPages = 0;
+    FightStats.collected = false;
+
+    FightStats.collectFromPage = function() {
+        var fightTable = FightTables.getFinishedFightsTable();
+        if (!fightTable) {
+            return;
+        }
+
+        var tb = fightTable.getElementsByTagName('tbody')[0];
+        var rows = tb.getElementsByTagName('tr');
+        for (var i = 1; i < rows.length - 1; i++) {
+            var cols = rows[i].getElementsByTagName('td');
+            FightStats.add(cols[0], cols[1], cols[2]);
+        }
+
+        var span = document.createElement('span');
+        span.setAttribute('class', 'tiername');
+        span.innerHTML = "Kampfstatistik gespeichert";
+        fightTable.parentNode.insertBefore(span, fightTable);
+
+        var hr = document.createElement('hr');
+        hr.setAttribute('size', '1');
+        fightTable.parentNode.insertBefore(hr, fightTable);
+
+        FightStats.collected = true;
+    };
+
+    FightStats.addByVal = function(imgSrc, date, uid) {
+        var savedStats = FightStats.read(uid, true);
+
+        var dateWithYear = BaseLib.getDatetimeWithYear(date);
+        var dateWoYear = date;
+
+        // check if we already have this date
+        for (var i = 0; i < savedStats.dates.length; i++) {
+            if (savedStats.dates[i] == dateWoYear) {
+                return;
+            }
+        }
+
+        var won;
+        if (imgSrc.search("1_") != -1) {
+            won = true;
+        } else {
+            won = false;
+        }
+
+        // save the last incoming and outgoing date and result
+        if (imgSrc.search("_0.gif") != -1 || imgSrc.search("evade.gif") != -1) {
+            if (!savedStats.lastOut || (BaseLib.timestampFromDate(dateWithYear) > BaseLib.timestampFromDate(savedStats.lastOut))) {
+                savedStats.lastOut = dateWithYear;
+                savedStats.lastWonOut = won;
+            }
+        } else {
+            if (!savedStats.lastIn || (BaseLib.timestampFromDate(dateWithYear) > BaseLib.timestampFromDate(savedStats.lastIn))) {
+                savedStats.lastIn = dateWithYear;
+                savedStats.lastWonIn = won;
+            }
+        }
+
+        // save the last fight date and the result of the last fight
+        if (!savedStats.lastFight || (BaseLib.timestampFromDate(dateWithYear) > BaseLib.timestampFromDate(savedStats.lastFight))) {
+            savedStats.lastFight = dateWithYear;
+            savedStats.lastWon = won;
+        }
+
+        var tpush = 0;
+
+        // add the fight result
+        if (imgSrc.search("evade.gif") != -1) {
+            savedStats.evade++;
+            tpush = eFightResultEvade;
+        } else if (imgSrc.search("0_0.gif") != -1) {
+            savedStats.lost_out++;  // ausgehend
+            tpush = eFightResultLostOut;
+        } else if (imgSrc.search("0_1.gif") != -1) {
+            savedStats.lost_in++;  // eingehend
+            tpush = eFightResultLostIn;
+        } else if (imgSrc.search("1_0.gif") != -1) {
+            savedStats.won_out++;   // ausgehend
+            tpush = eFightResultWonOut;
+        } else if (imgSrc.search("1_1.gif") != -1) {
+            savedStats.won_in++;   // eingehend
+            tpush = eFightResultWonIn;
+        } else if (imgSrc.search("2_0.gif") != -1) {
+            savedStats.remis_out++;  // ausgehend
+            tpush = eFightResultRemisOut;
+        } else if (imgSrc.search("2_1.gif") != -1) {
+            savedStats.remis_in++;   // eingehend
+            tpush = eFightResultRemisIn;
+        }
+
+        // add the data
+        savedStats.dates.push(dateWoYear);
+
+        if (savedStats.result)
+            savedStats.result.push(tpush);
+
+        FightStats.write(uid, savedStats);
+    };
+
+    FightStats.add = function(tdImg, tdDate, tdUser) {
+        var img = tdImg.getElementsByTagName('img')[0];
+        if (!img) return;
+        var imgSrc = img.src;
+        if (!imgSrc) return;
+
+        var date = tdDate.innerHTML;
+        if (!date) return;
+
+        var profilLinkA = tdUser.getElementsByTagName('a')[0];
+        if (!profilLinkA) return;
+        var profilLink = profilLinkA.href;
+        if (!profilLink) return;
+        var uid = BaseLib.getStringBetweenTags(profilLink, 'id:', '/');
+        if (!uid) return;
+
+        FightStats.addByVal(imgSrc, date, uid);
+    };
+
+    FightStats.getConfigPrefix = function() {
+        return UrlHandler.configPrefix + "_fight_from_" + UserInfo.uid ;
+    };
+
+    FightStats.getConfigVar = function(uid) {
+        return FightStats.getConfigPrefix() + "_to_" + uid;
+    };
+
+    FightStats.createArray = function() {
+        var e = new Object();
+
+        e.dates = new Array();
+        e.result = new Array();
+        e.won_out = Number(0);
+        e.won_in = Number(0);
+        e.lost_out = Number(0);
+        e.lost_in = Number(0);
+        e.remis_out = Number(0);
+        e.remis_in = Number(0);
+        e.evade = Number(0);
+        e.lastWon = false;
+        e.lastWonOut = false;
+        e.lastWonIn = false;
+
+        return e;
+    };
+
+    FightStats.write = function(uid, savedStats) {
+        var statsVar = FightStats.getConfigVar(uid);
+        GM_setValue(statsVar, JSON.stringify(savedStats));
+    };
+
+    FightStats.readInternal = function(statsVar, do_create) {
+        var savedStats = null;
+        var savedStatsString = GM_getValue(statsVar);
+        if (savedStatsString) {
+            savedStats = JSON.parse(savedStatsString);
+        } else if (do_create) {
+            savedStats = FightStats.createArray();
+        }
+        return savedStats;
+    };
+
+    FightStats.read = function(uid, do_create) {
+        var statsVar = FightStats.getConfigVar(uid);
+        return FightStats.readInternal(statsVar, do_create);
+    };
+
+    FightStats.remove = function() {
+        var entries = GM_listValues();
+        if (entries) {
+            var s = FightStats.getConfigPrefix();
+
+            for (var i = 0; i < entries.length; i++) {
+                if (entries[i].search(s) != -1) {
+                    GM_deleteValue(entries[i]);
+                }
+            }
+        }
+    };
+
+    FightStats.addCollectButton = function() {
+        var f = document.getElementById("form1");
+
+        var b = document.createElement("input");
+        b.type = 'button';
+        b.value = 'Erstelle Kampfstatistik';
+        b.addEventListener('click', function() { FightStats.collectAll(); }, true);
+
+        f.parentNode.insertBefore(b, f.nextSibling);
+    };
+
+    FightStats.collectAll = function() {
+        UIHelpers.status("Erstelle Kampfstatistik...");
+        BaseLib.xmlhttpRequest(UrlHandler.createFightLogUrl(), FightStats.getPages);
+    };
+
+    FightStats.getPages = function(req) {
+        if (req.readyState == 4 && req.status == 200) {
+            var s1 = '<a href="/' + UrlHandler.fight + '/' + UrlHandler.fightlog + '/';
+            var s2 = '</td>';
+
+            FightStats.noPages = 0;
+            var s = BaseLib.extractString(req.responseText, null, s1, s2, null, true, true);
+            if (s) {
+                var pos;
+                while((pos = s.search(s1)) != -1) {
+                    FightStats.noPages++;
+                    s = s.substr(pos + 1);
+                }
+            }
+            if (FightStats.noPages) {
+                FightStats.remove();
+                FightStats.collectedPages = 0;
+                for (var i = 1; i <= FightStats.noPages; i++) {
+                    BaseLib.xmlhttpRequest(UrlHandler.createFightLogUrl(i), FightStats.processPage);
+                }
+            } else {
+                UIHelpers.hideStatus();
+            }
+        }
+    };
+
+    FightStats.processPage = function(req) {
+        if (req.readyState == 4 && req.status == 200) {
+            FightStats.collectedPages++;
+            UIHelpers.status("Log: Seite " + FightStats.collectedPages + " von " + FightStats.noPages);
+
+            var s1 = '<tr id="';
+            var s2 = '<td><strong>';
+            var t = BaseLib.extractString(req.responseText, null, s1, s2, null, true, true);
+            if (t) {
+                var s3 = '</tr>';
+                var pos;
+                while ((pos = t.search(s1)) != -1) {
+                    var z = BaseLib.extractString(t, null, s1, s3, null, true, true);
+                    t = t.substr(pos + 1);
+
+                    var img1 = '<img src="';
+                    var img2 = '" alt=""';
+                    if ((pos = z.search(img1)) != -1) {
+                        var img = BaseLib.extractString(z, null, img1, img2, null, true, false);
+                        z = z.substr(pos);
+                        var date = BaseLib.extractString(z, null, '<td>', '</td>', null, true, false);
+                        var uid = BaseLib.extractString(z, null, '<a href="/profil/id:', '/">', null, true, false);
+
+                        if (img && date && uid) {
+                            FightStats.addByVal(img, date, uid);
+                        }
+                    }
+                }
+            }
+
+            if (FightStats.collectedPages >= FightStats.noPages) {
+                UrlHandler.doReload();
+            }
+        }
+    };
+
+    FightStats.WonLostRatioByDays = function(stats, days) {
+        var now = new Date();
+
+        var won = 0;
+        var lost = 0;
+
+        var ret = 1000; // 1000 won fights... this is this scripts imagination of eternity ;)
+
+        if (stats) {
+            if (days == 0 ||
+                stats.result == undefined) {
+
+                if (stats.lost_out)
+                    ret = stats.won_out / stats.lost_out;
+
+            } else {
+
+                for (var i=0; i < stats.result.length; i++) {
+                    var z = stats.dates[i].split(' ');
+                    var da = z[0].split('.');
+
+                    if (da.length != 3) {
+                        continue;
+                    }
+
+                    // js uses nr of month!?! thats kind of strange!
+                    var d = new Date(da[2], da[1]-1, da[0]);
+                    var t = now.getTime() - d.getTime();
+
+                    t = t / 1000 / 60 / 60 / 24;
+
+                    if (t > days)
+                        continue;
+
+                    won = won + (stats.result[i] == eFightResultWonOut ? 1 : 0);
+                    lost = lost + (stats.result[i] == eFightResultLostOut ? 1 : 0);
+                }
+
+                if (lost)
+                    ret = won / lost;
+
+            }
+        }
+
+        return (ret);
+    };
+
+    FightStats.WonLastFight = function(stats) {
+        if (stats.lastWonIn != undefined && stats.lastWonOut != undefined) {
+            return stats.lastWonIn || stats.lastWonOut;
+        }
+        if (stats.lastWon != undefined) {
+            return stats.lastWon;
+        }
+        return true;
+    };
+
+    FightStats.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isFightOverviewUrl() || UrlHandler.isFightLogUrl()) {
+                if (UrlHandler.isFightOverviewUrl()) {
+                    FightStats.addCollectButton();
+                }
+                FightStats.collectFromPage();
+            }
+        }
+    };
+
+};
+
+FightBbCode.init = function() {
+
+    FightBbCode.addBbCodeButtons = function() {
+        // create button for BB code
+        FightBbCode.createFinishedFightsBbCode();
+
+        if (!UrlHandler.isFightLogUrl()) {
+            // create button for BB code of incoming figths
+            FightBbCode.createIncomingFightsBbCode();
+
+            // create button for BB code of outgoing figths
+            FightBbCode.createOutgoingFightsBbCode();
+        }
+    };
+
+    FightBbCode.createFinishedFightsBbCode = function() {
+        var fightTable = FightTables.getFinishedFightsTable();
+        if (!fightTable) {
+            return;
+        }
+
+        var tb = fightTable.getElementsByTagName('tbody')[0];
+        var rows = tb.getElementsByTagName('tr');
+        var bb = '';
+        var off = UrlHandler.isFightLogUrl() ? 1 : 0;
+        for (var i = 1; i < rows.length - 1; i++) {
+            var cols = rows[i].getElementsByTagName('td');
+            bb += FightBbCode.add(cols[0], cols[1], cols[2], cols[3+off], cols[4+off]) + '<br>';
+        }
+
+        var formatExt = function() {
+            return BBCode.getHint() + BBCode.encodeTags('<table>'+fightTable.innerHTML+'</table>');
+        };
+        var formatSimple = function() {
+            return bb;
+        };
+
+        if (Config.bbcode) {
+            var div = document.createElement('span');
+
+            var b = BBCode.createBbCodeButtons(function() { return formatExt(); }, 'fightBbCodeTable', 'als Tabelle');
+            div.appendChild(b);
+
+            b = BBCode.createBbCodeButtons(function() { return formatSimple(); }, 'fightBbCodeText', 'als Text');
+            div.appendChild(document.createElement('br'));
+            div.appendChild(b);
+
+            fightTable.parentNode.insertBefore(div, fightTable.nextSibling);
+        } else {
+            var b = BBCode.createBbCodeButtons(function() { return formatSimple(); }, 'fightBbCode');
+            fightTable.parentNode.insertBefore(b, fightTable.nextSibling);
+        }
+    };
+
+    FightBbCode.add = function(tdImg, tdDate, tdUser, tdMoney, tdPoints) {
+        var img = tdImg.getElementsByTagName('img')[0];
+        if (!img) return;
+        var imgSrc = img.src;
+        if (!imgSrc) return;
+
+        var date = tdDate.innerHTML;
+        if (!date) return;
+
+        var profilLinkA = tdUser.getElementsByTagName('a')[0];
+        if (!profilLinkA) return;
+        var profilLink = profilLinkA.href;
+        if (!profilLink) return;
+        var uid = BaseLib.getStringBetweenTags(profilLink, 'id:', '/');
+        if (!uid) return;
+        var uname = profilLinkA.innerHTML;
+        var money = tdMoney.innerHTML.trim();
+        var points = tdPoints.innerHTML.trim();
+
+        // return some BB code for this entry ...
+        return '[img]'+imgSrc+'[/img] ' + date + ' [url='+UrlHandler.createProfilUrlUser(uid)+']'+uname+'[/url] ' + money + ' ' + points;
+    };
+
+    FightBbCode.createIncomingFightsBbCode = function() {
+        fightTable = FightTables.getIncomingFightsTable();
+        if (!fightTable) {
+            return;
+        }
+
+        var rows = fightTable.getElementsByTagName('tr');
+        if (rows.length < 2) {
+            return;
+        }
+
+        var format;
+        if (Config.bbcode) {
+            format = function() {
+               return BBCode.getHint() + BBCode.encodeTags('<table>'+fightTable.innerHTML+'</table>');
+            };
+        } else {
+            format = function() {
+                var bb = '';
+                for (var i = 1; i < rows.length; i++) {
+                    var cols = rows[i].getElementsByTagName('td');
+                    bb += '[img]'+UrlHandler.dotsUrl+'warning.gif[/img]';
+                    bb += cols[1].innerHTML;
+                    var a = cols[2].getElementsByTagName('a')[0];
+                    var uid = BaseLib.extractNumber(a.href);
+                    var uname = a.innerHTML;
+                    bb += ' [url='+UrlHandler.createProfilUrlUser(uid)+']'+uname+'[/url]';
+                    bb += ' '+cols[3].innerHTML;
+                    bb += '<br>';
+                }
+                return bb;
+            };
+        }
+
+        var b = BBCode.createBbCodeButtons(format, 'incomingFightBbCode');
+        fightTable.parentNode.insertBefore(b, fightTable.nextSibling);
+    };
+
+    FightBbCode.createOutgoingFightsBbCode = function() {
+        span = FightTables.getOutgoingFightsSpan();
+        if (!span) {
+            return;
+        }
+        
+        var div = span.parentNode;
+        var ende = BaseLib.getStringBetweenTags(div.innerHTML, '<br>', '<br>').trim();
+        
+        var profilLinkA, profilLink, uid, uname;
+
+        if ((profilLinkA = span.getElementsByTagName('a')[0]) &&
+            (profilLink = profilLinkA.href) &&
+            (uid = BaseLib.getStringBetweenTags(profilLink, 'id:', '/')) &&
+            (uname = profilLinkA.innerHTML) &&
+            (uid.length != 0)
+            ) {
+
+            var bb = 'Angriff läuft bereits auf [url='+UrlHandler.createProfilUrlUser(uid)+']'+uname+'[/url] '+ende;
+        }
+
+        var format = function() {
+            return bb;
+        };
+
+        var b = BBCode.createBbCodeButtons(format, 'outgoingFightBbCode');
+        div.appendChild(b);
+    };
+
+    FightBbCode.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isFightOverviewUrl() || UrlHandler.isFightLogUrl()) {
+                FightBbCode.addBbCodeButtons();
+            }
+        }
+    };
+
+};
+
+// ############ User Tabelle auf Fight Seiten #############
+
+FightTables.init = function() {
+
+    FightTables.getFinishedFightsTable = function() {
+        var outerTable;
+        if (UrlHandler.isFightOverviewUrl()) {
+            outerTable = BaseLib.getElementsByClassNameForElements('table', 'cbox')[0];
+        } else {
+            outerTable = BaseLib.getElementsByClassNameForElements('table', 'tieritemA')[0];
+        }
+        if (!outerTable) return null;
+
+        var idx = 0;
+        if (document.getElementById('fight_helpers_buttons')) {
+            idx = 1;
+        }
+        var innerTable = outerTable.getElementsByTagName('table')[idx];
+        return innerTable;
+    };
+
+    FightTables.getIncomingFightsTable = function() {
+        var outerTable;
+        if (UrlHandler.isFightOverviewUrl()) {
+            outerTable = BaseLib.getElementsByClassNameForElements('table', 'cbox')[0];
+        } else {
+            outerTable = BaseLib.getElementsByClassNameForElements('table', 'tieritemA')[0];
+        }
+        if (!outerTable) return null;
+
+        var idx = 1;
+        if (document.getElementById('fight_helpers_buttons')) {
+            idx++;
+        }
+        var innerTable = outerTable.getElementsByTagName('table')[idx];
+        return innerTable;
+    };
+
+    FightTables.getOutgoingFightsSpan = function() {
+        var outerTable = null;
+        if (UrlHandler.isFightOverviewUrl()) {
+            var fs = document.getElementsByTagName('form');
+            for (var i=0; i<fs.length; i++) {
+                if (fs[i].action.search('/fight/cancel') != -1) {
+                    outerTable = fs[i].parentNode.parentNode;
+                    break;
+                }
+            }
+            if (outerTable == null) {
+                return undefined;
+            }
+        } else {
+            outerTable = BaseLib.getElementsByClassNameForElements('table', 'tieritemA')[0];
+        }
+        if (!outerTable) return null;
+
+        var innerDiv = BaseLib.getElementsByClassNameForElements('span', 'tiername', outerTable)[0];
+
+        return innerDiv;
+    };
+
+    FightTables.createNewRowAfter = function(contentTable) {
+        var newTr = document.createElement("tr");
+        var newTd = document.createElement("td");
+        newTr.appendChild(newTd);
+        newTd.setAttribute("colspan", "2");
+        newTd.innerHTML = "<hr size=\"1\">";
+        //contentTable.parentNode.parentNode.parentNode.insertBefore(newTr, contentTable.parentNode.parentNode.nextSibling);
+        contentTable.parentNode.parentNode.parentNode.appendChild(newTr);
+
+        newTr = document.createElement("tr");
+        newTd = document.createElement("td");
+        newTd.setAttribute("colspan", "2");
+        newTr.appendChild(newTd);
+        //contentTable.parentNode.parentNode.parentNode.insertBefore(newTr, contentTable.parentNode.parentNode.nextSibling);
+        contentTable.parentNode.parentNode.parentNode.appendChild(newTr);
+
+        return newTd;
+    };
+
+    FightTables.create = function() {
+
+        var fft = FightTables.getFinishedFightsTable();
+        var ofp = FightTables.createNewRowAfter(fft);
+        var ifp = FightTables.createNewRowAfter(fft);
+        var ffp = FightTables.createNewRowAfter(fft);
+
+        var ofmode = new AioMode();
+        ofmode.setType(ofmode.modeOutgoingFights);
+        var oftable = new AioTable(ofmode, "Ausgehender Kampf - Pennerübersicht", ofp);
+        oftable.run();
+
+        var ifmode = new AioMode();
+        ifmode.setType(ifmode.modeIncomingFights);
+        var iftable = new AioTable(ifmode, "Eintreffende Kämpfe - Pennerübersicht", ifp);
+        iftable.run();
+
+        var ffmode = new AioMode();
+        ffmode.setType(ffmode.modeOldFights);
+        var fftable = new AioTable(ffmode, "Ausgetragene Kämpfe - Pennerübersicht", ffp);
+        fftable.run();
+    };
+
+    FightTables.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isFightUrlPenner()) {
+                FightTables.create();
+            }
+        }
+    };
+
+};
+
+// ########### Fight Heplers Links ################
+
+FightHelpers.init = function() {
+    FightHelpers.addHighscoreLinks = function(attackNode) {
+        // try to find min/max points from existing attack link
+        var linkNode = attackNode.getElementsByTagName("a")[0];
+        if (linkNode && linkNode.href.search(UrlHandler.highscoreRange) != -1) {
+            UserInfo.minPoints = Math.max(UserInfo.minPoints, BaseLib.getStringBetweenTags(linkNode.href, UrlHandler.highscoreMin + '=', '&' + UrlHandler.highscoreMax));
+            UserInfo.maxPoints = Math.min(UserInfo.maxPoints, BaseLib.getStringBetweenTags(linkNode.href, '&' + UrlHandler.highscoreMax + '=', null));
+        }
+
+        var url = UrlHandler.createHighscoreRange(UserInfo.minPoints, UserInfo.maxPoints);
+
+        if (!linkNode) {
+            linkNode = document.createElement('a');
+            linkNode.innerHTML = 'Angreifbare Spieler anzeigen';
+            linkNode.setAttribute('href', url);
+            attackNode.appendChild(linkNode);
+        }
+
+        var f = function(req) {
+            if (req.readyState == 4) {
+                if (req.status == 200) {
+                    var t1 = '<tr class="odd">';
+                    var t2 = '</tr>';
+                    var z = BaseLib.getStringBetweenTags(req.responseText, t1, t2);
+                    var ca = false;
+                    if (z && z.length) {
+                        t1 = '<td class="col1';
+                        t2 = '</td>';
+                        z = BaseLib.getStringBetweenTags(z, t1, t2);
+                    } else {
+                        // argh, highscore is down again... use this dossers rank to calculate a rank page
+                        var d = document.getElementById('my-profile');
+                        if (d) {
+                            var ds1 = BaseLib.getElementsByClassNameForElements('span', 'el1', d);
+                            var ds2 = BaseLib.getElementsByClassNameForElements('span', 'el2', d);
+                            for (var u=0; u < ds1.length && ds1.length == ds2.length; u++) {
+                                if (ds1[u].innerHTML.search(Language.platz) != -1) {
+                                    z = Math.round((Number(ds2[u].innerHTML)) * 7/5).toString();
+                                    ca = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (z && z.length) {
+                        var pos = BaseLib.extractNumber(z);
+                        var page = Math.ceil(pos / 20);
+
+                        var a = document.createElement('a');
+                        var hsurl = UrlHandler.createHighscorePage(page);
+                        a.setAttribute("href", hsurl);
+                        a.innerHTML = 'Highscore Seite ' + page + (ca ? ' &plusmn;100  <img src="'+UrlHandler.smilies_wink+'" />' : '');
+
+                        attackNode.appendChild(document.createElement('br'));
+                        attackNode.appendChild(a);
+                    }
+                }
+            }
+        };
+        BaseLib.xmlhttpRequest(url, f);
+
+        if (Registry.hasObject("AioSuperSearch")) {
+            var a = document.createElement('a');
+            url = UrlHandler.createSuperSearchURL(1, url);
+    
+            a.setAttribute("href", url);
+            a.setAttribute("id", "supersearchlinkonoverviewpage");
+            a.innerHTML = "Super Search (Standardeinstellungen)";
+    
+            attackNode.appendChild(document.createElement('br'));
+            attackNode.appendChild(a);
+        }
+    };
+
+    FightHelpers.createHighscoreLinks = function() {
+        var forms = document.getElementsByTagName("form");
+        for (var i = 0; forms && i < forms.length; i++) {
+            if (forms[i].action.trim().search('/fight/attack/') != -1) {
+                var attackNode = forms[i].getElementsByTagName('div')[0];
+                FightHelpers.addHighscoreLinks(attackNode);
+                break;
+            }
+            if (forms[i].action.trim().search('/fight/cancel/') != -1) {
+                var attackNode = document.createElement('div');
+                forms[i].appendChild(attackNode);
+                FightHelpers.addHighscoreLinks(attackNode);
+                break;
+            }
+        }
+    };
+
+    FightHelpers.createPlunderButtons = function() {
+        if (!Plunder.initialized) {
+            BaseLib.setTimeoutEx(function () { FightHelpers.createPlunderButtons(); }, 500);
+            return;
+        }
+        var forms = document.getElementsByTagName("form");
+        var form = null;
+        var fightRunning = false;
+        for (var i = 0; forms && i < forms.length; i++) {
+            if (forms[i].action.trim().search('/fight/cancel/') != -1) {
+                form = forms[i];
+                fightRunning = true;
+                break;
+            }
+            else if (forms[i].action.trim().search('/fight/attack/') != -1) {
+                form = forms[i];
+                break;
+            }
+        }
+
+        if (form) {
+            var buttonsTable = document.createElement('table');
+            buttonsTable.setAttribute('id', 'fight_helpers_buttons');
+            var ctr = document.createElement('center');
+            ctr.appendChild(buttonsTable);
+            var tr = document.createElement('tr');
+            buttonsTable.appendChild(tr);
+            var td;
+
+            var jet = Plunder.getBestFightEndPlunder();
+            if (jet && fightRunning) {
+                td = document.createElement('td');
+                td.appendChild(UIHelpers.createPlunderUseButton(jet, UrlHandler.doReload, 'Jet'));
+                tr.appendChild(td);
+            }
+
+            var boosts = Plunder.getFightBoostPlunders();
+            if (boosts) {
+                for (var b in boosts) {
+                    td = document.createElement('td');
+                    td.appendChild(UIHelpers.createPlunderUseButton(boosts[b], UrlHandler.doReload, '+'+b));
+                    tr.appendChild(td);
+                }
+            }
+
+            var node = fightRunning ? form.parentNode : form.getElementsByTagName('div')[0];
+            node.insertBefore(ctr, node.childNodes[0]);
+        }
+    };
+
+    FightHelpers.startGangFight = function(gang) {
+        var f1 = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                var g1 = BaseLib.getStringBetweenTags(req.responseText, '<input name="b_name" type="hidden" id="b_name" value="', '" />');
+                if (g1 != gang) {
+                    alert("Fehler beim starten des Bandenkampfes");
+                    UrlHandler.doReload();
+                    return;
+                }
+                var param = [ BaseLib.postParam('b_name', gang), BaseLib.postParam('submit', 'Starten') ];
+                BaseLib.xmlhttpPostRequest(UrlHandler.wwwUrl+'gang/fight/attack/do/', f2, param);
+            }
+        };
+        var f2 = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                alert("Bandenkampf gestartet");
+                UrlHandler.doReload();
+            }
+        };
+        var param = [ BaseLib.postParam('f_bname', gang), BaseLib.postParam('Submit2', 'Angriff starten') ];
+        BaseLib.xmlhttpPostRequest(UrlHandler.wwwUrl+'gang/fight/attack/pre/', f1, param);
+    };
+
+    FightHelpers.showAttackDistricts = function() {
+        if (UserInfo.adminStatus != eCoAdmin && UserInfo.adminStatus != eAdmin) {
+            return;
+        }
+
+        var table = BaseLib.getElementsByClassNameForElements('table', 'tieritemA')[0];
+        if (!table) return;
+        var tbody = table.getElementsByTagName('tbody')[0];
+        var rows = BaseLib.getChildsByTagName('tr', tbody);
+        if (!rows || rows.length < 8) return;
+
+        var gangName = '';
+        try {
+            var tds = rows[4].getElementsByTagName('table')[0].getElementsByTagName('td');
+            gangName = tds[tds.length-1].getElementsByTagName('strong')[0].innerHTML;
+        } catch (e) {
+            Log.console(e);
+            return;
+        }
+
+        var r = rows[4].getElementsByTagName('td')[0];
+        if (r.innerHTML.search(Language.bandeHerrschtIn) == -1) {
+            return;
+        }
+
+        var district = BaseLib.getStringBetweenTags(r.innerHTML, Language.bandeHerrschtIn, ' !</b').trim();
+        var table = document.createElement('table');
+        var tr = document.createElement('tr');
+        var td = document.createElement('td');
+        var btn = UIHelpers.createSidebarButton('Stadtteil "'+district+'" übernehmen <img src="'+UrlHandler.smilies_wink+'" />', false, 'conquer_district');
+        td.appendChild(btn);
+        tr.appendChild(td);
+        table.appendChild(tr);
+        r.appendChild(table);
+
+        btn.addEventListener('click', function() { FightHelpers.startGangFight(gangName) }, false);
+    };
+
+    FightHelpers.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isProfileGangUrl()) {
+                FightHelpers.showAttackDistricts();
+            }
+            if (UrlHandler.isFightOverviewUrl()) {
+                FightHelpers.createHighscoreLinks();
+                FightHelpers.createPlunderButtons();
+            }
+        }
+    };
+
+};
+
+// ########### Buttons for up and downfight ################
+
+UpDownFight.init = function() {
+
+    UpDownFight.buttonUp = null;
+    UpDownFight.buttonDown = null;
+
+    UpDownFight.createButton = function() {
+        UIHelpers.createActionsSidebarItem();
+        if (!document.getElementById("updown_button")) {
+            BaseLib.setTimeoutEx(function() { UpDownFight.createButton(); }, 100);
+            return;
+        }
+
+        UpDownFight.buttonUp = UIHelpers.createSidebarImgButton(GM_getResourceURL("fightUp.png"), GM_getResourceURL("fightUpDisabled.png"), '', true, 'fight_up_button', true);
+        UpDownFight.buttonUp.addEventListener('click', function() { UpDownFight.applyUp(); }, true);
+
+        UpDownFight.buttonDown = UIHelpers.createSidebarImgButton(GM_getResourceURL("fightDown.png"), GM_getResourceURL("fightDownDisabled.png"), '', true, 'fight_down_button', true);
+        UpDownFight.buttonDown.addEventListener('click', function() { UpDownFight.applyDown(); }, true);
+
+        var td = UIHelpers.addButtonsToStatusBar("updown_button", UpDownFight.buttonUp, UpDownFight.buttonDown);
+
+        var txt = document.createElement("span");
+        txt.setAttribute("id", "updownfight_message");
+        td.appendChild(txt);
+        td.setAttribute('colspan', 2);
+
+        UpDownFight.checkEnable();
+    };
+
+    UpDownFight.checkEnable = function() {
+        if (PennerInfo.state.att == null || PennerInfo.state.def == null ||
+            PennerInfo.state.gangAttBoost == null || PennerInfo.state.gangDefBoost == null ||
+            PennerInfo.state.promille == null || !Plunder.initialized ||
+            !Equipment.weapons.initialized || !Equipment.homes.initialized ||
+            !Skills.mySkills.initialized) {
+            BaseLib.setTimeoutEx(function () { UpDownFight.checkEnable(); }, 500);
+            return;
+        }
+
+        var w, h, p, cp;
+        var neededBread = BottleTools.getNeededBread();
+        var neededBeer = BottleTools.getNeededBeer(399);
+
+        if (neededBread != 0 ||
+            ((h = Equipment.getBestHome()) != null && !h.equals(Equipment.homes.current)) ||
+            ((w = Equipment.getBestWeapon()) != null && !w.equals(Equipment.weapons.current)) ||
+            ((p = Plunder.getBestFightPlunder()) != null && (cp = Plunder.getCurrentPlunder()) != null && 
+              Plunder.determineFightValue(p) > Plunder.determineFightValue(cp))) {
+
+            UIHelpers.enableSidebarButton(UpDownFight.buttonUp, true);
+        }
+
+        if (neededBeer != 0 ||
+            ((h = Equipment.getWorstHome()) != null && !h.equals(Equipment.homes.current)) ||
+            ((w = Equipment.getWorstWeapon()) != null && !w.equals(Equipment.weapons.current)) ||
+            ((p = Plunder.getWorstFightPlunder()) != null && (cp = Plunder.getCurrentPlunder()) != null && 
+              Plunder.determineFightValue(cp) > Plunder.determineFightValue(p))) {
+
+            UIHelpers.enableSidebarButton(UpDownFight.buttonDown, true);
+        }
+    };
+
+    UpDownFight.applyUp = function() {
+        var dbg = document.getElementById("updownfight_message");
+
+        var plunder = function() {
+            var p = Plunder.getBestFightPlunder();
+            if (p == null || p.id == Plunder.getCurrent()) {
+                dbg.innerHTML = 'Habe bereits den besten Plunder';
+                UrlHandler.doReload();
+            } else {
+                dbg.innerHTML = 'Lege Plunder "' + p.name + '" an';
+                Plunder.change(p.id, UrlHandler.doReload);
+            }
+        };
+
+        var recalc = function() {
+            dbg.innerHTML = 'Bestimme neue Werte';
+            PennerInfo.updateBasic(plunder);
+        };
+
+        var weapon = function() {
+            if (!Equipment.weapons.initialized) {
+                BaseLib.setTimeoutEx(function () { weapon(); }, 500);
+                return;
+            }
+            var w = Equipment.getBestWeapon();
+            if (w == null || w.equals(Equipment.weapons.current)) {
+                dbg.innerHTML = 'Habe bereits die beste Waffe';
+                recalc();
+            } else {
+                dbg.innerHTML = 'Lege Waffe "' + w.name + '" an';
+                Equipment.changeWeapon(w.id, recalc);
+            }
+        };
+
+        var homes = function() {
+            if (!Equipment.homes.initialized) {
+                BaseLib.setTimeoutEx(function () { homes(); }, 500);
+                return;
+            }
+            var h = Equipment.getBestHome();
+            if (h == null || h.equals(Equipment.homes.current)) {
+                dbg.innerHTML = 'Habe bereits das beste Eigenheim';
+                weapon();
+            } else {
+                dbg.innerHTML = 'Beziehe Eigenheim "' + h.name + '"';
+                Equipment.changeHome(h.id, weapon);
+            }
+        };
+
+        var bread = function() {
+            if (PennerInfo.state.promille == null) {
+                BaseLib.setTimeoutEx(function () { bread(); }, 500);
+                return;
+            }
+            var neededBread = BottleTools.getNeededBread();
+            if (neededBread == 0) {
+                dbg.innerHTML = 'Bin bereits nüchtern';
+                homes();
+            } else {
+                dbg.innerHTML = 'Esse ' + neededBread + ' Brote';
+                Actions.buyAndEatBread(neededBread, homes);
+            }
+        };
+
+        UIHelpers.enableSidebarButton(UpDownFight.buttonUp, false);
+        UIHelpers.enableSidebarButton(UpDownFight.buttonDown, false);
+
+        bread();
+    };
+
+    UpDownFight.applyDown = function() {
+        if (!confirm('Willst du dich wirklich für den Downfight rüsten?')) {
+            return;
+        }
+        var dbg = document.getElementById("updownfight_message");
+
+        var plunder = function() {
+            var p = Plunder.getWorstFightPlunder();
+            if (p == null || p.id == Plunder.getCurrent()) {
+                dbg.innerHTML = 'Habe bereits den schlechtesten Plunder';
+                UrlHandler.doReload();
+            } else {
+                dbg.innerHTML = 'Lege Plunder "' + p.name + '" an';
+                Plunder.change(p.id, UrlHandler.doReload);
+            }
+        };
+
+        var recalc = function() {
+            dbg.innerHTML = 'Bestimme neue Werte';
+            PennerInfo.updateBasic(plunder);
+        };
+
+        var weapon = function() {
+            if (!Equipment.weapons.initialized) {
+                BaseLib.setTimeoutEx(function () { weapon(); }, 500);
+                return;
+            }
+            var w = Equipment.getWorstWeapon();
+            if (w == null || w.equals(Equipment.weapons.current)) {
+                dbg.innerHTML = 'Habe bereits die schlechteste Waffe';
+                recalc();
+            } else {
+                dbg.innerHTML = 'Lege Waffe "' + w.name + '" an';
+                Equipment.changeWeapon(w.id, recalc);
+            }
+        };
+
+        var homes = function() {
+            if (!Equipment.homes.initialized) {
+                BaseLib.setTimeoutEx(function () { homes(); }, 500);
+                return;
+            }
+            var h = Equipment.getWorstHome();
+            if (h == null || h.equals(Equipment.homes.current)) {
+                dbg.innerHTML = 'Habe bereits das schlechteste Eigenheim';
+                weapon();
+            } else {
+                dbg.innerHTML = 'Beziehe Eigenheim "' + h.name + '"';
+                Equipment.changeHome(h.id, weapon);
+            }
+        };
+
+        var beer = function() {
+            if (PennerInfo.state.promille == null) {
+                BaseLib.setTimeoutEx(function () { beer(); }, 500);
+                return;
+            }
+            var neededBeer = BottleTools.getNeededBeer(399);
+            if (neededBeer == 0) {
+                dbg.innerHTML = 'Bin bereits stock besoffen';
+                homes();
+            } else {
+                dbg.innerHTML = 'Trinke ' + neededBeer + ' Bier';
+                Actions.buyAndDrinkBeer(neededBeer, homes);
+            }
+        };
+
+        UIHelpers.enableSidebarButton(UpDownFight.buttonUp, false);
+        UIHelpers.enableSidebarButton(UpDownFight.buttonDown, false);
+
+        beer();
+    };
+
+    UpDownFight.getFromDownfight = function(url, lf, cb) {
+        if (PennerInfo.state.att == null || PennerInfo.state.def == null) {
+            BaseLib.setTimeoutEx(function () { UpDownFight.getFromDownfight(url, lf, cb); }, 500);
+            return;
+        }
+
+        var ret = new Array();
+        if (!GameType.hasDownfight) {
+            if (cb) cb(ret);
+            return;
+        }
+
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                var t = req.responseText;
+                var s1 = 'getusername=';
+                var s2 = '/a>';
+                var pos;
+                while ((pos = t.search(s1)) != -1) {
+                    var line = BaseLib.getStringBetweenTags(t, s1, s2);
+                    var id = BaseLib.extractNumber(BaseLib.getStringBetweenTags(line, '>', '<'));
+                    if (id) {
+                        ret.push(id);
+                    }
+                    t = t.substr(pos + s1.length);
+                }
+                if (cb) cb(ret);
+            }
+        };
+        var param = [
+            BaseLib.postParam('middlepoints', UserInfo.points),
+            BaseLib.postParam('pointsname', ''),
+            BaseLib.postParam('myatt', Math.round(lf * PennerInfo.state.att)),
+            BaseLib.postParam('mydef', Math.round(lf * PennerInfo.state.def))
+        ];
+        BaseLib.xmlhttpPostRequest(url, f, param, null, true);
+    };
+
+    UpDownFight.getDownfighters = function(cb) {
+        UpDownFight.getFromDownfight(UrlHandler.downfightDeDown, 1.1, cb);
+    };
+
+    UpDownFight.getUpfighters = function(cb) {
+        UpDownFight.getFromDownfight(UrlHandler.downfightDeUp, 0.9, cb);
+    };
+
+    UpDownFight.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isWwwUrl()) {
+                UpDownFight.createButton();
+            }
+        }
+    };
+
+};
+
+// ########### Helpers for list of preferred fight victims ################
+
+PreferredFights.init = function() {
+
+    PreferredFights.clear = function(dontsave) {
+        if (Config.bot_attack_list && Config.bot_attack_list.length) {
+            Config.bot_attack_list = [];
+            Log.dbg('Loesche die Liste der bevorzugten Opfer.');
+            if (!dontsave) Config.save();
+        }
+    };
+
+    PreferredFights.contains = function(user) {
+        return Config.bot_attack_list && BaseLib.contains(Config.bot_attack_list, user);
+    };
+
+    PreferredFights.add = function(user) {
+        if (Config.bot_attack_list && !BaseLib.contains(Config.bot_attack_list, user)) {
+            Config.bot_attack_list.push(user);
+            Config.save();
+        }
+    };
+
+    PreferredFights.remove = function(user) {
+        if (Config.bot_attack_list && BaseLib.contains(Config.bot_attack_list, user)) {
+            var n = new Array();
+            for (var i = 0; i < Config.bot_attack_list.length; i++) {
+                if (Config.bot_attack_list[i] != user) {
+                    n.push(Config.bot_attack_list[i]);
+                }
+            }
+            Config.bot_attack_list = n;
+            Config.save();
+        }
+    };
+
+    PreferredFights.addControlsForId = function(id) {
+        var imgs = document.getElementsByTagName('img');
+        var table = null;
+
+        for (var i = 0; i < imgs.length; i++) {
+            if (imgs[i].getAttribute('src') == UrlHandler.icoNewMsg &&
+                imgs[i].parentNode.tagName.toLowerCase() == 'a' &&
+                imgs[i].parentNode.parentNode.tagName.toLowerCase() == 'td') {
+                table = BaseLib.getParentByTagName('tbody', imgs[i]);
+                break;
+            }
+        }
+
+        if (!table) return;
+
+        var isNew = !PreferredFights.contains(id);
+        var src = isNew ? GM_getResourceURL("fightApply.png") : GM_getResourceURL("fightCancel.png");
+        var txt = isNew ?
+                    'Als nächstes mit Angreifen <img src="'+UrlHandler.smilies_wink+'">' :
+                    'Aus der Opferliste austragen';
+        var handler = isNew ?
+                    function() { PreferredFights.add(id); UrlHandler.doReload(); } :
+                    function() { PreferredFights.remove(id); UrlHandler.doReload(); };
+
+        var tr = document.createElement('tr');
+        var td = document.createElement('td');
+        td.setAttribute('colspan', '3');
+        td.setAttribute('style', 'height: 16px; background-color: #131313; border-top: 1px solid rgb(48, 48, 48);');
+        tr.appendChild(td);
+        table.appendChild(tr);
+
+        tr = document.createElement('tr');
+        tr.setAttribute('style', 'height: 32px; background-image: url(' + UrlHandler.icoAwardBack +'); cursor: pointer;');
+        table.appendChild(tr);
+
+        var makeTd = function(w) {
+            var td = document.createElement('td');
+            td.setAttribute('width', w);
+            td.setAttribute('style', 'vertical-align: middle;');
+            return td;
+        };
+
+        td = makeTd('4%');
+        td.innerHTML = '&nbsp;';
+        tr.appendChild(td);
+
+        td = makeTd('11%');
+        td.appendChild(UIHelpers.getImage(src));
+        tr.appendChild(td);
+
+        td = makeTd('85%');
+        td.innerHTML = txt;
+        tr.appendChild(td);
+
+        tr.addEventListener('click', handler, true);
+    };
+
+    PreferredFights.addControls = function() {
+        var id = UrlHandler.getIdFromUrl();
+        var un = UrlHandler.getUsernameFromUrl();
+
+        if (id) {
+            PreferredFights.addControlsForId(id);
+        } else if (!BaseLib.isEmpty(un)) {
+            BaseLib.getIDfromUsername(un, function(uname, uid) { if (uid) PreferredFights.addControlsForId(uid); });
+        }
+    };
+
+    PreferredFights.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isProfileUserUrl() && Registry.hasObject("BotManager")) {
+                PreferredFights.addControls();
+            }
+        }
+    };
+
+};

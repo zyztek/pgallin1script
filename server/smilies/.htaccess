@@ -1,0 +1,7 @@
+
+AuthUserFile /home/strato/www/bi/www.biniok.net/htdocs/.htpasswd
+AuthGroupFile /dev/null
+AuthType Basic
+<FilesMatch "\.(gif|jpe?g|png)$">
+require user allin1script
+</FilesMatch>

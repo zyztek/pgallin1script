@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root>
+    <description>
+        [sio]
+        Legale Scriptsammlung fuer Knastvögel
+        [/sio]
+        [mio]
+        Scriptsammlung fuer Knastvögel mit nuetzlichen Erweiterungen ;-)
+        [/mio]
+        [aio]
+        Scriptsammlung fuer Knastvögel mit voll automatischen Wie-Auch-Immer-Bots
+        [/aio]
+    </description>
+    <features>
+        <feature>Gaanz Viele</feature>
+    </features>
+    <changelog>
+        <current>
+            <script>
+                <version>0.0.1</version>
+                <date>25.01.2011</date>
+                <changes>
+                    <change>Erste Vorabversion</change>
+                </changes>
+            </script>
+        </current>
+        <history>
+        </history>
+    </changelog>
+</root>

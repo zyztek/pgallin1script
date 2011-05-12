@@ -1,0 +1,562 @@
+/** 
+ * @filename bot.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var BotManager = new Object();
+
+Registry.register("BotManager", BotManager);
+
+var SkillBot = new Object();
+
+// ############ Bots #############
+
+BotManager.init = function() {
+
+    SkillBot.init();
+    BotManager.lockCallback = [];
+
+    BotManager.lastKnownAction = 0;
+
+    BotManager.key_skillBot = function() { return Config.getConfigKey('skillState', 'bot'); };
+    BotManager.key_skillBotStop = function() { return Config.getConfigKey('skillStop', 'bot'); };
+
+    BotManager.initalRun = function() {
+        BotManager.insertButtons("", true);
+        LockManager.addLockCallback(true, BotManager.readdButtons);
+        LockManager.addLockCallback(false, BotManager.run);
+    };
+
+    BotManager.run = function() {
+        LockManager.run();
+        LockManager.addLockCallback(false, BotManager.execute);
+    };
+
+    BotManager.execute = function() {
+        var skillinfo = SkillBot.readState();
+        var action = SkillBot.neededAction(info);
+
+        if (skillinfo.type != eBotTypeDisabled &&
+                   skillinfo.state != eBotWannaStop &&
+                   !SkillBot.infoCheck()) {
+            /* bot was disabled */
+            skillinfo.state = eBotWannaStop;
+            SkillBot.writeState(skillinfo);
+        } else if (BotManager.lockCallback.length > 0) {
+            var job = BotManager.lockCallback.pop();
+            job.callback(job.args);
+        } else if (action &&
+                   !actionEnded &&
+                   skillinfo.state == eBotIdle) {
+            /* initialize skill bot*/
+            skillinfo.state = eBotInit;
+            skillinfo.type = action;
+            SkillBot.writeState(skillinfo);
+            SkillBot.localstepcnt = 0;
+            Config.saveConfigGM();
+        } else if (BotManager.runCheck(skillinfo, eBotTypeSkill)) {
+            /* run skill bot */
+            if (SkillBot.runSkillBot(info)) {
+                return;
+            }
+        } else {
+            /* keep manager running to detect skill issues */
+            BaseLib.setTimeoutEx(function () { BotManager.run(); },  700);
+            return;
+        }
+
+        /* there is something to do... */
+        BaseLib.setTimeoutEx(function () { BotManager.run(); },  10);
+    };
+
+    BotManager.runCheck = function(info, type) {
+        return ((info.type != eBotTypeDisabled && info.state != eBotIdle) && info.type == type);
+    };
+
+    BotManager.addLockCallback = function(callback, args) {
+        var o = new Object();
+        o.callback = callback;
+        o.args = args;
+        BotManager.lockCallback.push(o);
+    };
+
+    BotManager.readdButtons = function() {
+        var sb = document.getElementById('bot_buttons');
+        var dd = document.getElementById('bot_dbg');
+        if (sb && dd) {
+            var t = dd.innerHTML;
+            sb.innerHTML = '';
+            BotManager.insertButtons(t);
+        }
+    };
+
+    BotManager.createButton = function(desc, img, imgDisabled, id, start, disabled) {
+        var inner = desc + '&nbsp;&nbsp;';
+        return UIHelpers.createSidebarImgButton(img, imgDisabled, inner, disabled, id, start);
+    };
+
+    BotManager.insertButtons = function(t, disableButtons) {
+        if (t == undefined) t = "";
+        if (disableButtons == undefined) disableButtons = false;
+
+        skillinfo = SkillBot.readState();
+
+        var div_style = 'max-width:140px; float:left; margin-right:3px; text-align:left;';
+
+        UIHelpers.createHelpersSidebarItem();
+        var bot_div = document.getElementById('bot_buttons');
+
+        var isSkill = (skillinfo.type != eBotTypeDisabled);
+
+        var ec_low = GameType.skillCount - 1;
+        var ec_high = GameType.skillCount;
+        
+        var cond1 = isSkill && Config.bot_skill_enqueue_count == ec_low;
+        var cond2 = isSkill && Config.bot_skill_enqueue_count == ec_high;
+        var sk1_button = BotManager.createButton('x' + ec_low, GM_getResourceURL("skill.png"), GM_getResourceURL("skillDisabled.png"), 'Bot.runSkillBot', !cond1, cond2);
+        var sk2_button = BotManager.createButton('x' + ec_high, GM_getResourceURL("skill.png"), GM_getResourceURL("skillDisabled.png"), 'Bot.runSkillBot', !cond2, cond1);
+
+        var sk = function (wb_cnt) {
+            var bs, cb;
+            if (!isSkill) {
+                Log.dbg("Skillbot gestartet");
+                var bs = new Types.SkillBotStateEntry(eBotTypeSkill);
+                Config.bot_skill_enqueue_count = wb_cnt;
+                var cb = function(o) {
+                    SkillBot.start(o);
+                    Config.save();
+                }
+                BotManager.addLockCallback(cb, bs);
+            } else {
+                Log.dbg("Skillbot gestoppt");
+                SkillBot.stop();
+            }
+        };
+
+        sk_button.addEventListener('click', function() {
+                                       UIHelpers.enableSidebarButton(sk_button, false);
+                                       UIHelpers.enableSidebarButton(sk_button, false);
+                                       sk(ec_low);
+                                   }, true);
+
+        var dbg_div_outer = document.createElement('div');
+        dbg_div_outer.setAttribute('id', 'bot_dbg_outer');
+
+        var dbg_div = document.createElement('div');
+        dbg_div_outer.appendChild(dbg_div);
+        dbg_div.setAttribute('id', 'bot_dbg');
+        dbg_div.setAttribute('style', div_style);
+        dbg_div.innerHTML = t;
+
+        var table = document.createElement('table');
+        table.setAttribute("style", "width:100%; border-collapse: collapse; border-spacing: 1px; "+
+                                    "margin-left: 0px; margin-right: 0px; margin-top: 1px; margin-bottom: 1px;");
+        bot_div.appendChild(table);
+
+        if (disableButtons) {
+            UIHelpers.enableSidebarButton(sk_button ,false);
+        }
+
+        var tr, td;
+        if (Config.bot_skill) {
+            tr = document.createElement("tr");
+            table.appendChild(tr);
+            td = document.createElement("td");
+            td.setAttribute("colspan", "2");
+            td.setAttribute("style", "width:100%; padding-top: 0px; padding-bottom: 2px;");
+            tr.appendChild(td);
+            td.appendChild(sk_button);
+        }
+
+        tr = document.createElement("tr");
+        table.appendChild(tr);
+        td = document.createElement("td");
+        td.setAttribute("colspan", "2");
+        tr.appendChild(td);
+        td.appendChild(dbg_div_outer);
+    };
+
+    BotManager.printState = function(m, color) {
+        BotManager.debugState(m, color, false, false);
+    };
+
+    BotManager.appendState = function(m, color) {
+        BotManager.debugState(m, color, false, true);
+    };
+
+    BotManager.debugState = function(m, color, debug, append) {
+        if (debug == undefined) debug = true;
+        if (append == undefined) append = false;
+        var e = document.getElementById('bot_dbg');
+        var s = '<span' + (color ? ' style="color:'+color+';"' : '') + '>' + m + '</span>';
+
+        if (e) {
+            if (append) {
+                e.innerHTML = e.innerHTML + '<br>' + s;
+            } else {
+                e.innerHTML = s;
+            }
+        }
+        if (debug) Log.dbg('Bots:' + m);
+    };
+
+    BotManager.clickSubmitButton = function(formAction) {
+    };
+
+    BotManager.onRunlevel = function(runlevel) {
+        if (runlevel == 90) {
+            if (Config.bot) {
+                BotManager.initalRun();
+            }
+        }
+    };
+
+};
+
+SkillBot.init = function() {
+
+    SkillBot.info = new Object();
+
+    SkillBot.localstepcnt = 0;
+
+    SkillBot.infoCheck = function() {
+        var ret = true;
+        if (GM_getValue(BotManager.key_skillBotStop()) == true) {
+            ret = false;
+        }
+        return ret;
+    };
+
+    SkillBot.start = function(o) {
+        var type = (o.type == undefined) ? eBotTypeSkill : o.type;
+
+        GM_setValue(BotManager.key_skillBotStop(), false);
+        var old_bot = SkillBot.readState();
+        SkillBot.info = SkillBot.createStateEntry(new Types.BotStateEntry(type));
+        SkillBot.info.state = eBotIdle; /* actions are triggered by BotManager*/
+        SkillBot.info.gotya_oasuc = old_bot.gotya_oasuc;
+        SkillBot.info.gotya_oaerr = old_bot.gotya_oaerr;
+        SkillBot.writeState(SkillBot.info);
+        BotManager.readdButtons();
+    };
+
+    SkillBot.stop = function() {
+        GM_setValue(BotManager.key_skillBotStop(), true);
+    };
+
+    SkillBot.neededAction = function(info, isColl, isFight) {
+
+        var ret = 0;
+        var t = 5 * 60;
+        var bot_state_ok = (info.type == eBotTypeDisabled) || Bot.isWaitOrEndState(info) ;
+
+        if (Config.bot_skill &&
+            Skills.mySkills.initialized &&
+            (Skills.mySkills.queue.length < Config.bot_skill_enqueue_count)) {
+            ret = eBotTypeSkill;
+        }
+        return ret;
+    };
+
+    SkillBot.runSkillBot = function() {
+        var rerunperiod = 500;
+        var reloadtime = 50;
+        var redirecttime = 2000;
+        var redirect = false;
+        var reload = false;
+        var rerun = true;
+        var readdbuttons = false;
+
+        SkillBot.info = SkillBot.readState();
+        SkillBot.info.oldstate = SkillBot.info.state;
+
+        if (PennerInfo.state.moneyInCent == null ||
+            (SkillBot.info.type != eBotTypeSkill) ||
+            !Skills.mySkills.initialized) {
+            // some things might be uninitialized
+            BaseLib.setTimeoutEx(function () { BotManager.run(); }, 500);
+            return true;
+        }
+
+        var skill = SkillBot.getFittingSkill();
+
+        var alreadySkilling = function() {
+            var s = !Config.bot_skill ||
+                    (Skills.mySkills.initialized &&
+                     Skills.mySkills.queue.length >= SkillBot.info.skillcount);
+            return s;
+        }
+
+        var isSkillsUrl = function() {
+            return UrlHandler.isSkillsUrl();
+        }
+
+        var zeitimstep = function() {
+            var r = 0;
+            if (SkillBot.info.steptime != 0) {
+                r = new Date().valueOf() - Number(SkillBot.info.steptime);
+            } else {
+                SkillBot.info.steptime = new Date().valueOf().toString();
+            }
+            return r;
+        }
+
+        var formAction = '';
+
+        switch (SkillBot.info.state) {
+          case eBotWannaStop: // stop
+              if (!SkillBot.localstepcnt && !SkillBot.info.criticalerr) BotManager.debugState('SkillBot gestoppt');
+              rerun = false;
+              readdbuttons = true;
+              SkillBot.info.type = eBotTypeDisabled;
+              SkillBot.info.state = eBotInit;
+              break;
+          case eBotInit: // initialize state and do error checking
+              if (!SkillBot.localstepcnt) {
+                  BotManager.debugState('SkillBot gestartet (' + skill + ')');
+              }
+              if (!stop) {
+                  reload = true;
+                  SkillBot.info.retrycnt = 0;
+                  SkillBot.info.state = eBotGotoSkillsPage;
+              }
+              break;
+          case eBotGotoSkillsPage: // nothing started yet... -> goto activities page and load picture
+              if (alreadySkilling()) {
+                  SkillBot.info.state = eBotPauseSkillBot;
+              } else {
+                  if (!isSkillsUrl()) {
+                      BotManager.debugState('Gehe zu Weiterbildungs-URL');
+                      if (SkillBot.info.type == eBotTypeSkill) {
+                          redirect = UrlHandler.skillsUrl;
+                      } else {
+                          redirect = UrlHandler.petSkillsUrl;
+                      }
+                  } else {
+                      SkillBot.info.state = eBotLoadCaptcha;
+                  }
+              }
+              break;
+          case eBotLoadCaptcha: // nothing started yet... -> load captcha
+              if (alreadySkilling()) {
+                  SkillBot.info.state = eBotPauseSkillBot;
+              } else {
+                  if (!isSkillsUrl()) {
+                      SkillBot.info.state = eBotInit;
+                  } else {
+                      if (zeitimstep() < 2000) break;
+                      var button = SkillBot.getSubmitButton(formAction);
+                      if (button && !button.disabled) {
+                          BotManager.debugState('Starte Training');
+                          BotManager.clickSubmitButton(formAction);
+                          SkillBot.info.state = eBotCheckSuccess;
+                      }
+                  }
+              }
+              if (zeitimstep() > 15000) {
+                  // page is broken, 'setupForm' cannot be found
+                  SkillBot.info.state = eBotInit;
+              }
+              break;
+          case eBotCheckSuccess: // check whether action succeeded
+              if (!SkillBot.localstepcnt) {
+                  BotManager.debugState('Erfolg?');
+                  if (alreadySkilling()) {
+                      SkillBot.info.state = eBotPauseSkillBot;
+                  }
+              } else {
+                  BotManager.debugState('Mist...!');
+                  SkillBot.info.state = eBotWaitSomeSeconds;
+                  reload = true;
+              }
+              if (zeitimstep() > 30000) {
+                  // hu, nothing happened after 30 sec...? retry clicking...
+                  SkillBot.info.state = eBotInit;
+              }
+              break;
+          case eBotPauseSkillBot: // be silent till end of collecting...
+              if (!SkillBot.localstepcnt) BotManager.debugState('Beende Skill-Bot...');
+              /* we're done..*/
+              SkillBot.info.state = eBotIdle;
+              break;
+          case eBotWaitSomeSeconds: // we may should wait some seconds?
+              if (zeitimstep() > (Config.bot_plchange_time * 1000) &&
+                  SkillBot.info.plunder != '') {
+                  /* reset plunder after some seconds (the db isn't
+                     that fast... ;) if we're not waiting that time
+                     the init step will reset the plunder */
+                  SkillBot.info.state = eBotReSetPlunder;
+                  break;
+              }
+              var ct = Number(new Date().valueOf());
+              if (SkillBot.info.time == 0) {
+                  var min = (SkillBot.info.plunder != '' ? Config.bot_plchange_time : 0);
+                  var w = (BaseLib.rand(Config.bot_wait_time - min) + min) * 1000;
+                  SkillBot.info.time = (ct + w).toString() ;
+              } else if (SkillBot.info.time < ct) {
+                  SkillBot.info.time = 0;
+                  SkillBot.info.state = eBotInit;
+                  /* reload page, cause although we're able to load the captcha
+                     there is no "collect" button... so, do it a little bit more
+                     human like ;) */
+                  reload = true;
+              }
+              if (!SkillBot.localstepcnt) BotManager.debugState('Warte ' + Math.round((Number(SkillBot.info.time) - ct)/1000) + 's...');
+              break;
+          case eBotIdle:
+              BotManager.debugState('Warte auf Reaktivierung...');
+              break;
+          default:
+              BotManager.debugState('Fertig...');
+              SkillBot.info.state = eBotWannaStop;
+        }
+
+        SkillBot.localstepcnt++;
+
+        if (SkillBot.info.state != SkillBot.info.oldstate) {
+            SkillBot.info.steptime=0;
+            SkillBot.localstepcnt=0;
+        }
+
+        SkillBot.writeState(SkillBot.info);
+
+        if (readdbuttons) {
+            Config.save();
+            BotManager.readdButtons();
+        }
+
+        var btb = BotManager.run;
+        if (redirect) {
+            BaseLib.setTimeoutEx(function () { if (SkillBot.infoCheck()) { UrlHandler.doRedirect(redirect); } else { btb(); } }, redirecttime);
+            return true;
+        }
+        if (reload) {
+            BaseLib.setTimeoutEx(function () { if (SkillBot.infoCheck()) { UrlHandler.doReload(); } else { btb(); } }, reloadtime);
+            return true;
+        }
+        if (rerun) {
+            BaseLib.setTimeoutEx(function () { btb(); }, rerunperiod);
+            return true;
+        }
+
+        return false;
+    };
+
+    SkillBot.getSubmitButton = function(action) {
+        var ret = null;
+        var bs = unsafeWindow.document.getElementsByTagName("input");
+        
+        var arr = action.split('/');
+        if (!arr.length || arr.length < 2) return ret;
+       
+        var searchstr = arr[arr.length - 2];
+
+        for (var i=0; i < bs.length; i++) {
+            var va = bs[i].id;
+            var oc = bs[i].getAttribute('onclick');
+            if ((oc && oc.search(searchstr) != -1) ||
+                (va && va.search(searchstr) != -1)) {
+                ret = bs[i];
+                break;
+            }
+        }
+
+        return ret;
+    };
+    
+    SkillBot.getFittingSkill = function() {
+        return 'bibiliothek';
+    };
+
+    SkillBot.startSkilling = function(x, y, formAction) {
+
+        var param = [];
+        var o = unsafeWindow.document.getElementsByName('starten');
+
+        if (!o.length) {
+            return;
+        }
+
+        var os = o[0].getElementsByTagName('input');
+
+        for (var i=0; i<os.length; i++) {
+            var n = os[i].name;
+            var v = os[i].value;
+            var t = os[i].type;
+            if (t == 'hidden'  || t == 'text') {
+                param.push(BaseLib.postParam(n, v));
+            } else if (t == 'image') {
+                param.push(BaseLib.postParam(n+'.x', x));
+                param.push(BaseLib.postParam(n+'.y', y));
+            }
+        }
+
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                // parse page for pg_v4 notification messages
+                var r1 = 'PgFunction.showMsg';
+                var r2 = '</script>';
+                var r = BaseLib.getStringBetweenTags(req.responseText, r1, r2).replace('\n', '').replace('\r', '').trim();
+                if (r.search(Language.weiterbildungErfolgreich) != -1) {
+                    SkillBot.collectsuc = "success";
+                } else if (r.search(Language.wirdBeendet) != -1) {
+                    SkillBot.collectsuc = "asyncdb";
+                } else if (r.search(Language.weiterbildung2mal) != -1) {
+                    SkillBot.collectsuc = "stupid";
+                } else if (r.search(Language.klickeDigit) != -1) {
+                    SkillBot.collectsuc = "captcha";
+                } else {
+                    SkillBot.collectsuc = "unknown";
+                }
+            } else {
+                // do nothing bot state timeout will enforce reclick...
+            }
+        };
+
+        var url = UrlHandler.wwwUrl + formAction;
+        BaseLib.xmlhttpPostRequest(url, f, param);
+    };
+
+    SkillBot.createStateEntry = function(e) {
+        // create std state object
+        if (e == undefined) e = new Types.SkillBotStateEntry(eBotTypeSkill);
+        // and extend it by bot specific keys
+        e.state = 0;
+        e.cycle = 0;
+        e.startid = 0;
+        e.skillcount = 0;
+        e.last_action_suc = 0;
+        e.gotya_suc = 0;
+        e.gotya_err = 0;
+        e.gotya_oasuc = 0;
+        e.gotya_oaerr = 0;
+        e.gotya_cerr = 0;
+        e.time = 0;
+        e.retrycnt = 0;
+        e.steptime = 0;
+        e.criticalerr = 0;
+        e.plunder = '';
+        return e;
+    };
+
+    SkillBot.writeState = function(bs) {
+        var json = bs.getNonOriginKeys().toJson();
+        GM_setValue(BotManager.key_skillBot(), json);
+        Config.bot_skill_running = bs.getOriginKeys();
+        // is saved by bots start/stop button 
+        return true;
+    };
+
+    SkillBot.readState = function() {
+        var saved = GM_getValue(BotManager.key_skillBot());
+        var r = SkillBot.createStateEntry();
+        if (saved) {
+            var c = JSON.parse(saved);
+            r.overwrite(c);
+        }
+        r.overwrite(Config.bot_skill_running);
+        return r;
+    };
+};

@@ -1,0 +1,957 @@
+/** 
+ * @filename uihelpers.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+UIHelpers = new Object();
+
+Registry.register("UIHelpers", UIHelpers);
+
+UIHelpers.init = function() {
+
+    // +++++++++ Simple Helpers +++++++++
+
+    UIHelpers.getImage = function(src, alt, style, id) {
+        var img = document.createElement('img');
+        img.setAttribute('src', src);
+        if (style) img.setAttribute('style', style);
+        if (alt) img.setAttribute('alt', alt);
+        if (id) img.setAttribute('id', id);
+        return img;
+    };
+
+    UIHelpers.getImageHtml = function(src, alt, style, id) {
+        return '<img src="'+src+'"' + (id ? ' id="'+id+'"' : '') + (alt ? ' alt="'+alt+'"' : '') + (style ? ' style="'+style+'"' : '') + '/>';
+    };
+
+    // +++++++++ Sidebar +++++++++
+
+    UIHelpers.sidebarWidth = 140;
+    UIHelpers.sidebarMargin = 10;
+    UIHelpers.sidebarPadding = 3;
+
+    UIHelpers.createSidebar = function() {
+        var body = document.body;
+        if (!body) {
+            return;
+        }
+
+        // TODO: this is for knastvoegel only, use class mechanism?
+        var elems = ['notificationArea','infoarea']
+        for (var i=0; i < elems.length; i++) {
+            var dd = document.getElementById(elems[i]);
+            if (dd) dd.setAttribute("style", "z-index: 5;");
+        }
+
+        var table = document.createElement('table');
+        table.setAttribute('style', 'position: absolute; top: 0px; left: 0px; width: 100%;');
+        var tr = document.createElement('tr');
+        table.appendChild(tr);
+        var td = document.createElement('td');
+        tr.appendChild(td);
+        td.setAttribute('style', 'width: '+(UIHelpers.sidebarWidth + 2*UIHelpers.sidebarMargin)+'px; vertical-align:top;');
+
+        var create = function(sidebar, id) {
+            var div = document.createElement("DIV");
+            div.setAttribute("id", id);
+            div.setAttribute("style", "margin-top: 5px");
+            sidebar.appendChild(div);
+        };
+
+        var sidebar = document.createElement("DIV");
+        sidebar.setAttribute("id", "sidebar");
+        sidebar.setAttribute("style", "position: relative; top: 10px; left: 10px; width: "+UIHelpers.sidebarWidth+"px; font-size: 9px; z-index:10000; border: none;");
+        td.appendChild(sidebar);
+
+        create(sidebar, "sidebar_cc");
+        create(sidebar, "sidebar_trink");
+        create(sidebar, "sidebar_bot");
+        create(sidebar, "sidebar_buddy");
+
+        td = document.createElement('td');
+        tr.appendChild(td);
+        td.setAttribute('style', 'width: 100%;');
+
+        td = document.createElement('td');
+        tr.appendChild(td);
+        td.setAttribute('style', 'width: '+(UIHelpers.sidebarWidth + 2*UIHelpers.sidebarMargin)+'px; vertical-align:top;');
+        var sidebar_right = document.createElement("DIV");
+        sidebar_right.setAttribute("id", "sidebar");
+        sidebar_right.setAttribute("style", "position: relative; top: 10px; left: -10px; width: "+UIHelpers.sidebarWidth+"px; font-size: 9px; z-index:10000; border: none;");
+        td.appendChild(sidebar_right);
+
+        create(sidebar_right, "sidebar_cc_right");
+        create(sidebar_right, "sidebar_trink_right");
+        create(sidebar_right, "sidebar_bot_right");
+        create(sidebar_right, "sidebar_buddy_right");
+
+        body.appendChild(table);
+    };
+
+    UIHelpers.createSidebarItem = function(id, title, parent, ui_setting, recreate) {
+        var div = document.getElementById(id);
+        if (div && !recreate) {
+            return div;
+        }
+        var div2 = document.createElement('div');
+        // create sidebar item
+        div = document.createElement('div');
+        div.appendChild(div2);
+        div2.setAttribute('style', '-moz-border-radius:8px;'+
+                         'position:relative;'+
+                         'border:1px solid #000000;'+
+                         'background-color:#313131;'+
+                         'width: ' + UIHelpers.sidebarWidth + ';' +
+                         'color:#FFFFFF;'+
+                         'padding:'+UIHelpers.sidebarPadding+'px;');
+
+        // append to parent part of the sidebar
+        var sb = document.getElementById(parent);
+        var sbr = document.getElementById(parent+'_right');
+        BaseLib.assert(sb, 'parent "'+parent+'" missing');
+
+        if (!sb) return null;
+        if (recreate) sb.innerHTML = '';
+        sb.appendChild(div);
+
+        // add title
+        var createTitleSimple = function() {
+            var sp = document.createElement('span');
+            sp.setAttribute('class', 'tiername');
+            var ctr = document.createElement('center');
+            ctr.innerHTML = title;
+            sp.appendChild(ctr);
+            return sp;
+        };
+
+        // add title divider
+        var createDivider = function() {
+            var hr = document.createElement('hr');
+            hr.setAttribute('size', '1');
+            hr.setAttribute('style', 'color:#a0a0a0;');
+            return hr;
+        };
+
+        // create a simple sidebar item that is not collapsable
+        if (!ui_setting) {
+            div2.setAttribute('id', id);
+            div2.appendChild(createTitleSimple());
+            div2.appendChild(createDivider());
+
+            return div2;
+        }
+        // create a complex item with collaps functionality
+        div.setAttribute('id', id + "_outer");
+        var innerDiv = document.createElement('div');
+        innerDiv.setAttribute('id', id);
+        innerDiv.setAttribute('style', 'width: '+(UIHelpers.sidebarWidth - 2*UIHelpers.sidebarPadding - 2) +'px;');
+
+        var img = document.createElement('img');
+        var imgPin = document.createElement('img');
+        var pin_sp;
+
+        var showHide = function(expand) {
+            img.setAttribute('src', expand ? GM_getResourceURL("collapse.png") : GM_getResourceURL("expand.png"));
+            innerDiv.style.display = (expand ? '' : 'none');
+        };
+
+        var toggle = function() {
+            showHide(Config.ui_settings[ui_setting + '_hide'] == true);
+            Config.ui_settings[ui_setting + '_hide'] = (Config.ui_settings[ui_setting + '_hide'] != true);
+            Config.saveConfigGM();
+        };
+
+        var setPinned = function(right) {
+            if (Config.ui_settings[ui_setting + '_pos'] != undefined) {
+                Config.ui_settings[ui_setting + '_pos'] = undefined;
+                Config.ui_settings[ui_setting + '_pinright'] = right;
+                div.removeAttribute('style');
+                pin(right);
+                Config.saveConfigGM();
+            }
+        };
+
+        var createTitleExpand = function() {
+            var table = document.createElement('table');
+            var tr = document.createElement('tr');
+            table.setAttribute('style', 'width: 100%');
+            table.appendChild(tr);
+
+            var td = document.createElement('td');
+            td.setAttribute('style', 'width: 16px;');
+            var pointer_sp = document.createElement('span');
+            pointer_sp.setAttribute('style', 'cursor: pointer;');
+            pointer_sp.appendChild(img);
+            td.appendChild(pointer_sp);
+            tr.appendChild(td);
+
+            td = document.createElement('td');
+            var sp = document.createElement('span');
+            sp.setAttribute('class', 'tiername');
+            sp.setAttribute('style', 'left: 25px; top: 5px; cursor: move;');
+            var ctr = document.createElement('center');
+            ctr.innerHTML = title;
+            sp.appendChild(ctr);
+            td.appendChild(sp);
+            tr.appendChild(td);
+
+            td = document.createElement('td');
+            td.setAttribute('style', 'width: 16px;');
+            pin_sp = document.createElement('span');
+            pin_sp.appendChild(imgPin);
+            td.appendChild(pin_sp);
+            tr.appendChild(td);
+
+            pointer_sp.addEventListener('click', toggle, true);
+            pin_sp.addEventListener('click', function() { setPinned(moveMode.ralign == true); }, true);
+
+            return { sp: sp, table: table };
+        };
+        var tt = createTitleExpand();
+
+        div2.appendChild(tt.table);
+        div2.appendChild(createDivider());
+        div2.appendChild(innerDiv);
+
+        showHide(Config.ui_settings[ui_setting + '_hide'] != true);
+
+        var moveMode = { ralign: false, moving: false, x: 0, y: 0, sx: 0, sy: 0, kx: 0, ky: 0 };
+
+        var toSidebar = function(right) {
+            if (right) {
+                try {
+                    sb.removeChild(div);
+                    sbr.appendChild(div);
+                } catch(e) {}
+            } else {
+                try {
+                    sbr.removeChild(div);
+                    sb.appendChild(div);
+                } catch(e) {}
+            }
+        };
+
+        var pin = function(right) {
+            pin_sp.removeAttribute('style');
+            imgPin.setAttribute('src', GM_getResourceURL("unpin.gif"));
+
+            toSidebar(right);
+
+            moveMode.x = 0;
+            moveMode.y = 0;
+            moveMode.kx = 0;
+            moveMode.ky = 0;
+            moveMode.userdefined = false;
+        };
+
+        var unpin = function() {
+            pin_sp.setAttribute('style', 'cursor: pointer;');
+            imgPin.setAttribute('src', GM_getResourceURL("pin.gif"));
+        };
+
+        var loadCfg = function() {
+            if (Config.ui_settings[ui_setting + '_pos'] != undefined) {
+                unpin();
+                moveMode.x = Config.ui_settings[ui_setting + '_pos'].x;
+                moveMode.y = Config.ui_settings[ui_setting + '_pos'].y;
+                moveMode.userdefined = true;
+                if (moveMode.x < 0) {
+                    moveMode.x += window.innerWidth;
+                    moveMode.ralign = true;
+                }
+                moveMode.kx = moveMode.x;
+                moveMode.ky = moveMode.y;
+            } else {
+                pin(Config.ui_settings[ui_setting + '_pinright'] == true ||
+                    Config.ui_settings['*' + '_pinright'] == true);
+            }
+        };
+
+        var setItemPos = function(item, x, y) {
+            item.setAttribute('style', 'position: absolute; display: inline; left: ' + x + 'px; top: ' + y + 'px;');
+        };
+
+        var mouseMove = function(e) {
+            if (moveMode.moving && (moveMode.mx != e.pageX || moveMode.my != e.pageY)) {
+                // store old pos
+                moveMode.mx = e.pageX; // store last mouse pos to avoid rendering on non mouse moves
+                moveMode.my = e.pageY;
+                moveMode.x = e.pageX - moveMode.sx + moveMode.kx; // calc pos in relation to last stored pos
+                moveMode.y = e.pageY - moveMode.sy + moveMode.ky;
+                moveMode.userdefined = true;
+                toSidebar(false);
+                setItemPos(div, moveMode.x, moveMode.y);
+            }
+        };
+
+        var windowResize = function(e) {
+            if (moveMode.userdefined && moveMode.ralign) {
+                loadCfg();
+                setItemPos(div, moveMode.x, moveMode.y);
+            }
+        };
+
+        var mouseClick = function(e) {
+            moveMode.moving = !moveMode.moving;
+            if (moveMode.moving) {
+                if (!moveMode.userdefined) {
+                    /* The (inital == no user defined pos stored yet) switch from relative to absolute position
+                       causes the sidebar element to show up at the upper left corner (x: 0, y: 0).
+                       Due to we're positioning the move element absolutely, we can guess the postion where
+                       the sidebar item should be drawn to allow the second "stop moving" click. After years of
+                       theoretical studies and a lot of calculations the offset {x: -78, y: -32} relative to the
+                       current mouse position seems to be fine. :D */
+                    moveMode.kx = e.pageX - 78;
+                    moveMode.ky = e.pageY - 32;
+                } else if (moveMode.ralign) {
+                    window.removeEventListener('resize', windowResize, true);
+                }
+                tt.sp.style.cursor = 'crosshair';
+                document.addEventListener('mousemove', mouseMove, true);
+                moveMode.sx = e.pageX;
+                moveMode.sy = e.pageY;
+            } else {
+                tt.sp.style.cursor = 'move';
+                document.removeEventListener('mousemove', mouseMove, true);
+                moveMode.kx = moveMode.x ;
+                moveMode.ky = moveMode.y;
+                moveMode.ralign = moveMode.x > (2/3 * window.innerWidth);
+                if (moveMode.ralign) {
+                    moveMode.x -= window.innerWidth;
+                    window.addEventListener('resize', windowResize, true);
+                }
+
+                Config.ui_settings[ui_setting + '_pos'] = { x: moveMode.x, y: moveMode.y };
+                Config.saveConfigGM();
+            }
+            unpin();
+        };
+
+        loadCfg();
+        if (moveMode.userdefined) {
+            setItemPos(div, moveMode.x, moveMode.y);
+            if (moveMode.ralign) {
+                window.addEventListener('resize', windowResize, true);
+            }
+        }
+        tt.sp.addEventListener('click', mouseClick, true);
+
+        return innerDiv;
+    };
+
+    UIHelpers.createControlCenterSidebarItem = function(ui_setting) {
+        div = UIHelpers.createSidebarItem('control_center', 'Kontrollzentrum', 'sidebar_cc', ui_setting, true);
+        if (!div) return;
+        var d;
+
+        d = document.createElement('div');
+        d.setAttribute('id', 'script_on_off_button');
+        div.appendChild(d);
+        d = document.createElement('div');
+        d.setAttribute('id', 'script_debug_button');
+        div.appendChild(d);
+
+        var paypal = '';
+        paypal += '<br>';
+        paypal += '<form action="https://www.paypal.com/cgi-bin/webscr" method="post">';
+        paypal += '<input type="hidden" name="cmd" value="_s-xclick">';
+        paypal += '<input type="hidden" name="hosted_button_id" value="9KU67325JKY5L">';
+        paypal += '<input type="image" src="https://www.paypal.com/de_DE/DE/i/btn/btn_donateCC_LG.gif" border="0" name="submit" alt="Jetzt einfach, schnell und sicher online bezahlen – mit PayPal.">';
+        paypal += '<img alt="" border="0" src="https://www.paypal.com/de_DE/i/scr/pixel.gif" width="1" height="1">';
+        paypal += '</form>';
+        paypal += '<br>Bitte gib uns ein Bier<br> oder einen Kaffee aus :)<br>';
+
+        d = document.createElement('div');
+
+        var d1 = document.createElement('div');
+        d1.innerHTML = paypal;
+        var d2 = document.createElement('div');
+        var a = document.createElement('a');
+        a.innerHTML = 'Spendenhinweis ausblenden';
+        a.setAttribute('href', UrlHandler.nop);
+        a.setAttribute('style', 'text-decoration: none;');
+        d2.appendChild(document.createElement('br'));
+        d2.appendChild(a);
+
+        d.appendChild(d1);
+        d.appendChild(d2);
+
+        d.setAttribute('id', 'script_donate');
+        d.setAttribute('style', 'display: none');
+        div.appendChild(d);
+
+        var f = function() {
+            d.setAttribute('style', 'display: none');
+            Config.hide_don = true;
+            Config.save();
+        };
+        a.addEventListener('click', f, true);
+    };
+
+    UIHelpers.showDonationButton = function() {
+        var sb = document.getElementById('script_donate');
+        sb.setAttribute('style', 'display: block');
+    };
+
+    UIHelpers.createActionsSidebarItem = function() {
+        var div = document.getElementById('actions_sidebar_item');
+        if (div) return;
+        div = UIHelpers.createSidebarItem('actions_sidebar_item', 'Aktionen', 'sidebar_trink', 'sidebar_trink');
+        if (!div) return;
+        var d;
+
+        d = document.createElement('div');
+        d.setAttribute('id', 'eat_drink_buttons');
+        div.appendChild(d);
+        d = document.createElement('div');
+        d.setAttribute('id', 'wash_button');
+        div.appendChild(d);
+        d = document.createElement('div');
+        d.setAttribute('id', 'bottlesell_button');
+        div.appendChild(d);
+        d = document.createElement('div');
+        d.setAttribute('id', 'health_button');
+        if (!GameType.hasHealth) d.setAttribute('style', 'display: none');
+        div.appendChild(d);
+        d = document.createElement('div');
+        d.setAttribute('id', 'updown_button');
+        div.appendChild(d);
+    };
+
+    UIHelpers.createHelpersSidebarItem = function() {
+        var div = document.getElementById('helpers_sidebar_item');
+        if (div) return;
+        div = UIHelpers.createSidebarItem('helpers_sidebar_item', 'Hilfsmittel', 'sidebar_bot', 'sidebar_bot');
+        if (!div) return;
+        var d;
+
+        d = document.createElement('div');
+        d.setAttribute('id', 'lockmanger_dbg');
+        div.appendChild(d);
+        d = document.createElement('div');
+        d.setAttribute('id', 'bottle_button');
+        div.appendChild(d);
+        d = document.createElement('div');
+        d.setAttribute('id', 'autohealth_button');
+        if (!GameType.hasHealth) d.setAttribute('style', 'display: none');
+        div.appendChild(d);
+        d = document.createElement('div');
+        d.setAttribute('id', 'donation_buttons');
+        div.appendChild(d);
+        d = document.createElement('div');
+        d.setAttribute('id', 'dailytask_button');
+        div.appendChild(d);
+        d = document.createElement('div');
+        d.setAttribute('id', 'bot_buttons');
+        div.appendChild(d);
+    };
+
+    UIHelpers.createSidebarImgButton = function(img, imgDisabled, inner, disabled, id, startstop) {
+        buttonBaseStyle = 'position:relative;white-space: nowrap;width:100%;margin-right:3px;font-size:11px;text-align:center;display:inline-block;height:26px;';
+        buttonDisabledStyle = buttonBaseStyle + 'background:none repeat scroll 0 0 #2D2B2A;color:#7E7E7E;border:1px solid #000000;';
+        buttonEnabledBaseStyle = buttonBaseStyle + 'background:url("' + GM_getResourceURL("buttonBg.png") + '") repeat-x scroll 0 0 #54514D;color:#E0E0E0;';
+        buttonEnabledStyle = buttonEnabledBaseStyle + 'border:1px solid #000000;';
+        buttonEnabledStyleHover = buttonEnabledBaseStyle +  'border:1px solid #808080;';
+        buttonPressedBaseStyle = buttonBaseStyle + 'background:url("' + GM_getResourceURL("buttonBgInvert.png") + '") repeat-x scroll 0 0 #54514D;color:#202020;';
+        buttonPressedStyle = buttonPressedBaseStyle + 'border:1px solid #000000;';
+        buttonPressedStyleHover = buttonPressedBaseStyle +  'border:1px solid #808080;';
+
+        // create the button
+        var btn = document.createElement('button');
+        if (id) btn.setAttribute('id', id);
+        btn.pressed = false;
+
+        // create the text node
+        var textNode = document.createElement('span');
+        textNode.innerHTML = inner;
+        btn.appendChild(textNode);
+
+        // create some member functions
+        btn.out = function() {
+            if (!btn.disabled) {
+                var s = btn.pressed ? buttonPressedStyle : buttonEnabledStyle;
+                if (btn.style.width != '') s += " width: " + btn.style.width + ';';
+                if (btn.style.height != '') s += " height: " + btn.style.height + ';';
+                btn.setAttribute('style', s);
+            }
+        };
+        btn.over = function() {
+            if (!btn.disabled) {
+                var s = btn.pressed ? buttonPressedStyleHover : buttonEnabledStyleHover;
+                if (btn.style.width != '') s += " width: " + btn.style.width + ';';
+                if (btn.style.height != '') s += " height: " + btn.style.height + ';';
+                btn.setAttribute('style', s);
+            }
+        };
+        btn.setImage = function(imgSrc) {
+            var imgs = btn.getElementsByTagName('img');
+            for (var i=0; i<imgs.length; i++) {
+                if (imgSrc) imgs[i].setAttribute('src', imgSrc);
+            }
+        };
+        btn.addImage = function(img, imgDisabled, append) {
+            btn.imageSrc = img;
+            btn.imageDisabledSrc = imgDisabled ? imgDisabled : img;
+            var image = document.createElement('img');
+            image.setAttribute('style', 'vertical-align:middle;');
+            if (append) {
+                btn.appendChild(image);
+            } else {
+                btn.insertBefore(image, btn.firstChild);
+            }
+            btn.setEnabled(!btn.disabled);
+        };
+        btn.setEnabled = function(enabled) {
+            if (enabled) {
+                btn.setAttribute('style', btn.pressed ? buttonPressedStyle : buttonEnabledStyle);
+                btn.setImage(btn.imageSrc);
+            } else {
+                btn.setAttribute('style', buttonDisabledStyle);
+                btn.setImage(btn.imageDisabledSrc);
+            }
+            btn.disabled = !enabled;
+        };
+        btn.setStartStop = function(startstop) {
+            var spans = btn.getElementsByTagName('span');
+            btn.pressed = startstop == false;
+            if (!btn.disabled) {
+                btn.setAttribute('style', btn.pressed ? buttonPressedStyle : buttonEnabledStyle);
+            }
+            /*
+            if (!btn || spans.length == 0) return;
+
+            if (startstop == undefined || btn.disabled) {
+                spans[0].setAttribute('style', 'white-space: nowrap;');
+            } else {
+                spans[0].setAttribute('style', 'white-space: nowrap; ' + (startstop ? 'color:#00ff00' : 'color:#ff0000'));
+            }
+            */
+        };
+
+        // create the image node; actually filling the image src is done later
+        if (img) {
+            btn.addImage(img, imgDisabled);
+        }
+
+        // add hover listeners
+        btn.addEventListener('mouseout', btn.out, true);
+        btn.addEventListener('mouseover', btn.over, true);
+
+        // enable/disable the button
+        UIHelpers.enableSidebarButton(btn, !disabled);
+        UIHelpers.startstopSidebarButton(btn, startstop);
+
+        return btn;
+    };
+
+    UIHelpers.createSidebarButton = function(inner, disabled, id) {
+        return UIHelpers.createSidebarImgButton(null, null, inner, disabled, id);
+    };
+
+    UIHelpers.createPlunderUseButton = function(plunder, cb, txt) {
+        var inner = '('+plunder.count+'x)';
+        if (txt) {
+            inner = txt + ' ' + inner;
+        }
+        var ret = UIHelpers.createSidebarImgButton(plunder.image, null, inner, false, 'use_plunder_'+plunder.id);
+        var f = function() {
+            UIHelpers.enableSidebarButton(ret, false);
+            Plunder.use(plunder.id, cb);
+        };
+        ret.addEventListener('click', f, true);
+        return ret;
+    };
+
+    UIHelpers.startstopSidebarButton = function(btn, startstop) {
+        if (btn && btn.setStartStop) btn.setStartStop(startstop);
+    };
+
+    UIHelpers.enableSidebarButton = function(btn, enabled) {
+        if (btn && btn.setEnabled) btn.setEnabled(enabled);
+    };
+
+    UIHelpers.setSidebarButtonInner = function(btn, inner) {
+        if (btn) btn.getElementsByTagName("span")[0].innerHTML = inner;
+    };
+
+    // returns an additional row for debugging purposes
+    UIHelpers.addButtonsToStatusBar = function(id, btn1, btn2) {
+        var div = document.getElementById(id);
+        BaseLib.assert(div, 'div "'+id+'" missing');
+        var table = document.createElement('table');
+        table.setAttribute("style", "width:100%; border-collapse: collapse; border-spacing: 1px; "+
+                                    "margin-left: 0px; margin-right: 0px; margin-top: 1px; margin-bottom: 1px;");
+        div.appendChild(table);
+
+        var tr = document.createElement('tr');
+        table.appendChild(tr);
+
+        if (btn1) {
+            var td1 = document.createElement('td');
+            td1.setAttribute("style", "width:100%;");
+            tr.appendChild(td1);
+            td1.appendChild(btn1);
+
+            if (btn2) {
+                var td2 = document.createElement('td');
+                td1.setAttribute("style", "width:50%; padding-left: 0px; padding-right: 1px;");
+                td2.setAttribute("style", "width:50%; padding-left: 1px; padding-right: 0px;");
+                tr.appendChild(td2);
+                td2.appendChild(btn2);
+            }
+        }
+
+        tr = document.createElement('tr');
+        table.appendChild(tr);
+        var td = document.createElement('td');
+        tr.appendChild(td);
+
+        return td;
+    };
+
+    // +++++++++ Status messages +++++++++
+
+    UIHelpers.statusTimestamp = 0;
+
+    UIHelpers.hideStatus = function() {
+        var elem = document.getElementById("status");
+        if (elem) {
+            elem.innerHTML = "";
+            elem.style.display='none';
+        }
+    };
+
+    UIHelpers.status = function(s) {
+        var elem = document.getElementById("status");
+        if (!elem) {
+            var sidebar = document.getElementById("sidebar");
+            if (!sidebar) return;
+            var div = document.createElement('div');
+            div.setAttribute('id', 'status');
+            div.setAttribute('style', 'left: 10px; color: white; height: 100%; text-align:left;');
+            sidebar.appendChild(document.createElement('br'));
+            sidebar.appendChild(div);
+            elem = div;
+        }
+
+        elem.style.display='block';
+        elem.innerHTML = s + "<br>" + elem.innerHTML;
+        UIHelpers.statusTimestamp = Number((new Date()).getTime());
+    };
+
+    // +++++++++ Dynamische Tooltips +++++++++
+
+    UIHelpers.createMouseOverImage = function(src, id, width, height, mclass) {
+        var newImg = document.createElement("img");
+        newImg.setAttribute("src", src);
+        if (width) newImg.setAttribute("width", width);
+        if (height) newImg.setAttribute("height", height);
+        if (mclass) newImg.setAttribute("class", mclass);
+
+        newImg.setAttribute("onmouseover", 'new function() { document.getElementById("'+id+'").style.display = "block"; };');
+        newImg.setAttribute("onmouseout", 'new function() { document.getElementById("'+id+'").style.display = "none"; };');
+
+        return newImg;
+    };
+
+    UIHelpers.createMouseOverDiv = function(id, width, height, mclass) {
+        var newDiv = document.createElement("div");
+        if (width) newDiv.setAttribute("width", width);
+        if (height) newDiv.setAttribute("height", height);
+        if (mclass) newDiv.setAttribute("class", mclass);
+
+        newDiv.setAttribute("onmouseover", 'new function() { document.getElementById("'+id+'").style.display = "block"; };');
+        newDiv.setAttribute("onmouseout", 'new function() { document.getElementById("'+id+'").style.display = "none"; };');
+
+        return newDiv;
+    };
+
+    UIHelpers.createInfoDiv = function(id, img, text, addText, evenMoreText) {
+        var newDiv = document.createElement("div");
+
+        var s = "";
+        s +=     "<div class=\"tooltip_pl\" style=\"display:none; z-index:10000\" id=\"" + id + "\">";
+        s +=     "    <div id=\"item_main_tooltip\">";
+        s +=     "        <div id=\"item_icon\">";
+        s +=     "            <table style=\"width:100%; height:100%;\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\">";
+        s +=     "                <tr>";
+        if (img) {
+            s += "                    <td width=\"4%\"><img src=\"" + img + "\" class=\"item_pic\" /></td>";
+        }
+        s +=     "                    <td width=\"*\" style=\"vertical-align:middle;\"><div align=\"center\">";
+        s +=     "                        <span class=\"i.item.quality item\">&nbsp;<strong>" + text + "</strong></span></div></td>";
+        s +=     "                </tr>";
+        s +=     "            </table>";
+        s +=     "        </div>";
+        if (addText) {
+            s += "        <hr /><div id=\"item_stats\">" + addText + "</div>";
+            if (evenMoreText) {
+                s += "        <hr /><div id=\"item_add\">" + evenMoreText + "</div><br />";
+            } else {
+                s += "<br />";
+            }
+        }
+        s +=     "    </div>";
+        s +=     "</div>";
+
+        newDiv.innerHTML = s;
+        return newDiv;
+    };
+
+    // +++++++++ Delay showing/hiding of elements +++++++++
+
+    // toggles the class of "div" elements between "foobar" and "foobar_out"
+    // via mouseover/mouseout
+    UIHelpers.addDelayedHover = function(cls, hideDelay, showDelay) {
+        if (hideDelay == undefined) hideDelay = 500;
+        if (showDelay == undefined) showDelay = 100;
+        var _elems = BaseLib.getElementsByClassNameForDivs(cls);
+        var _elems2 = BaseLib.getElementsByClassNameForDivs(cls + '_out');
+
+        // need to copy the array because we modify the search criteria (cls)
+        var elems = new Array();
+        for (var i = 0; i < _elems.length; i++) {
+            elems.push(_elems[i]);
+        }
+        for (var i = 0; i < _elems2.length; i++) {
+            elems.push(_elems2[i]);
+        }
+
+        var hide = function(elem) {
+            elem.setAttribute('class', cls + '_out');
+        };
+        var hideAll = function(elems) {
+            for (var j = 0; j < elems.length; j++) {
+                hide(elems[j]);
+            }
+        };
+        var show = function(elem) {
+            elem.setAttribute('class', cls);
+        };
+
+        var f = function(e) {
+            e.hideTimer = undefined;
+            e.showTimer = undefined;
+            e.out = function() {
+                if (e.showTimer != undefined) {
+                    window.clearTimeout(e.showTimer);
+                    e.showTimer = undefined;
+                }
+                e.hideTimer = BaseLib.setTimeoutEx(function() { hide(e); }, hideDelay);
+            };
+            e.over = function() {
+                if (e.hideTimer != undefined) {
+                    window.clearTimeout(e.hideTimer);
+                    e.hideTimer = undefined;
+                }
+                e.showTimer = BaseLib.setTimeoutEx(function() { hideAll(elems); show(e); }, showDelay);
+            };
+
+            e.addEventListener('mouseout', e.out, true);
+            e.addEventListener('mouseover', e.over, true);
+            hide(e);
+        };
+
+        for (var i = 0; i < elems.length; i++) {
+            f(elems[i]);
+        }
+    };
+
+    // +++++++++ Progress bars +++++++++
+    UIHelpers.createSolidProgressBar = function(progress, width) {
+        var outer = document.createElement('div');
+        var inner = document.createElement('div');
+        outer.appendChild(inner);
+
+        outer.setAttribute('style', 'width: '+width+'px; border: 1px solid #1f1f1f; background: url("'+UrlHandler.pgMediaUrl+'img/pv4/icons/processbar_bg.jpg") repeat-x scroll 0 0 transparent; height: 12px;');
+        inner.setAttribute('style', 'width: '+Math.round(progress*width)+'px; background: url("'+UrlHandler.pgMediaUrl+'img/pv4/icons/processbar.jpg") repeat scroll 0 0 transparent; color: white; height: 12px;');
+        inner.innerHTML = Math.round(progress * 1000) / 10 + '%';
+
+        return outer;
+    };
+
+    // +++++++++Curtain +++++++++
+    
+    UIHelpers.createCurtainButton = function(text, img, id, ch) {
+        var b = UIHelpers.createSidebarImgButton(img, null, text, false, id, true);
+        if (ch) b.addEventListener('click', ch, true);
+        return b;
+    };
+
+    UIHelpers.createCurtainWaitMsg = function(text) {
+        var d1 = document.createElement('div');
+        var d2 = document.createElement('div');
+        var t = document.createElement('div');
+        t.textContent = text;
+        t.innerHTML += '<br><br>';
+        t.setAttribute('style',
+                         '   text-align: center;' +
+                         '   color:#eeeeee;'+
+                         '   font-size: 10px;');
+        d2.innerHTML = UIHelpers.getImageHtml(GM_getResourceURL("processing.gif"), '');
+        d1.appendChild(d2);
+        d1.appendChild(t);
+        return d1;
+    };
+    
+    UIHelpers.createCurtain = function(childnode) {
+        var id = 'curtain' + BaseLib.rand(1000);
+        var p = document.createElement('div');
+        var c = document.createElement('div');
+        var d = document.createElement('div');
+        p.setAttribute('style',
+                       '   display: none;' +
+                       '   z-index:1000000;');
+        d.setAttribute('style',
+                       '   position:fixed;'+
+                       '   width:100%;'+
+                       '   height:100%;'+
+                       '   z-index:1000002;');
+        c.setAttribute('style',
+                       '   position:fixed;'+
+                       '   z-index:1000001;'+
+                       '   -moz-opacity:0.4; -khtml-opacity:0.4; opacity:0.4;' + 
+                       '   filter:alpha(opacity=40);' +
+                       '   width:100%;'+
+                       '   height:100%;'+
+                       '   background-color:#000000;');
+        var t = document.createElement('table');
+        t.setAttribute('style',
+                       '   width:100%;'+
+                       '   height:100%;');
+        
+        var tr = document.createElement('tr');
+        var td = document.createElement('td');
+        td.setAttribute('style',
+                        '   text-align: center;' +
+                        '   vertical-align: middle;');
+
+        tr.appendChild(td);
+        t.appendChild(tr);
+        d.appendChild(t);
+        
+        p.appendChild(d);
+        p.appendChild(c);
+        
+        if (childnode) td.appendChild(childnode);
+        c.show = function() { p.style.display = 'block' };
+        c.hide = function() { p.style.display = 'none' };
+        var bs = document.getElementsByTagName('body');
+        if (!bs.length) {
+            Log.console("Err: Body not found!");
+        } else {
+            bs[0].appendChild(p);
+        }
+        return c;
+    }
+
+    
+    // +++++++++ Overlay element +++++++++
+    UIHelpers.overlays = new Object();
+
+    UIHelpers.createOverlay = function(id) {
+        var dou;
+        if (id) {
+            dou = UIHelpers.overlays[id];
+            if (dou) {
+                return dou;
+            }
+        }
+
+        dou = document.createElement('div');
+        if (id) {
+            dou.setAttribute('id', id);
+            UIHelpers.overlays[id] = dou;
+        }
+        dou.setAttribute('style',
+                       '   text-align: left;' +
+                       '   display: block;' +
+                       '   position:absolute;'+
+                       '   z-index:10001;'+
+                       '   top:' + (40 + window.pageYOffset) + 'px;'+
+                       '   left:60px;'+
+                       '   width:800px;'+
+                       '   color:#ffffff;'+
+                       '   font-size: 9px;'+
+                       '   background-color:#000000;');
+
+        var t = document.createElement('table');
+        t.setAttribute('style', 'width: 100%');
+        var tr = document.createElement('tr');
+        tr.setAttribute('style', 'width: 100%');
+        t.appendChild(tr);
+        var td = document.createElement('td');
+        tr.appendChild(td);
+        dou.buttonPanel = td;
+
+        var copyToClipboard = function() {
+            BaseLib.copyToClipboard(dou.innerPanel.innerHTML.replace(/<br>/g, '\n'));
+        };
+        td = document.createElement('td');
+        td.setAttribute('style', 'width: 25px;');
+        td.innerHTML = '<a href="'+UrlHandler.nop+'">' + UIHelpers.getImageHtml(GM_getResourceURL("clipboard.png"), 'Kopieren', "margin-top: 3px; margin-bottom: 3px; margin-right: 3px; height: 21px;") + '</a>';
+        td.addEventListener('click', copyToClipboard, true);
+        tr.appendChild(td);
+
+        var close = function() {
+            dou.parentNode.removeChild(dou);
+            if (id) {
+                UIHelpers.overlays[id] = undefined;
+            }
+        };
+        td = document.createElement('td');
+        td.setAttribute('style', 'width: 25px;');
+        td.innerHTML = '<a href="'+UrlHandler.nop+'">' + UIHelpers.getImageHtml(GM_getResourceURL("close.gif"), 'Schliessen', "margin-top: 3px; margin-bottom: 3px; margin-right: 3px;") + '</a>';
+        td.addEventListener('click', close, true);
+        tr.appendChild(td);
+        dou.appendChild(t);
+
+        var d = document.createElement('div');
+        var h = document.getElementsByTagName('body')[0];
+        dou.appendChild(d);
+        dou.innerPanel = d;
+        if (h) {
+            h.appendChild(dou);
+        }
+
+        return dou;
+    };
+
+    // +++++++++ Control Center +++++++++
+    UIHelpers.createControlCenter = function() {
+        UIHelpers.createControlCenterInternal();
+    };
+
+    UIHelpers.recreateControlCenter = function() {
+        UIHelpers.createControlCenterInternal('script_on_off_button');
+    };
+
+    UIHelpers.createControlCenterInternal = function(ui_setting) {
+        UIHelpers.createControlCenterSidebarItem(ui_setting);
+
+        var disabled = MainScript.isDisabled();
+        var f = function() { MainScript.setDisabled(!disabled); UrlHandler.doReload(); };
+
+        var enable_button = UIHelpers.createSidebarImgButton(disabled ? GM_getResourceURL("apply.png") : GM_getResourceURL("cross.png"),
+            disabled ? GM_getResourceURL("apply.png") : GM_getResourceURL("cross.png"),
+            disabled ? "Script an" : "Script aus", false, 'enable_script');
+        enable_button.addEventListener('click', f, true);
+
+        UIHelpers.addButtonsToStatusBar("script_on_off_button", enable_button);
+    };
+
+    // ##################### entry point ###########################
+    UIHelpers.onRunlevel = function(runlevel) {
+        if (runlevel == 10) {
+            UIHelpers.createSidebar();
+            UIHelpers.createControlCenter();
+        } else if (runlevel == 59) {
+            UIHelpers.recreateControlCenter();
+            if (!Config.hide_don) {
+                UIHelpers.showDonationButton();
+            }
+        }
+    };
+};

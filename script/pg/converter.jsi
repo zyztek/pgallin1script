@@ -1,0 +1,262 @@
+/** 
+ * @filename converter.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var Converter = new Object();
+
+Registry.register("Converter", Converter);
+
+// ########### Data Conversion ##############
+
+Converter.init = function() {
+
+    Converter.currentVersion = 8;
+
+    Converter.readFightStatsOld = function(uid) {
+        return FightStats.readInternal(UrlHandler.configPrefix + "_fight_" + uid, false);
+    };
+
+    Converter.convertStats1 = function() {
+        var entries = GM_listValues();
+        if (entries) {
+            var searchOld = UrlHandler.configPrefix + "_fight_";
+            var searchNew = UrlHandler.configPrefix + "_fight_from_";
+
+            for (var i = 0; i < entries.length; i++) {
+                var e = entries[i];
+                if (e.search(searchOld) != -1 && e.search(searchNew) == -1) {
+                    var uid = e.substr(searchOld.length);
+                    var s = Converter.readFightStatsOld(uid);
+                    if (s) {
+                        if (s.dates) {
+                            for (var j = 0; j < s.dates.length; j++) {
+                                s.dates[j] = s.dates[j].substr(0, 6) + BaseLib.currentYear + s.dates[j].substr(6);
+                            }
+                        }
+                        if (s.lastOut) {
+                            s.lastOut = s.lastOut.substr(0, 6) + BaseLib.currentYear + s.lastOut.substr(6);
+                        }
+                        FightStats.write(uid, s);
+                        GM_deleteValue(e);
+                    }
+                }
+            }
+        }
+    };
+
+    Converter.convertStats2 = function() {
+        var entries = GM_listValues();
+        if (entries) {
+            for (var i = 0; i < entries.length; i++) {
+                var e = entries[i];
+                if (e.search(FightStats.getConfigPrefix()) != -1) {
+                    var v = GM_getValue(e);
+                    v = v.replace('"won":', '"won_in":0, "won_out":');
+                    v = v.replace('"lost":', '"lost_out":0, "lost_in":');
+                    v = v.replace('"remis":', '"remis_in":0, "remis_out":');
+                    GM_setValue(e, v);
+                }
+            }
+        }
+    };
+
+    Converter.convertStats3 = function() {
+        var entries = GM_listValues();
+        if (entries) {
+            for (var i = 0; i < entries.length; i++) {
+                var e = entries[i];
+                if (e.search(FightStats.getConfigPrefix()) != -1) {
+                    var v = GM_getValue(e);
+                    savedStats = JSON.parse(v);
+                    for (var j = 0; j < savedStats.dates.length; j++) {
+                        var s = savedStats.dates[j];
+                        savedStats.dates[j] = s.substr(0, 6) + s.substr(10);
+                    }
+                    GM_setValue(e, JSON.stringify(savedStats));
+                }
+            }
+        }
+    };
+
+    Converter.convertConfig = function() {
+        var entries = GM_listValues();
+        if (entries) {
+            var searchFight = UrlHandler.configPrefix + "_fight_";
+            var searchCfg = UrlHandler.configPrefix + "_cfg_";
+            var searchData = UrlHandler.configPrefix + "_data_";
+
+            for (var i = 0; i < entries.length; i++) {
+                var e = entries[i];
+                if (e.search(searchFight) == -1 && e.search(searchCfg) == -1 && e.search(searchData) == -1) {
+                    var v = GM_getValue(e);
+                    GM_deleteValue(e);
+                    e = e.replace(UrlHandler.configPrefix, UrlHandler.configPrefix + "_cfg_for_" + UserInfo.uid);
+                    GM_setValue(e, v);
+                }
+            }
+        }
+    };
+
+    Converter.convertBlacklist = function() {
+        var entries = GM_listValues();
+        if (entries) {
+            for (var i = 0; i < entries.length; i++) {
+                var e = entries[i];
+                if (e.search(Blacklist.getCfgPrefix()) != -1) {
+                    var v = GM_getValue(e);
+                    if (v == true) {
+                        GM_setValue(e, Blacklist.eBlNormal);
+                    } else {
+                        GM_setValue(e, Blacklist.eBlNone);
+                    }
+                }
+            }
+        }
+    };
+
+    Converter.convertBlacklist2 = function() {
+        var entries = GM_listValues();
+        var bl = new Object();
+        if (entries) {
+            for (var i = 0; i < entries.length; i++) {
+                var e = entries[i];
+                if (e.search(Blacklist.getCfgPrefix()) != -1) {
+                    var v = GM_getValue(e);
+                    GM_deleteValue(e);
+                    var p = e.lastIndexOf('_');
+                    if (p == -1) continue;
+                    var uid = BaseLib.extractNumber(e.substr(p));
+                    if (!uid) continue;
+                    bl[uid] = v;
+                }
+            }
+            var v = JSON.stringify(bl);
+            var c = Config.getConfigKey("blacklist");
+            GM_setValue(c, v);
+        }
+    };
+
+    Converter.deleteDistricts = function () {
+        var values = GM_listValues();
+        if (values) {
+            var cfg = UrlHandler.configPrefix + "_city_";
+
+            for (var i = 0; i < values.length; i++) {
+                if (values[i].search(cfg) != -1) {
+                    GM_deleteValue(values[i]);
+                }
+            }
+        }
+    };
+
+    Converter.convertBotCfg = function () {
+
+        if (Registry.hasObject("LockManager")) {
+            var a = [
+                { old: UrlHandler.configPrefix+"AutoBotLock", newer: LockManager.key_lock()},
+                { old: UrlHandler.configPrefix+"DirtyCfg", newer: Config.getConfigKey('dirty') }
+                ];
+
+            if (Registry.hasObject("BotManager")) {
+                a.push({ old: UrlHandler.configPrefix+"AutoBot", newer: BotManager.key_bot()});
+                a.push({ old: UrlHandler.configPrefix+"AutoSkillBot", newer: BotManager.key_skillBot()});
+                a.push({ old: UrlHandler.configPrefix+"AutoBotStop", newer: BotManager.key_botStop()});
+                a.push({ old: UrlHandler.configPrefix+"AutoSkillBotStop", newer: BotManager.key_skillBotStop()});
+            }
+
+            for (var i = 0; i < a.length; i++) {
+                var v = GM_getValue(a[i].old, null);
+                Log.console("Key: " + a[i].old + " -> "  + a[i].newer + " (value: " + v + ")");
+                if (v) {
+                    GM_setValue(a[i].newer, v);
+                }
+                GM_deleteValue(a[i].old);
+            }
+        }
+    };
+
+    Converter.convertSort = function() {
+        var key = Config.getConfigKey('supersearch_sortierung');
+        var old = GM_getValue(key);
+        if (old == 'siege') {
+            GM_setValue(key, 'siegratio');
+        }
+    };
+
+    Converter.convert = function() {
+        var converted = false;
+
+        // determine current data version
+        var version_key = UrlHandler.configPrefix + "_data_version";
+        var data_version = GM_getValue(version_key);
+        if (data_version) {
+            data_version = Number(data_version);
+        } else {
+            data_version = 0;
+        }
+
+        // version 1 had another entry, check for this one ...
+        var convertedVar = UrlHandler.configPrefix + "_fightstat_converted";
+        if (GM_getValue(convertedVar) == "yes") {
+            GM_deleteValue(convertedVar);
+            data_version = 1;
+        }
+
+        if (data_version < Converter.currentVersion) {
+            converted = true;
+        }
+
+        if (data_version < 1) {
+            Log.console('Config:' + "Convert to Config Version 1");
+            Converter.convertStats1();
+        }
+
+        if (data_version < 2) {
+            Log.console('Config:' + "Convert to Config Version 2");
+            Converter.convertConfig();
+        }
+
+        if (data_version < 3) {
+            Log.console('Config:' + "Convert to Config Version 3");
+            Converter.convertStats2();
+        }
+
+        if (data_version < 4) {
+            Log.console('Config:' + "Convert to Config Version 4");
+            Converter.convertBlacklist();
+        }
+
+        if (data_version < 5) {
+            Log.console('Config:' + "Convert to Config Version 5");
+            Converter.convertBlacklist2();
+        }
+
+        if (data_version < 6) {
+            Log.console('Config:' + "Convert to Config Version 6");
+            Converter.convertBotCfg();
+        }
+
+        if (data_version < 7) {
+            Log.console('Config:' + "Convert to Config Version 7");
+            Converter.convertStats3();
+        }
+
+        if (data_version < 8) {
+            Log.console('Config:' + "Convert to Config Version 8");
+            Converter.convertSort();
+        }
+
+        // store new version
+        data_version = Converter.currentVersion;
+        GM_setValue(version_key, data_version);
+
+        // delete obsoletedistrict keys
+        // can be removed after a while
+        Converter.deleteDistricts();
+
+        return converted;
+    };
+};

@@ -1,0 +1,14 @@
+{
+   "background_page": "background.html",
+   "content_scripts": [ {
+      "js": [ "script.js" ],
+      "matches": [ "http://*/*", "https://*/*" ]
+   } ],
+   "all_frames": false,
+   "description": "$description",
+   "name": "$shortname",
+   "permissions": [ "tabs", "http://*/*", "https://*/*" ],
+   "update_url": "$crUpdateUrl$shortname.xml",
+   "minimum_chrome_version": "$crMinVersion",
+   "version": "$version"
+}

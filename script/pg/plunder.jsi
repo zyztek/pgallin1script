@@ -1,0 +1,960 @@
+/** 
+ * @filename plunder.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var Plunder = new Object();
+
+Registry.register("Plunder", Plunder);
+
+// ############ Plunder #############
+
+Plunder.init = function() {
+
+    Plunder.reset = function() {
+        Plunder.items = new Array();
+        Plunder.buildable = new Array();
+        Plunder.initializedAvailablePlunder = false;
+        Plunder.initializedBuildablePlunder = false;
+        Plunder.initialized = false;
+        Plunder.current = 0;
+        Plunder.setPlunderForm = '';
+    };
+
+    Plunder.reset();
+
+    Plunder.add = function(id, name, image, description, extendeddesc, count, usable, equipable, buildcost) {
+        // parse the description and try to find something out
+        var pos;
+        var dd = description;
+        var att = 0, def = 0, dex = 0;
+        var attPercent = 0, defPercent = 0, dexPercent = 0;
+        var s1 = '<li>', s2 = '</li>';
+        while ((pos = dd.search(s1)) != -1) {
+            var boost = BaseLib.getStringBetweenTags(dd, s1, s2);
+            dd = dd.substr(pos + s1.length);
+            var b = boost.split(':');
+            if (b && b.length == 2) {
+                if (b[0] == Language.att) {
+                    att = BaseLib.extractNumber(b[1]);
+                } else if (b[0] == Language.def) {
+                    def = BaseLib.extractNumber(b[1]);
+                } else if (b[0] == Language.geschick1) {
+                    dex = BaseLib.extractNumber(b[1]);
+                }
+            }
+        }
+
+        var eum = null;
+        var e = extendeddesc;
+        if (Language.erhoehtUm) {
+            if ((pos = e.search(Language.erhoehtUm[0])) != -1 && e.search(Language.erhoehtUm[2]) != -1) {
+                eum = BaseLib.getStringBetweenTags(e, Language.erhoehtUm[0], Language.erhoehtUm[2]);
+                pos += Language.erhoehtUm[0].length;
+            } else if ((pos = e.search(Language.erhoehtUm[1])) != -1 && e.search(Language.erhoehtUm[2]) != -1) {
+                eum = BaseLib.getStringBetweenTags(e, Language.erhoehtUm[1], Language.erhoehtUm[2]);
+                pos += Language.erhoehtUm[1].length;
+            }
+            if (eum && eum != '') {
+                var um = BaseLib.getStringBetweenTags(e.substr(pos), Language.erhoehtUm[2], '<');
+                um = BaseLib.extractNumber(um);
+                if (um) {
+                    if (eum.search(Language.att) != -1) {
+                        attPercent = um;
+                    }
+                    if (eum.search(Language.def) != -1) {
+                        defPercent = um;
+                    }
+                    if (eum.search(Language.geschick2) != -1) {
+                        dexPercent = um;
+                    }
+                }
+            }
+        }
+
+        var o = new Types.Plunder(id, name, image, description, extendeddesc, count, usable, equipable, att, def, dex, attPercent, defPercent, dexPercent);
+        if (!BaseLib.contains(Plunder.items, o)) {
+            Plunder.items.push(o);
+        }
+    };
+
+    Plunder.addBuildable = function(id, name, image) {
+        var o = new Types.BuildablePlunder(id, name, image);
+        if (!BaseLib.contains(Plunder.buildable, o)) {
+            Plunder.buildable.push(o);
+        }
+    };
+
+    Plunder.setCurrent = function(id) {
+        Plunder.current = id;
+    };
+
+    Plunder.getCurrent = function() {
+        return Plunder.current;
+    };
+
+    Plunder.getPlunderByImage = function(image, buildable) {
+        var items = buildable ? Plunder.buildable : Plunder.items;
+        for (var i=0; i < items.length; i++) {
+            if (items[i].image == image)
+                return items[i];
+        }
+        return null;
+    };
+
+    Plunder.getPlunderById = function(id, buildable) {
+        var items = buildable ? Plunder.buildable : Plunder.items;
+        for (var i=0; i < items.length; i++) {
+            if (items[i].id == id)
+                return items[i];
+        }
+        return null;
+    };
+
+    Plunder.getPlunderByName = function(name, buildable) {
+        var items = buildable ? Plunder.buildable : Plunder.items;
+        for (var i=0; i < items.length; i++) {
+            if (items[i].name == name)
+                return items[i];
+        }
+        return null;
+    };
+
+    Plunder.getCurrentPlunder = function() {
+        return Plunder.getPlunderByImage(Plunder.getImage(Plunder.getCurrent()));
+    };
+
+    Plunder.getName = function(id) {
+        var o = Plunder.getPlunderById(id);
+        if (o)
+            return o.name;
+        return '';
+    };
+
+    Plunder.getImage = function(id) {
+        var o = Plunder.getPlunderById(id);
+        if (o)
+            return o.image;
+        return '';
+    };
+
+    Plunder.getDescription = function(id, extended) {
+        var o = Plunder.getPlunderById(id);
+        if (o) {
+            if (extented) {
+                return o.desc;
+            } else {
+                return o.extdesc;
+            }
+        }
+        return '';
+    };
+
+    Plunder.parseCurrentFromReq = function(req) {
+
+        var r = req.responseText;
+        var anpl = new Object();
+        anpl.image = null;
+        anpl.name = '';
+        anpl.desc = '';
+        anpl.extdesc = '';
+
+        var u1 = '<div class="box special">';
+        var u2 = '<div class="zclear">';
+        var u = BaseLib.getStringBetweenTags(r, u1, u2);
+
+        /* in case we have only one piece of currently equipped plunder...
+           get as much info as possible... note: in don't how to get the plunder id */
+        var t1 = '<h3>' + Language.angelegt + '</h3>';
+        var t2 = '<div class="zclear">';
+        var t = BaseLib.getStringBetweenTags(r, t1, t2);
+        if (t != "") {
+            var p1 = '<img src="';
+            var p2 = '" alt=" " />';
+            anpl.image = BaseLib.getStringBetweenTags(t, p1, p2);
+            var n1 = 'alt=" " />';
+            var n2 = '</h4>';
+            anpl.name = BaseLib.getStringBetweenTags(t, n1, n2);
+            var ef = '<li>' + Language.effekt;
+            if (t.search(ef) != -1) {
+                var d1 = '<ul class="zclear">';
+                anpl.desc = BaseLib.getStringBetweenTags(t, d1, ef);
+                var e2 = '</li>';
+                anpl.extdesc = BaseLib.getStringBetweenTags(t, ef, e2)+e2;
+            } else {
+                var d1 = '<ul class="zclear">';
+                var d2 = '</ul>';
+                anpl.desc = BaseLib.getStringBetweenTags(t, d1, d2);
+            }
+        }
+        return anpl;
+    };
+
+    Plunder.loadAvailableFromWebsite = function(callback) {
+        Plunder.reset();
+
+        var url = UrlHandler.stockPlunderUrl;
+        var f = function(req) {
+            if (req.readyState == 4) {
+                if (req.status == 200) {
+
+                    var r = req.responseText;
+                    var anpl =  Plunder.parseCurrentFromReq(req);
+
+                    var f1 = '<form id="form_skip';
+                    var f2 = '</form>';
+                    var f = BaseLib.getStringBetweenTags(r, f1, f2);
+                    Plunder.setPlunderForm = f1 + f;
+
+                    while (true) {
+                        var t, id, p, n, d, e, t1, t2;
+
+                        t1 = '<td class="col1">';
+                        t2 = '</tr>';
+                        t = BaseLib.getStringBetweenTags(r, t1, t2);
+                        var id1 = 'change_stuff(\'';
+                        var id2 = '\')">';
+                        id = BaseLib.getStringBetweenTags(t, id1, id2);
+                        var p1 = '<img src="';
+                        var p2 = '" class="item_pic"';
+                        p = BaseLib.getStringBetweenTags(t, p1, p2);
+                        var n1 = id2;
+                        var n2 = '</a>';
+                        n = BaseLib.getStringBetweenTags(t, n1, n2);
+                        var d1 = '<div class="padv">';
+                        var d2 = '</div>';
+                        var td = BaseLib.getStringBetweenTags(t, d1, d2);
+                        var e1 = '<div class="pinfo">';
+                        var e2 = '</div>';
+                        var te = BaseLib.getStringBetweenTags(t, e1, e2);
+                        var h1 = '<div class="pextra">';
+                        var h2 = '</div>';
+                        var th = BaseLib.getStringBetweenTags(t, h1, h2);
+                        d = d1 + td + d2;
+                        e = e1 + te + e2 + h1 + th + h2;
+                        var cnt = BaseLib.getStringBetweenTags(t, '<td class="col3">', '</td>');
+                        if (cnt && cnt != "") {
+                            cnt = BaseLib.extractNumber(cnt);
+                        } else {
+                            cnt = 0;
+                        }
+                        var use = BaseLib.getStringBetweenTags(t, '<td class="col5">', '</td>');
+                        var equip = BaseLib.getStringBetweenTags(t, '<td class="col6">', '</td>');
+                        var uas = 'icon_use-off.png';
+                        var ua = use.search(uas) == -1;
+                        var eas = 'icon_equip-off.png';
+                        var ea = equip.search(eas) == -1;
+
+                        var pos = r.search(t1) + t1.length;
+                        r = r.substr(pos, r.length - pos - 1);
+                        pos = r.search(t2) - 1;
+                        r = r.substr(pos, r.length - pos - 1);
+
+                        if (anpl.image == p) {
+                            Plunder.setCurrent(id);
+                        }
+
+                        Plunder.add(id, n, p, d, e = Language.replaceNumbers(e), cnt, ua, ea);
+                        if (r.search(t1) == -1 || t == '') {
+                            break;
+                        }
+                    }
+
+                    if (Plunder.getCurrent() == 0 &&
+                        anpl.image != '') {
+                        if (Plunder.getPlunderByImage(anpl.image) == null) {
+                            Plunder.add(0, anpl.name, anpl.image, anpl.desc, anpl.extdesc, anpl.count, anpl.usable, anpl.equipable);
+                            Plunder.setCurrent(0);
+                        }
+                    }
+                    Plunder.initializedAvailablePlunder = true;
+                    if (Plunder.initializedBuildablePlunder) {
+                        Plunder.initialized = true;
+                        if (callback) {
+                            callback();
+                        }
+                    }
+                }
+            }
+        };
+        BaseLib.xmlhttpRequest(url, f, true, 24*60);
+    };
+
+    Plunder.loadBuildableFromWebsite = function(callback) {
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                var r = req.responseText;
+
+                while (true) {
+                        var t, t1, t2;
+
+                        t1 = '<tr class="msglist" onmouseover="">';
+                        t2 = '</tr>';
+                        t = BaseLib.getStringBetweenTags(r, t1, t2);
+
+                        if (r.search(t1) == -1 || t == '') {
+                            break;
+                        }
+
+                        var pos = r.search(t1) + t1.length;
+                        r = r.substr(pos, r.length - pos - 1);
+                        pos = r.search(t2) - 1;
+                        r = r.substr(pos, r.length - pos - 1);
+
+                        var id = BaseLib.getStringBetweenTags(t, '<input type="hidden" name="c_id" id="c_id" value="', '"');
+                        var img = BaseLib.getStringBetweenTags(t, '<img src="', '"');
+                        var name = BaseLib.getStringBetweenTags(t, '<strong>', '</strong>');
+
+                        Plunder.addBuildable(id, name, img);
+                }
+
+                Plunder.initializedBuildablePlunder = true;
+                if (Plunder.initializedAvailablePlunder) {
+                    Plunder.initialized = true;
+                    if (callback) {
+                        callback();
+                    }
+                }
+            }
+        }
+        BaseLib.xmlhttpRequest(UrlHandler.stockPlunderCraftUrl, f, true, 24*60);
+    };
+
+    Plunder.loadFromWebsite = function(callback) {
+        Plunder.loadAvailableFromWebsite(callback);
+        Plunder.loadBuildableFromWebsite(callback);
+    };
+
+    Plunder.change = function(plunderid, callback, count) {
+
+        var param = [];
+        var url = '';
+        var o = unsafeWindow.document.getElementById('form_skip');
+
+        if (!o) {
+            return;
+        }
+
+        if (count == undefined) count = 3;
+
+        var action = o.getAttribute('action');
+        var os = o.getElementsByTagName('input');
+
+        for (var i=0; i<os.length; i++) {
+            var n = os[i].name;
+            var v = os[i].value;
+            var t = os[i].type;
+            if (t == 'hidden' || t == 'text') {
+                if (n == 'f_plunder') {
+                    param.push(BaseLib.postParam(n, plunderid));
+                } else {
+                    param.push(BaseLib.postParam(n, v));
+                }
+            }
+        }
+        url = UrlHandler.http + UrlHandler.www + '.' + UrlHandler.mainUrl + UrlHandler.ext + action;
+
+        var check = function(req) {
+            var anpl = Plunder.parseCurrentFromReq(req);
+            if (anpl.image == Plunder.getImage(plunderid) || count-- <= 0) {
+                if (callback) {
+                    callback();
+                }
+            } else {
+                Plunder.change(plunderid, callback, count);
+            }
+        };
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                if (BaseLib.useInternalCache) BaseLib.removeCacheElementsByUrl(UrlHandler.stockPlunderUrl);
+                BaseLib.xmlhttpRequest(UrlHandler.stockPlunderUrl, check, false); // no cache!
+            }
+        };
+
+        BaseLib.xmlhttpPostRequest(url, f, param);
+    };
+
+    Plunder.use = function(plunderid, callback) {
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                if (BaseLib.useInternalCache) BaseLib.removeCacheElementsByUrl(UrlHandler.stockPlunderUrl);
+                if (callback) {
+                    callback(req);
+                }
+            }
+        };
+        BaseLib.xmlhttpRequest(UrlHandler.stockPlunderUseUrl + plunderid + '/', f);
+    };
+
+    Plunder.addPropsV4 = function() {
+        var allLines = document.getElementById('plunder').getElementsByTagName('tr');
+
+        for(var i = 0; allLines && i < allLines.length; i++) {
+            var line = allLines[i];
+            var hidden = BaseLib.getElementsByClassNameForElements('div', 'hide', line);
+            if (!hidden || !hidden[0]) continue;
+            hidden = hidden[0];
+
+            var leiste = '';
+
+            var eigenschaften = BaseLib.getElementsByClassNameForElements('div', 'padv', hidden);
+            if (eigenschaften && eigenschaften[0]) {
+                eigenschaften = eigenschaften[0].getElementsByTagName('li');
+                if (eigenschaften) {
+                    leiste += '<div id="item_stats">';
+                    for (var j = 0; j < eigenschaften.length; j++) {
+                        leiste += eigenschaften[j].innerHTML;
+                        leiste += ' ';
+                    }
+                    leiste += '</div>';
+                }
+            }
+
+            eigenschaften = BaseLib.getElementsByClassNameForElements('div', 'pinfo', hidden);
+            if (eigenschaften && eigenschaften[0]) {
+                eigenschaften = eigenschaften[0].getElementsByTagName('p');
+                if (eigenschaften) {
+                    for (var j = 0; j < eigenschaften.length; j++) {
+                        leiste += '<div id="item_add">';
+                        leiste += (eigenschaften[j].innerHTML.length > 80 ? (eigenschaften[j].innerHTML.substr(0, 80) + "...") : eigenschaften[j].innerHTML) ;
+                        leiste += '</div>';
+                    }
+                }
+            }
+
+            var newTr = document.createElement('tr');
+            newTr.setAttribute("class", line.getAttribute("class"));
+            if ((i + 1) == allLines.length) {
+                line.parentNode.appendChild(newTr);
+            } else {
+                line.parentNode.insertBefore(newTr, line.nextSibling);
+            }
+            var tds = line.getElementsByTagName('td');
+            tds[0].setAttribute("rowspan", 2);
+            var newTd = document.createElement('td');
+            newTd.setAttribute("colspan", 5);
+            newTd.setAttribute("class", "col2");
+            newTd.innerHTML = leiste;
+            newTr.appendChild(newTd);
+        }
+    };
+
+    Plunder.addPropsV3 = function(addEquip) {
+        var allLines = document.getElementById('messageslist').getElementsByTagName('tr');
+        var contentLines = BaseLib.getElementsByClassNameForElements('tr', 'msglist');
+        var ids = BaseLib.getElementsByClassNameForDivs('tooltip_pl');
+
+        if (addEquip) {
+            var heading = allLines[0].getElementsByTagName('td');
+            heading[heading.length - 1].setAttribute('colspan', '2');
+            heading = allLines[allLines.length - 1].getElementsByTagName('td');
+            heading[heading.length - 1].setAttribute('colspan', '2');
+        }
+
+        for(var i = 0; ids && i < ids.length && i < contentLines.length; i++){
+    	var Plundertooltip = ids[i].innerHTML;
+
+    	var leiste = '';
+
+    	var eigenschaft = Plundertooltip.match(/<div id="item_stats">(.+)<\/div>/gi);
+    	if(eigenschaft){
+                for (var x = 0; x < eigenschaft.length; x++){
+                	leiste += eigenschaft[x];
+                }
+                leiste += "<br />";
+    	}
+    	var zweigenschaft = Plundertooltip.match(/<div id="item_add">(.+)<\/div>/gi);
+    	if(zweigenschaft){
+                for (var y = 0; y < zweigenschaft.length; y++){
+                    var inner = zweigenschaft[y].replace("<div id=\"item_add\">", "").replace("</div>", "");
+                    leiste += "<div id=\"item_add\">" + (inner.length > 80 ? (inner.substr(0, 80) + "...") : inner) + "</div>";
+                    leiste += "<br />";
+                }
+    	}
+    	//contentLines[i].getElementsByTagName("td")[1].removeAttribute("onmouseover");
+    	contentLines[i].getElementsByTagName('td')[1].innerHTML += '<br/>'+leiste;
+    	var divs = contentLines[i].getElementsByTagName('td')[1].getElementsByTagName('div');
+    	if(divs){
+                for(var j = 0; j < divs.length; j++){
+                    divs[j].style.display = 'inline-block';
+                }
+    	}
+
+    	if (addEquip) {
+                var amountRow = allLines[i+1].getElementsByTagName('td')[2];
+                var sellRow = allLines[i+1].getElementsByTagName('td')[3];
+                var anlegenRow = document.createElement('td');
+
+                var t = '';
+                t += '<form id="form1" action="/stock/plunder/change/" method="post" name="form1">';
+                t += '<nobr>';
+                t += '<input type="hidden" name="f_plunder" id="f_plunder" value="' + ids[i].id + '">';
+                t += '<input id="f_submit" type="submit" value="Anlegen" name="f_submit"/>';
+                t += '&nbsp;&nbsp;';
+                t += '</nobr>';
+                t += '</form>';
+                anlegenRow.innerHTML = t;
+
+                // change border styles
+                anlegenRow.setAttribute('style', sellRow.getAttribute('style'));
+                sellRow.setAttribute('style', amountRow.getAttribute('style'));
+
+                sellRow.parentNode.appendChild(anlegenRow);
+            }
+        }
+    };
+
+    Plunder.showInfo = function(addEquip) {
+        if (GameType.plunderV5) {
+            return;
+        }
+        // interesting thing is: they have old-style and new-style plunder even in PGv4!
+        var plunderDiv = document.getElementById('plunder');
+        if (plunderDiv) {
+            Plunder.addPropsV4();
+        } else {
+            Plunder.addPropsV3(addEquip);
+        }
+    };
+
+    Plunder.createSellButtons = function() {
+        var plunderDiv = document.getElementById('plunder');
+        var allLines = document.getElementById('plunder').getElementsByTagName('tr');
+
+        for(var i = 0; allLines && i < allLines.length; i++) {
+            var line = allLines[i];
+            var numberCol = line.getElementsByTagName('td')[2];
+            if (!numberCol) continue;
+
+            var sellCol = line.getElementsByTagName('td')[3];
+            if (!sellCol) continue;
+
+            var sellA = sellCol.getElementsByTagName('a')[0];
+            if (!sellA) continue;   // header or other rows with no plunder
+
+            var plid = BaseLib.extractNumber(sellA.href);
+            var cnt = BaseLib.extractNumber(numberCol.innerHTML);
+
+            if (cnt >= 2) {
+                sellCol.appendChild(document.createElement('br'));
+                sellCol.appendChild(Plunder.createOneSellButton(sellCol, plid, cnt));
+            }
+
+            if (cnt >= 3) {
+                sellCol.appendChild(document.createTextNode(' '));
+                sellCol.appendChild(Plunder.createOneSellButton(sellCol, plid, cnt-1));
+            }
+
+            sellCol.appendChild(document.createElement('br'));
+            var info = document.createElement('div');
+            info.setAttribute('id', 'plunder_sell_' + plid);
+            sellCol.appendChild(info);
+        }
+    };
+
+    Plunder.createOneSellButton = function(sellCol, plid, cnt) {
+        var a = document.createElement('a');
+        a.href = UrlHandler.nop;
+        a.innerHTML = cnt + "x";
+        a.addEventListener('click', function() { Plunder.sell(plid, cnt); }, false);
+        return a;
+    };
+
+    Plunder.sell = function(plid, cnt, cb) {
+        if (!cnt) return;
+        if (!cb) cb = UrlHandler.doReload;
+
+        var f = function(req) {
+            if (BaseLib.useInternalCache) BaseLib.removeCacheElementsByUrl(UrlHandler.stockPlunderUrl);
+            if (req.readyState == 4 && req.status == 200) {
+                if (cnt == 1) {
+                    cb();
+                } else {
+                    var elem = document.getElementById('plunder_sell_' + plid);
+                    if (elem) elem.innerHTML = 'Noch ' + cnt + ' ...';
+                    Plunder.sell(plid, cnt-1, cb);
+                }
+            }
+        };
+        var url = UrlHandler.stockPlunderSellUrl + plid + '/';
+        BaseLib.xmlhttpRequest(url, f);
+    };
+
+    Plunder.payToGang = function(plid, cnt, cb) {
+        if (!cnt) return;
+        if (!cb) cb = UrlHandler.doReload;
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                cb();
+            }
+        };
+
+        var param = [
+            BaseLib.postParam('pid', plid),
+            BaseLib.postParam('f_count', cnt),
+            BaseLib.postParam('button', 'Einzahlen')
+        ];
+
+        BaseLib.xmlhttpPostRequest(UrlHandler.gangStuffPayinUrl, f, param);
+    };
+
+    Plunder.build = function(id, cb) {
+        if (!cb) cb = UrlHandler.doReload;
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                cb();
+            }
+        };
+
+        var param = [
+            BaseLib.postParam('c_id', id),
+            BaseLib.postParam('button', 'Basteln')
+        ];
+
+        BaseLib.xmlhttpPostRequest(UrlHandler.stockPlunderCraftDoUrl, f, param);
+    };
+
+    ///////////////////////////////////////////////////////////////////////////
+    // methods to find plunder for certain purposes
+    ///////////////////////////////////////////////////////////////////////////
+
+    Plunder.getBestDonationsPlunder = function() {
+        var bestpercent = 0;
+        var ret = null;
+
+        if (Language.erhoehtSpenden == Language.unbekannt ||
+            !Plunder.initialized) return ret;
+
+        for (var i=0; i < Plunder.items.length; i++) {
+            var d = Plunder.items[i].extdesc;
+            if (d != '') {
+                var t1 = Language.erhoehtSpenden;
+                var t2 = '</';
+                var t = BaseLib.getStringBetweenTags(d, t1, t2);
+                var p = BaseLib.extractNumber(t);
+                if (t != '' &&
+                    p > bestpercent) {
+                    bestpercent = p;
+                    ret = Plunder.items[i];
+                }
+            }
+        }
+        return ret;
+    };
+
+    Plunder.getBestDonationsUsePlunder = function() {
+        var bestpercent = 0;
+        var ret = null;
+
+        if (Language.mehrSpenden == Language.unbekannt || typeof Language.mehrSpenden !== 'object') {
+            return ret;
+        }
+
+        for (var i=0; i < Plunder.items.length; i++) {
+            var d = Plunder.items[i].extdesc;
+            if (d != '') {
+                var t1 = Language.mehrSpenden[0];
+                var t2 = Language.mehrSpenden[1];
+                var t = BaseLib.getStringBetweenTags(d, t1, t2);
+                var p = BaseLib.extractNumber(t);
+                if (t != '' &&
+                    p > bestpercent) {
+                    bestpercent = p;
+                    ret = Plunder.items[i];
+                }
+            }
+        }
+        return ret;
+    };
+
+    Plunder.getBestSkillPlunder = function(isDex) {
+        var bestpercent = 0;
+        var ret = null;
+        if (Language.verringertBildungszeit == Language.unbekannt) return ret;
+
+        for (var i=0; i < Plunder.items.length; i++) {
+            var d = Plunder.items[i].extdesc;
+            if (d != '') {
+                var t1 = Language.verringertBildungszeit;
+                var t2 = '</';
+                var t = BaseLib.getStringBetweenTags(d, t1, t2);
+                var p = BaseLib.extractNumber(t);
+                if (t != '' &&
+                    p > bestpercent) {
+                    bestpercent = p;
+                    ret = Plunder.items[i];
+                }
+                if (isDex &&
+                    Language.verringertBildungszeitFuerDex != Language.unbekannt) {
+                    /* search for lexikon too */
+                    var e1 = Language.verringertBildungszeitFuerDex;
+                    var e2 = '%';
+                    var e = BaseLib.getStringBetweenTags(d, e1, e2);
+                    var p = BaseLib.extractNumber(e);
+                    if (e != '' &&
+                        p > bestpercent) {
+                        bestpercent = p;
+                        ret = Plunder.items[i];
+                    }
+                }
+            }
+        }
+        return ret;
+    };
+
+    Plunder.getBestFightStartPlunder = function() {
+        var bestpercent = 0;
+        var ret = null;
+
+        if (Language.verringertAngriffszeit == Language.unbekannt) return ret;
+
+        for (var i=0; i < Plunder.items.length; i++) {
+            var d = Plunder.items[i].extdesc;
+            if (d != '') {
+                var t1 = Language.verringertAngriffszeit;
+                var t2 = '%';
+                var t = BaseLib.getStringBetweenTags(d, t1, t2);
+                var p = BaseLib.extractNumber(t);
+                if (t != '' &&
+                    p > bestpercent) {
+                    bestpercent = p;
+                    ret = Plunder.items[i];
+                }
+            }
+        }
+        return ret;
+    };
+
+    Plunder.getBestCollectStartPlunder = function() {
+        var bestpercent = 0;
+        var ret = null;
+
+        if (Language.verringertSammelzeit == Language.unbekannt) return ret;
+
+        for (var i=0; i < Plunder.items.length; i++) {
+            var d = Plunder.items[i].extdesc;
+            if (d != '') {
+                var t1 = Language.verringertSammelzeit;
+                var t2 = '%';
+                var t = BaseLib.getStringBetweenTags(d, t1, t2);
+                var p = BaseLib.extractNumber(t);
+                if (t != '' &&
+                    p > bestpercent) {
+                    bestpercent = p;
+                    ret = Plunder.items[i];
+                }
+            }
+        }
+        return ret;
+    };
+
+    Plunder.getBestCollectEndPlunder = function() {
+        var best = 0;
+        var ret = null;
+
+        if (Language.mehrPlunder == Language.unbekannt || typeof Language.mehrPlunder !== 'object') {
+            return ret;
+        }
+
+        for (var i=0; i < Plunder.items.length; i++) {
+            var d = Plunder.items[i].extdesc;
+            if (d != '') {
+                var t1 = Language.mehrPlunder[0];
+                var t2 = Language.mehrPlunder[1];
+                var t = BaseLib.getStringBetweenTags(d, t1, t2);
+                var p = BaseLib.extractNumber(t);
+                if (t != '' &&
+                    p > best) {
+                    best = p;
+                    ret = Plunder.items[i];
+                }
+            }
+        }
+        return ret;
+    };
+
+    Plunder.getBestFightEndPlunder = function() {
+        var best = 1000;
+        var ret = null;
+
+        if (Language.angriffInMinuten == Language.unbekannt || typeof Language.angriffInMinuten !== 'object') {
+            return ret;
+        }
+
+        for (var i=0; i < Plunder.items.length; i++) {
+            var d = Plunder.items[i].extdesc;
+            if (d != '') {
+                for (var j = 0; j < Language.angriffInMinuten.length; j++) {
+                    var t1 = Language.angriffInMinuten[j][0];
+                    var t2 = Language.angriffInMinuten[j][1];
+                    var t = BaseLib.getStringBetweenTags(d, t1, t2);
+                    var p = BaseLib.extractNumber(t);
+                    if (t != '' &&
+                        p < best) {
+                        best = p;
+                        ret = Plunder.items[i];
+                    }
+                }
+            }
+        }
+        return ret;
+    };
+
+
+    Plunder.getFightBoostPlunders = function() {
+        var ret = new Object();
+        
+        if (Language.attBoost == Language.unbekannt || typeof Language.attBoost !== 'object') {
+            return ret;
+        }
+
+        for (var i=0; i < Plunder.items.length; i++) {
+            var d = Plunder.items[i].extdesc;
+            if (d != '') {
+                var t1 = Language.attBoost[0];
+                var t2 = Language.attBoost[1];
+                var t = BaseLib.getStringBetweenTags(d, t1, t2);
+                var p = BaseLib.extractNumber(t);
+                if (t != '') {
+                    var p1 = Plunder.items[i];
+                    var p2 = ret[p];
+                    if (!p2) {
+                        ret[p] = p1;
+                    } else {
+                        ret[p] = new Types.Plunder(p2.id, p2.name, p2.image, p2.description, p2.extendeddesc, p2.count + p1.count, p2.usable, p2.equipable,
+                                                   p2.att, p2.def, p2.dex, p2.attPercent, p2.defPercent, p2.dexPercent);
+                    }
+                }
+            }
+        }
+
+        return ret;
+    };
+
+    Plunder.getCollectBoostPlunders = function() {
+        var ret = new Object();
+        
+        if (Language.collectBoost == Language.unbekannt || typeof Language.collectBoost !== 'object') {
+            return ret;
+        }
+
+        for (var i=0; i < Plunder.items.length; i++) {
+            var d = Plunder.items[i].extdesc;
+            if (d != '') {
+                for (var j = 0; j < Language.collectBoost.length; j++) {
+                    var t1 = Language.collectBoost[j][0];
+                    var t2 = Language.collectBoost[j][1];
+                    var t = BaseLib.getStringBetweenTags(d, t1, t2);
+                    var p = BaseLib.extractNumber(t);
+                    if (t != '') {
+                        var p1 = Plunder.items[i];
+                        var p2 = ret[p];
+                        if (!p2) {
+                            ret[p] = p1;
+                        } else {
+                            ret[p] = new Types.Plunder(p2.id, p2.name, p2.image, p2.description, p2.extendeddesc, p2.count + p1.count, p2.usable, p2.equipable,
+                                                       p2.att, p2.def, p2.dex, p2.attPercent, p2.defPercent, p2.dexPercent);
+                        }
+                    }
+                }
+            }
+        }
+
+        return ret;
+    };
+
+    Plunder.determineFightValue = function(p) {
+        try {
+            BaseLib.assert(PennerInfo.state.att != null, 'PennerInfo.state.att != null');
+            BaseLib.assert(PennerInfo.state.gangAttBoost != null, 'PennerInfo.state.gangAttBoost != null');
+            BaseLib.assert(Skills.mySkills.initialized, 'Skills.mySkills.initialized');
+            BaseLib.assert(Skills.mySkills.att, 'Skills.mySkills.att');
+            BaseLib.assert(Skills.mySkills.def, 'Skills.mySkills.def');
+        } catch (e) {
+            return null;
+        }
+
+        var a = PennerInfo.calcFightVal(Skills.mySkills.att.level, PennerInfo.state.attPet, PennerInfo.state.attWeapon,
+            PennerInfo.state.gangAttBoost, p.att, p.attPercent);
+        var d = PennerInfo.calcFightVal(Skills.mySkills.def.level, PennerInfo.state.defPet, PennerInfo.state.defHome,
+            PennerInfo.state.gangDefBoost, p.def, p.defPercent);
+
+        return PennerInfo.calcLetsFight(a, d);
+    };
+
+    Plunder.getBestFightPlunder = function() {
+        var best = 0.0;
+        var ret = null;
+
+        for (var i=0; i < Plunder.items.length; i++) {
+            var p = Plunder.items[i];
+            var b = Plunder.determineFightValue(p);
+            if (b > best) {
+                best = b;
+                ret = p;
+            }
+        }
+
+        return ret;
+    };
+
+    Plunder.getWorstFightPlunder = function() {
+        var best = 1000000.0;
+        var ret = null;
+
+        for (var i=0; i < Plunder.items.length; i++) {
+            var p = Plunder.items[i];
+            var b = Plunder.determineFightValue(p);
+            if (b < best) {
+                best = b;
+                ret = p;
+            }
+        }
+
+        return ret;
+    };
+
+    Plunder.getWeatherPlunder = function() {
+        var w = PennerInfo.state.weather;
+        if (!BaseLib.isEmpty(w) && (w.search('rain') != -1 || w.search('snow') != -1)) {
+            for (var i=0; i < Plunder.items.length; i++) {
+                var p = Plunder.items[i];
+                if (p.extdesc.search(Language.schutzVorRegen) != -1) {
+                    return p;
+                }
+            }
+        }
+
+        return null;
+    };
+
+    Plunder.getWashPlunder = function() {
+        if (Language.erhoehtSauberkeit == Language.unbekannt) {
+            return null;
+        }
+
+        for (var i = 0; i < Plunder.items.length; i++) {
+            var p = Plunder.items[i];
+            if (p.extdesc.search(Language.erhoehtSauberkeit) != -1) {
+                return p;
+            }
+        }
+
+        return null;
+    };
+
+    Plunder.onRunlevel = function(runlevel) {
+        if (runlevel == 30) {
+            Plunder.loadFromWebsite();
+        } else if (runlevel == 60) {
+            if (UrlHandler.isStockPlunderUrl() || UrlHandler.isStockPlunderCraftUrl()) {
+                if (Config.plundereigenschaften) Plunder.showInfo(!UrlHandler.isStockPlunderCraftUrl());
+                if (!UrlHandler.isStockPlunderCraftUrl()) Plunder.createSellButtons();
+            }
+        }
+    };
+
+};
+

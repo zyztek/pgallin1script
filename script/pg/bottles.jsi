@@ -1,0 +1,310 @@
+/** 
+ * @filename bottles.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var BottleTools = new Object();
+
+Registry.register("BottleTools", BottleTools);
+
+// ############ Bottle Tools #############
+
+BottleTools.init = function() {
+    BottleTools.createCalculator = function() {
+        var elem = document.getElementById("wirkung");
+        if (elem == null) return;
+        var pos = elem.innerHTML.search(/0[.,]/);
+        var Preis = elem.innerHTML.substr(pos + 2, 2);
+        Preis = Number(Preis);
+        var Check = document.getElementById("chkval").value;
+        // var Menge = document.getElementById("menge_verkauf").value;
+        var Max = document.getElementById("max").value;
+        var Gesamt = BaseLib.getElementsByClassNameForElements('li', "icon money")[0].getElementsByTagName('a')[0].innerHTML;
+
+        Gesamt = BaseLib.extractNumber(Gesamt);
+
+        elem = BaseLib.getElementsByClassNameForElements('table', 'item_list')[0];
+        if (elem) {
+            elem.innerHTML = '' +
+                '<tr>' +
+                '  <td width="10" align="left">' +
+                '    <img src="' + UrlHandler.icoBottle + '" alt="Pfandflaschen" title="Pfandflaschen" />' +
+                '  </td>' +
+                '  <td align="left" width="250">' +
+                '    <span>' + Max + ' Pfandflaschen     <font id="wirkung"> Preis: ' + Language.currency + '0,' + (Preis < 10 ? "0" : "") + Preis + '  	</font></span>' +
+                '  </td>' +
+                '  <td width="220" align="right">' +
+                '    <input id="chkval" type="hidden" name="chkval" value="' + Check + '" />' +
+                '    <input id="max" type="hidden" name="max" value="' + Max + '">' +
+                '    <input id="menge_verkauf" type="text" size="10" name="sum" value="1"' +
+                '      onKeyup="' +
+                '        document.getElementById(\'end\').value = document.getElementById(\'menge_verkauf\').value * ' + Preis + ' / 100;' +
+                '        document.getElementById(\'gesamt\').value = (' + Gesamt + ' + document.getElementById(\'menge_verkauf\').value * ' + Preis + ') / 100;' +
+                '      " /> ' +
+                '    <input type="button" value="max."' +
+                '      onClick="' +
+                '        max_flaschen();' +
+                '        document.getElementById(\'end\').value = document.getElementById(\'menge_verkauf\').value * ' + Preis + ' / 100;' +
+                '        document.getElementById(\'gesamt\').value = (' + Gesamt + ' + document.getElementById(\'menge_verkauf\').value * ' + Preis + ') / 100;' +
+                '      " />' +
+                '    <input type="submit" value="Verkaufen"/>' +
+                '  </td>' +
+                '</tr>' +
+                '<tr>' +
+                '  <td>' +
+                '    <img src="' + UrlHandler.icoCash + '" alt="Erlöß">' +
+                '  </td>' +
+                '  <td>' +
+                '    Erlöß:' +
+                '  </td>' +
+                '  <td>' +
+                '    <input id="end" type="text" size="10" name="end" value="' + (Preis / 100) + '"' +
+                '      onKeyup="' +
+                '        document.getElementById(\'menge_verkauf\').value = Math.ceil(document.getElementById(\'end\').value.replace(\',\', \'.\') * 100 / ' + Preis + ');' +
+                '        document.getElementById(\'gesamt\').value = ((' + Gesamt + ' + Math.round((document.getElementById(\'end\').value.replace(\',\', \'.\') * 100))) / 100);' +
+                '      "/>' +
+                '  </td>' +
+                '</tr>'+
+                '<tr>' +
+                '  <td>' +
+                '    <img src="' +  UrlHandler.icoCash + '" alt="Gesamt">' +
+                '  </td>' +
+                '  <td>' +
+                '    Gesamt:' +
+                '  </td>' +
+                '  <td>' +
+                '    <input id="gesamt" type="text" size="10" name="gesamt" value="' + ((Number(Gesamt) + Preis) / 100) + '"' +
+                '      onKeyup="' +
+                '        document.getElementById(\'end\').value = Math.max(0, Math.round(((document.getElementById(\'gesamt\').value.replace(\',\', \'.\') * 100)) - ' + Gesamt + ') / 100);' +
+                '        document.getElementById(\'menge_verkauf\').value = Math.ceil(document.getElementById(\'end\').value.replace(\',\', \'.\') * 100 / ' + Preis + ');' +
+                '      "/>' +
+                '  </td>' +
+                '</tr>';
+
+                // debug stuff :-)
+                if (false) {
+                    var b = document.createElement('input');
+                    b.setAttribute('type', 'submit');
+                    b.setAttribute('value', '+3 EUR');
+                    b.addEventListener('click', function() { BottleTools.sellBottlesByMoney(PennerInfo.state.moneyInCent / 100 + 3, function(suc) { alert(suc); UrlHandler.doReload(); }, null, true); }, true);
+                    elem.parentNode.parentNode.appendChild(b);
+                    
+                    b = document.createElement('input');
+                    b.setAttribute('type', 'submit');
+                    b.setAttribute('value', '3 Flaschen');
+                    b.addEventListener('click', function() { BottleTools.sellBottlesByNumber(3, function(suc) { alert(suc); UrlHandler.doReload(); }, null, true); }, true);
+                    elem.parentNode.parentNode.appendChild(b);
+                }
+        }
+    };
+
+    // noBottles: number of bottles to sell
+    // maxBottles: all the bottles i have
+    // cb: retrieves success state (true/false)
+    BottleTools.sellBottlesInternal = function(noBottles, maxBottles, cb) {
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                if (!cb) return;
+                var result = BaseLib.getStringBetweenTags(req.responseText, 'PgFunction.showMsg', ');');
+                if (result.search('\'ok\'') != -1) {
+                    cb(true);
+                } else {
+                    cb(false);
+                }
+            }
+        };
+
+        if (noBottles > maxBottles) {
+            noBottles = maxBottles;
+        }
+        if (!noBottles) {
+            cb(null);
+            return;
+        }
+
+        var p;
+        if (PennerInfo.state.gangcap == Language.wiwuGestartet) {
+            p = GameType.wiwuKurs;
+        } else {
+            p = PennerInfo.state.pfand;
+        }
+        var param = [ BaseLib.postParam('chkval', p),
+                      BaseLib.postParam('max', maxBottles),
+                      BaseLib.postParam('sum', noBottles),
+                      BaseLib.postParam('end', '0.' + (p < 10 ? '0' : '') + p),
+                      BaseLib.postParam('gesamt', (PennerInfo.state.moneyInCent + noBottles * p) * 1.0 / 100) ];
+        BaseLib.xmlhttpPostRequest(UrlHandler.wwwUrl + "stock/bottle/sell/", f, param);
+    };
+
+    // sell all buttons, no matter what course or limit
+    BottleTools.sellAllBottles = function(cb) {
+        if (!cb) cb = UrlHandler.doNothing;
+        BottleTools.sellBottlesByNumber(0, cb, null, true);
+    };
+
+    // sell all bottles, but only until i have <x> money; money is given in euro!
+    // if money is 0 or null, everything is sold!
+    // maxBottles can be set to null, so it's automatically determined
+    // if refreshCourse is set, the course will be determined; that means, in 99%, the bottles will really be sold;
+    //      otherwise, the method may fail if the course went lower
+    BottleTools.sellBottlesByMoney = function(maxMoney, cb, maxBottles, refreshCourse) {
+        if (PennerInfo.state.bottles == null) {
+            BaseLib.setTimeoutEx(function () { BottleTools.sellBottlesByMoney(maxMoney, cb, maxBottles, refreshCourse); }, 100);
+            return;
+        }
+
+        if (refreshCourse) {
+            var updateCb = function() {
+                BottleTools.sellBottlesByMoney(maxMoney, cb, maxBottles, false);
+            };
+            PennerInfo.updateBasic(updateCb);
+            return;
+        }
+
+        if (PennerInfo.state.moneyInCent == null || PennerInfo.state.pfand == null || PennerInfo.state.gangcap == null) {
+            BaseLib.setTimeoutEx(function () { BottleTools.sellBottlesByMoney(maxMoney, cb, maxBottles, refreshCourse); }, 100);
+            return;            
+        }
+
+        if (maxBottles == null || maxBottles == undefined) {
+            maxBottles = PennerInfo.state.bottles;
+        } else if (maxBottles == 0) {
+            if (cb) cb(null);
+            return;
+        }
+        var bottles = maxBottles;
+        var pfand;
+        if (PennerInfo.state.gangcap == Language.wiwuGestartet) {
+            pfand = GameType.wiwuKurs;
+        } else {
+            pfand = PennerInfo.state.pfand;
+        }
+        if (maxMoney) {
+            var neededMoney = Math.round(maxMoney * 100) - PennerInfo.state.moneyInCent;
+            if (neededMoney <= 0) {
+                // nothing to sell!
+                if (cb) cb(null);
+                return;
+            }
+            bottles = Math.ceil(neededMoney / pfand);
+        }
+        BottleTools.sellBottlesInternal(bottles, maxBottles, cb);
+    };
+
+    // sell <x> bottles
+    // if bottles is 0 or null, everything is sold!
+    // maxBottles can be set to null, so it's automatically determined
+    // if refreshCourse is set, the course will be determined; that means, in 99%, the bottles will really be sold;
+    //      otherwise, the method may fail if the course went lower
+    BottleTools.sellBottlesByNumber = function(bottles, cb, maxBottles, refreshCourse) {
+        if (PennerInfo.state.bottles == null) {
+            BaseLib.setTimeoutEx(function () { BottleTools.sellBottlesByNumber(bottles, cb, maxBottles, refreshCourse); }, 100);
+            return;
+        }
+
+        if (refreshCourse) {
+            var updateCb = function() {
+                BottleTools.sellBottlesByNumber(bottles, cb, maxBottles, false);
+            };
+            PennerInfo.updateBasic(updateCb);
+            return;
+        }
+
+        if (PennerInfo.state.moneyInCent == null || PennerInfo.state.pfand == null || PennerInfo.state.gangcap == null) {
+            BaseLib.setTimeoutEx(function () { BottleTools.sellBottlesByNumber(bottles, cb, maxBottles, refreshCourse); }, 100);
+            return;            
+        }
+
+        if (maxBottles == null || maxBottles == undefined) {
+            maxBottles = PennerInfo.state.bottles;
+        } else if (maxBottles == 0) {
+            if (cb) cb(null);
+            return;
+        }
+
+        if (!bottles) bottles = maxBottles;
+        BottleTools.sellBottlesInternal(bottles, maxBottles, cb);
+    };
+
+    BottleTools.createCollectPlunderButtons = function() {
+        if (!Plunder.initialized) {
+            BaseLib.setTimeoutEx(function () { BottleTools.createCollectPlunderButtons(); }, 500);
+            return;
+        }
+        var searchClass = 'cbox';
+
+        var tables = BaseLib.getElementsByClassNameForElements('table', searchClass);
+        var table;
+        for (var i = 0; i < tables.length; i++) {
+            var r = tables[i].getElementsByTagName('tr')[0];
+            if (r && r.innerHTML.search(Language.activityCollect) != -1) {
+                table = tables[i];
+                break;
+            }
+        }
+        
+        if (!table) {
+            return;
+        }
+        var boosts = Plunder.getCollectBoostPlunders();
+        if (!boosts) {
+            return;
+        }
+
+        var tbody = table.getElementsByTagName('tbody')[0];
+        var newTr = document.createElement('tr');
+        newTr.appendChild(document.createElement('td'));
+        var newTd = document.createElement('td');
+        newTr.appendChild(newTd);
+        tbody.insertBefore(newTr, tbody.getElementsByTagName('tr')[3]);
+
+        var buttonsTable = document.createElement('table');
+        buttonsTable.setAttribute('id', 'collect_helpers_buttons');
+        var tr = document.createElement('tr');
+        buttonsTable.appendChild(tr);
+        var td;
+        for (var b in boosts) {
+            td = document.createElement('td');
+            td.setAttribute('style', 'padding: 1px;');
+            td.appendChild(UIHelpers.createPlunderUseButton(boosts[b], UrlHandler.doReload, '+'+b+'%'));
+            tr.appendChild(td);
+        }
+        newTd.appendChild(buttonsTable);
+    };
+
+    BottleTools.getNeededBeer = function(promille) {
+        try {
+            BaseLib.assert(PennerInfo.state.promille != null, 'PennerInfo.state.promille != null');
+        } catch (e) {
+            return 0;
+        }
+        if (!promille) promille = 284;
+        var alk = BaseLib.extractNumber(PennerInfo.state.promille);
+        var neededAlk = promille - alk;
+        return Math.max(0, Math.floor(neededAlk/35));
+    };
+
+    BottleTools.getNeededBread = function() {
+        try {
+            BaseLib.assert(PennerInfo.state.promille != null, 'PennerInfo.state.promille != null');
+        } catch (e) {
+            return 0;
+        }
+        var alk = BaseLib.extractNumber(PennerInfo.state.promille);
+        return Math.max(0, Math.ceil(alk/35) - 1);
+    };
+
+    BottleTools.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isStockBottleUrl()) {
+                BottleTools.createCalculator();
+            }
+            if (UrlHandler.isActivitiesUrl()) {
+                BottleTools.createCollectPlunderButtons();
+            }
+        }
+    };
+};
+

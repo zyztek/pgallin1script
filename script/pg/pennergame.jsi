@@ -1,0 +1,116 @@
+/** 
+ * @filename pennergame.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+// ######## Main Pennergame Script ################
+
+var ScriptClass = function() {
+
+    // +++++++++ Misc. +++++++++
+
+    this.includeAdditionalFiles = function() {
+        BaseLib.injectCssUrl(UrlHandler.plunder_css);
+    };
+
+    this.runError50xcheck = function(autoreload, callback) {
+        if (Registry.hasObject("ErrorChecker")) {
+            ErrorChecker.prepareWindow();
+            return ErrorChecker.check(autoreload, callback);
+        } else {
+            if (callback != undefined) BaseLib.setTimeoutEx(callback, 1);
+            return false;
+        }
+    };
+
+    this.runIcon = function() {
+        var footer = document.getElementById('footer');
+        if (footer) {
+            footer.innerHTML += '<link rel="shortcut icon" href="'+ UrlHandler.icoFav + '" type="image/x-icon">';
+        }
+    };
+
+    this.runDefectCounter = function() {
+        if (BaseLib.browser.chrome) {
+            return;
+        }
+        try {
+            unsafeWindow.count();
+        } catch (e) {
+            Log.console('Main:' + "Spacken: counter kaputt");
+            var f = function(req) {
+                if (req.readyState == 4 && req.status == 200) {
+                    var fn = BaseLib.getStringBetweenTags(req.responseText, 'function count() {', 'function');
+                    if (fn && fn != '') {
+                        fn = '\nfunction pgScriptCount() {\n' + fn;
+                        fn += 'function pgScriptStarter() { refreshzeit(); pgScriptCount(); setTimeout("pgScriptStarter()",1000); } '
+                        var sc = document.createElement('script');
+                        sc.setAttribute('type', 'text/javascript');
+                        sc.innerHTML = fn;
+                        document.getElementsByTagName('head')[0].appendChild(sc);
+                        BaseLib.setTimeoutEx(function () {
+                            try {
+                                unsafeWindow.pgScriptStarter();
+                            } catch (e) {}
+                        }, 100);
+                    }
+                }
+            };
+            BaseLib.xmlhttpRequest(UrlHandler.pgMediaUrl + 'js/pv4/counter.js', f, true, 24*60);
+        }
+    };
+    
+    // +++++++++ Run levels +++++++++
+
+    this.onRunlevel = function(runlevel, cb) {
+        /* -------- init functionality ----------- */
+        if (runlevel == 9) {
+            // runlevel 9: check for correct URL or redirect and skip further runlevels
+            if (this.checkRedirect()) return -1;
+            if (this.checkUrl()) return -1;
+        } else if (runlevel == 19) {
+            // runlevel 19: check if the script is disabled
+            if (MainScript.isDisabled()) {
+                return -1;
+            }
+        } else if (runlevel == 28) {
+            if (this.checkLogout()) {
+                return -1;
+            }
+            this.installCheckTimer();
+        } else if (runlevel == 99) {
+            this.removeCheckTimer();
+        }
+
+        /* -------- other functionality ----------- */
+        else if (runlevel == 10) {
+            this.includeAdditionalFiles();
+        } else if (runlevel == 30) {
+            this.runIcon();
+        } else if (runlevel == 59) {
+            this.runDefectCounter();
+        }
+    };
+
+    this.onRunlevelAsync = function(runlevel, cb) {
+        /* -------- init functionality ----------- */
+        if (runlevel == 2) {
+            BaseLib.initAsync(cb);
+        } else if (runlevel == 29) {
+            if (this.runError50xcheck(true, cb)) {
+                return -1;
+            }
+        } else if (runlevel == 38) {
+            // runlevel 38: load user ID
+            UserInfo.getUserId(cb);
+        } else {
+            cb();
+        }
+    };
+};
+
+ScriptClass.prototype = new ScriptBase();
+
+Registry.register("MainScript", ScriptClass);

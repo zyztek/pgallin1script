@@ -1,0 +1,1527 @@
+/** 
+ * @filename gotya.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+GotYaFramework = {};
+
+Registry.register("GotYaFramework", GotYaFramework);
+
+
+GotYaFramework.init = function() {
+
+GotYaFramework.initRunPart = function() {
+
+GotYaFramework.generatenumbers = function () {
+
+    var numbers=new Array();
+
+    var i;
+    for (var j=0; j<=9; j++) {
+        var o = new Object();
+        o.width = 0;
+        o.height = 0;
+        o.click = new Object();
+        o.click.x = 8;
+        o.click.y = 8;
+        o.data = new Array();
+        numbers.push(o);
+    }
+
+    i=2;
+    numbers[i-1].width = 16;
+    numbers[i-1].height = 16;
+    numbers[i-1].click.x = 9;
+    numbers[i-1].data = new Array(
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,1,0,5,5,5,5,0,0,1,1,1,0,0,
+        0,0,0,0,0,0,0,0,0,5,0,0,1,1,0,0,
+        0,0,0,0,0,0,0,0,0,0,5,0,1,1,0,0,
+        0,0,0,0,0,0,0,0,0,0,5,0,1,0,0,0,
+        0,0,0,0,0,0,0,0,0,5,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,5,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,5,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,5,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,1,0,5,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,1,0,5,0,0,0,0,0,0,0,0,0,0,
+        0,0,1,1,0,5,0,0,0,0,0,0,0,0,0,0,
+        0,0,1,1,0,0,5,5,5,5,5,0,1,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    );
+
+    i=4;
+    numbers[i-1].width = 16;
+    numbers[i-1].height = 16;
+    numbers[i-1].click.y = 9;
+    numbers[i-1].data = new Array(
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,5,0,0,0,0,0,
+        0,0,0,0,5,0,0,0,0,0,5,0,0,0,0,0,
+        0,0,0,0,5,0,0,0,0,0,5,0,0,0,0,0,
+        0,0,0,0,5,0,0,0,0,0,5,0,0,0,0,0,
+        0,0,0,0,5,0,0,0,0,0,5,0,0,0,0,0,
+        0,0,0,0,5,0,0,0,0,0,5,0,0,0,0,0,
+        0,0,0,0,5,5,5,5,5,5,5,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,5,0,0,0,0,0,
+        0,0,0,0,1,0,0,0,0,0,5,0,0,0,0,0,
+        0,0,0,0,1,0,0,0,0,0,5,0,0,0,0,0,
+        0,0,0,0,1,0,0,0,0,0,5,0,0,0,0,0,
+        0,0,0,0,1,0,0,0,0,0,5,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    );
+
+    i=5;
+    numbers[i-1].width = 16;
+    numbers[i-1].height = 16;
+    numbers[i-1].data = new Array(
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,5,5,5,5,5,0,0,0,0,0,0,
+        0,0,0,0,5,5,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,5,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,5,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,5,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,5,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,5,5,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,5,5,5,5,5,5,5,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,5,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,5,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,5,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,5,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,5,5,0,0,0,
+        0,0,0,0,0,0,0,5,5,5,5,0,0,0,0,0,
+        0,0,0,0,0,0,5,0,0,0,0,0,0,0,0,0
+    );
+
+      i=6;
+    numbers[i-1].width = 16;
+    numbers[i-1].height = 16;
+    numbers[i-1].data = new Array(
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,5,5,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,5,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,5,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,5,5,5,5,5,0,0,0,0,0,
+        0,0,0,0,0,5,0,0,0,0,0,5,0,0,0,0,
+        0,0,0,0,0,5,0,0,0,0,0,0,5,0,0,0,
+        0,0,0,0,5,0,0,0,0,0,0,0,5,0,0,0,
+        0,0,0,0,5,0,0,0,0,0,0,5,0,0,0,0,
+        0,0,0,0,0,5,0,0,0,0,5,0,0,0,0,0,
+        0,0,0,0,0,0,5,5,5,5,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    );
+
+    i=7;
+    numbers[i-1].width = 16;
+    numbers[i-1].height = 16;
+    numbers[i-1].click.x = 9;
+    numbers[i-1].click.y = 9;
+    numbers[i-1].data = new Array(
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,5,5,5,5,5,5,5,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,5,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,5,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,5,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0,
+        0,0,0,0,0,5,5,5,5,5,5,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    );
+
+      i=8;
+    numbers[i-1].width = 16;
+    numbers[i-1].height = 16;
+    numbers[i-1].data = new Array(
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,5,5,5,5,5,0,0,0,0,0,0,
+        0,0,0,0,5,0,0,0,0,0,5,0,0,0,0,0,
+        0,0,0,5,0,0,0,0,0,0,0,5,0,0,0,0,
+        0,0,0,5,0,0,0,0,0,0,0,5,0,0,0,0,
+        0,0,0,0,5,0,0,0,0,0,5,0,0,0,0,0,
+        0,0,0,0,0,5,5,5,5,5,0,0,0,0,0,0,
+        0,0,0,0,5,0,0,0,0,0,5,0,0,0,0,0,
+        0,0,0,5,0,0,0,0,0,0,0,5,0,0,0,0,
+        0,0,0,5,0,0,0,0,0,0,0,5,0,0,0,0,
+        0,0,0,5,0,0,0,0,0,0,0,5,0,0,0,0,
+        0,0,0,0,5,0,0,0,0,0,5,0,0,0,0,0,
+        0,0,0,0,0,5,5,5,5,5,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    );
+
+    i=9;
+    numbers[i-1].width = 16;
+    numbers[i-1].height = 16;
+    numbers[i-1].click.x = 10;
+    numbers[i-1].click.y = 9;
+    numbers[i-1].data = new Array(
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,5,5,5,5,0,0,0,0,0,
+        0,0,0,0,0,5,5,0,0,0,0,5,0,0,0,0,
+        0,0,0,0,5,0,0,0,0,0,0,5,0,0,0,0,
+        0,0,0,5,0,0,0,0,0,0,0,5,0,0,0,0,
+        0,0,0,5,0,0,0,0,0,0,0,5,0,0,0,0,
+        0,0,0,5,0,0,0,0,0,0,0,5,0,0,0,0,
+        0,0,0,0,5,5,0,0,0,0,5,5,0,0,0,0,
+        0,0,0,0,0,0,5,5,5,5,0,5,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,5,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,5,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,5,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,5,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    );
+
+     // numbers[2-1].width = 0;
+     // numbers[4-1].width = 0;
+     // numbers[5-1].width = 0;
+     // numbers[6-1].width = 0;
+     // numbers[7-1].width = 0;
+     // numbers[8-1].width = 0;
+     // numbers[9-1].width = 0;
+
+    return numbers;
+};
+
+GotYaFramework.GotYa = function(canvas, parent, h, w) {
+
+    var GotYa = new Object();
+
+    GotYa.initialize = function(canvas, parent, h, w) {
+        if (parent) {
+            if (!h) h = '200';
+            if (!w) w = '205';
+            var c = document.createElement('canvas');
+            c.setAttribute('id', canvas);
+            c.setAttribute('width', w+'px');
+            c.setAttribute('height',h+'px');
+            parent.appendChild(c);
+            this.dbg=0;
+            this.width = w;
+            this.height = h;
+            this.canvas = c;
+            this.cfg = new Object();
+
+            this.cfg.penalizeneighbors=3;
+            this.cfg.penalizeoutsideneigh=5;
+            this.cfg.allowedoutsideneighbors=2;
+            this.cfg.minoverlappingregiondistance=8;
+            this.cfg.maxoverlappingregions=2;
+            this.cfg.regionminscore=84;
+            this.cfg.pixelfindjitter=12;
+            this.cfg.pxmatchscore=7;
+            this.cfg.pxneighmatchscore=3;
+            this.cfg.pxnotmatchscore=-12;
+            this.cfg.digitrotationmin=-45;
+            this.cfg.digitrotationmax=45;
+            this.cfg.digitrotationstep=15;
+        } else {
+            this.width = canvas.width;
+            this.height = canvas.height;
+            this.canvas = canvas;
+        }
+        this.context = this.canvas.getContext('2d');
+        this.loaded = false;
+        var d = document.getElementById("bot_dbg");
+        this.debug = d;
+        this.greyed = false;
+        this.regions = new Array();
+        this.numbers = new Array();
+    };
+
+    GotYa.init = function() {
+        this.colors = new Object();
+        this.colors.fc = 255;
+        this.colors.bc = 0;
+        this.colors.mc = 150;
+    };
+
+    GotYa.eq = function (a,b) {
+        return a==b; // Math.abs(b-a) < 80;
+    };
+
+    GotYa.aeq = function (a,b) {
+        return Math.abs(b-a) < 80;
+    };
+    
+    GotYa.setnumbers = function( numbers) {
+        this.numbers = numbers;
+    };
+
+    GotYa.getImageData = function (x, y, w, h){
+        if (x == undefined) x = 0;
+        if (y == undefined) y = 0;
+        if (w == undefined) w = this.width;
+        if (h == undefined) h = this.height;
+        return this.context.getImageData(x, y, w, h);
+    };
+
+    GotYa.ImageData2Array = function (image_data){
+        var o = new Object();
+        var a = new Array();
+        for (var x = 0; x < image_data.width; x++){
+            a[x] = new Array();
+            for (var y = 0; y < image_data.height; y++){
+                var i = x*4+y*4*image_data.width;
+                if (image_data.data[i] == this.colors.fc) {
+                    a[x][y] = this.colors.fc;
+                } else {
+                    a[x][y] = this.colors.bc;
+                }
+            }
+        }
+
+        o.minx = (image_data.minx == null) ? 0 : image_data.minx;
+        o.maxx = (image_data.maxx == null) ? image_data.width-1 : image_data.maxx;
+        o.miny = (image_data.miny == null) ? 0 : image_data.miny;
+        o.maxy = (image_data.maxy == null) ? image_data.height-1 : image_data.maxy;
+
+        o.data = a;
+        return o;
+    };
+
+    GotYa.loadImgByImgId = function (img){
+        var objImg = document.getElementById(img);
+        if (!objImg) return;
+        this.context.drawImage(objImg, 0, 0);
+        if (objImg.width) this.width = objImg.width;
+        if (objImg.height) this.height = objImg.height;
+        this.init();
+        this.loaded = true;
+    };
+
+    GotYa.loadImgByNumber = function (number, w, h, vx, vy){
+        this.init();
+        if (vx == null) vx = 0;
+        if (vy == null) vy = vx;
+
+        var xr = number.width / w;
+        var yr = number.height / h;
+
+        for (var y = 0; y < h; y++){
+            for (var x = 0; x < w; x++){
+                var ax = Math.floor(x*xr);
+                var ay = Math.floor(y*yr);
+                if (ax > number.width) ax = number.width-1;
+                if (ay > number.height) ay = number.height-1;
+                var r = 0;
+                var g = 0;
+                var b = 0;
+                if ((number.data[ay*number.width+ax] != 0)) {
+                    if ((number.data[ay*number.width+ax]) < 5) {
+                        r = this.colors.fc;
+                        g = this.colors.bc;
+                        b = this.colors.fc;
+                    } else {
+                        r = this.colors.bc;
+                        g = this.colors.fc;
+                        b = this.colors.fc;
+                    }
+                } else {
+                    r = this.colors.bc;
+                    g = this.colors.bc;
+                    b = this.colors.bc;
+                }
+                this.context.fillStyle = "rgb("+r+", "+g+","+b+")";
+                this.context.fillRect (x-vx, y-vy, 1, 1);
+            }
+        }
+        this.width = w;
+        this.height = h;
+        this.owidth = number.width;
+        this.oheight = number.height;
+        this.loaded = true;
+    };
+
+    GotYa.loadImgByFile = function (img){
+        var objImg = document.createElement('img');
+        var gy = this;
+        objImg.onload = function(){
+            gy.context.drawImage(objImg, 0, 0);
+            if (objImg.width) gy.width = objImg.width;
+            if (objImg.height) gy.height = objImg.height;
+            gy.loaded = true; };
+        objImg.src = img;
+        // attention: image loading may take some ms!!
+        this.init();
+    };
+
+    GotYa.invert = function (x,y,w,h) {
+        if (x == undefined) x = 0;
+        if (y == undefined) y = 0;
+        if (w == undefined) w = this.width;
+        if (h == undefined) h = this.height;
+
+        // Get the CanvasPixelArray from the given coordinates and dimensions.
+        var imgd = this.getImageData(x, y, w, h);
+        var pix = imgd.data;
+
+        // Loop over each pixel and invert the color.
+        for (var i = 0, n = pix.length; i < n; i += 4) {
+            pix[i  ] = 255 - pix[i  ]; // red
+            pix[i+1] = 255 - pix[i+1]; // green
+            pix[i+2] = 255 - pix[i+2]; // blue
+            // i+3 is alpha (the fourth element)
+        }
+
+        // Draw the ImageData at the given (x,y) coordinates.
+        this.context.putImageData(imgd, x, y);
+    };
+
+    GotYa.circle = function (x, y, r, color) {
+        if (color == null) color = "#ff0000";
+        this.context.fillStyle = color;
+        this.context.beginPath();
+        this.context.arc(x, y, r, 0, 2*Math.PI, true);
+        this.context.fill();
+    };
+
+    GotYa.rect = function(wx, wy, w, h, fill, color){
+        if (color == null) color = this.colors.mc;
+        if (fill == null) fill = true;
+        if (fill) {
+            this.context.fillStyle = "rgba(0, 0, " + color + ", 0.5)";
+            this.context.fillRect (wx, wy, w, h);
+        } else {
+            this.context.fillStyle = "rgb(0, 0, " + color + ")";
+            this.context.beginPath();
+            this.context.moveTo(wx,wy);
+            this.context.lineTo(wx+w,wy);
+            this.context.lineTo(wx+w,wy+h);
+            this.context.lineTo(wx,wy+h);
+            this.context.lineTo(wx,wy);
+            this.context.stroke();
+        }
+    };
+
+    GotYa.drawRects = function() {
+        this.context.fillStyle = "rgb(200,0,0)";
+        this.context.fillRect (10, 10, 55, 50);
+
+        this.context.fillStyle = "rgba(0, 0, 200, 0.5)";
+        this.context.fillRect (30, 30, 55, 50);
+    };
+
+    GotYa.sw = function(wx, wy, w, h){
+        if (wx == undefined) wx = 0;
+        if (wy == undefined) wy = 0;
+        if (w == undefined) w = this.width;
+        if (h == undefined) h = this.height;
+        var image_data = this.getImageData(wx, wy, w, h);
+        for (var x = 0; x < image_data.width; x++){
+            for (var y = 0; y < image_data.height; y++){
+                var i = x*4+y*4*image_data.width;
+                var luma = Math.floor(image_data.data[i] * 299/1000 +
+                image_data.data[i+1] * 587/1000 +
+                image_data.data[i+2] * 114/1000);
+                var c = this.colors.fc;
+                if (luma < 128) c = this.colors.bc;
+                image_data.data[i] = c;
+                image_data.data[i+1] = c;
+                image_data.data[i+2] = c;
+                image_data.data[i+3] = 255;
+            }
+        }
+        this.greyed=true;
+        this.context.putImageData(image_data, wx, wy);
+    };
+
+    GotYa.swc = function(wx, wy, w, h){
+        if (wx == undefined) wx = 0;
+        if (wy == undefined) wy = 0;
+        if (w == undefined) w = this.width;
+        if (h == undefined) h = this.height;
+        var image_data = this.getImageData(wx, wy, w, h);
+        for (var x = 0; x < image_data.width; x++){
+            for (var y = 0; y < image_data.height; y++){
+                var i = x*4+y*4*image_data.width;
+                var r = image_data.data[i];
+                var g = image_data.data[i+1];
+                var b = image_data.data[i+2];
+                var c = this.colors.bc;
+                if (GotYa.aeq(b, this.colors.fc)) {
+                    if (GotYa.aeq(r, this.colors.fc)) {
+                        r = this.colors.fc;
+                        g = this.colors.bc;
+                        b = this.colors.fc;
+                    } else {
+                        r = this.colors.bc;
+                        g = this.colors.fc;
+                        b = this.colors.fc;
+                    }
+                } else {
+                    r = this.colors.bc;
+                    g = this.colors.bc;
+                    b = this.colors.bc;
+                }
+                image_data.data[i] = r;
+                image_data.data[i+1] = g;
+                image_data.data[i+2] = b;
+                image_data.data[i+3] = 255;
+
+            }
+        }
+        this.greyed=true;
+        this.context.putImageData(image_data, wx, wy);
+    };
+
+    GotYa.grey = function(wx, wy, w, h){
+        if (wx == undefined) wx = 0;
+        if (wy == undefined) wy = 0;
+        if (w == undefined) w = this.width;
+        if (h == undefined) h = this.height;
+        var image_data = this.getImageData(wx, wy, w, h);
+        for (var x = 0; x < image_data.width; x++){
+            for (var y = 0; y < image_data.height; y++){
+                var i = x*4+y*4*image_data.width;
+                var luma = Math.floor(image_data.data[i] * 299/1000 +
+                image_data.data[i+1] * 587/1000 +
+                image_data.data[i+2] * 114/1000);
+                image_data.data[i] = luma;
+                image_data.data[i+1] = luma;
+                image_data.data[i+2] = luma;
+                image_data.data[i+3] = 255;
+            }
+        }
+        this.greyed=true;
+        this.context.putImageData(image_data, wx, wy);
+    };
+
+    GotYa.easec = function(colorr, colorg, colorb, lower, to, wx, wy, w, h){
+        if (wx == undefined) wx = 0;
+        if (wy == undefined) wy = 0;
+        if (w == undefined) w = this.width;
+        if (h == undefined) h = this.height;
+        var image_data = this.getImageData(wx, wy, w, h);
+        for (var x = 0; x < image_data.width; x++){
+            for (var y = 0; y < image_data.height; y++){
+                var i = x*4+y*4*image_data.width;
+
+                var r = lower && (image_data.data[i] <= colorr) ||
+                    !lower && (image_data.data[i] >= colorr);
+
+                var g = lower && (image_data.data[i+1] <= colorg) ||
+                    !lower && (image_data.data[i+1] >= colorg);
+
+                var b = lower && (image_data.data[i+2] <= colorb) ||
+                    !lower && (image_data.data[i+2] >= colorb);
+
+                // Turn all the pixels of the certain colour to white
+                if (r && g && b) {
+                    image_data.data[i] = to;
+                    image_data.data[i+1] = to;
+                    image_data.data[i+2] = to;
+                }
+            }
+        }
+        this.context.putImageData(image_data, wx, wy);
+    };
+
+    GotYa.ease = function(color, lower, to, wx, wy, w, h){
+        if (wx == undefined) wx = 0;
+        if (wy == undefined) wy = 0;
+        if (w == undefined) w = this.width;
+        if (h == undefined) h = this.height;
+        var image_data = this.getImageData(wx, wy, w, h);
+        for (var x = 0; x < image_data.width; x++){
+            for (var y = 0; y < image_data.height; y++){
+                var i = x*4+y*4*image_data.width;
+
+                var c = lower && (image_data.data[i] <= color) ||
+                !lower && (image_data.data[i] >= color);
+
+                // Turn all the pixels of the certain colour to white
+                if (c) {
+                    image_data.data[i] = to;
+                    image_data.data[i+1] = to;
+                    image_data.data[i+2] = to;
+                }
+            }
+        }
+        this.context.putImageData(image_data, wx, wy);
+    };
+
+    GotYa.filter = function(color1, color2, wx, wy, w, h){
+        if (wx == undefined) wx = 0;
+        if (wy == undefined) wy = 0;
+        if (w == undefined) w = this.width;
+        if (h == undefined) h = this.height;
+        var image_data = this.getImageData(wx, wy, w, h);
+        for (var x = 0; x < image_data.width; x++){
+            for (var y = 0; y < image_data.height; y++){
+                var i = x*4+y*4*image_data.width;
+
+                // Turn all the pixels of the certain colour to white
+                if (image_data.data[i] >= color1 &&
+                    image_data.data[i] <= color2) {
+                    image_data.data[i] = this.colors.fc;
+                    image_data.data[i+1] = this.colors.fc;
+                    image_data.data[i+2] = this.colors.fc;
+                    // Everything else to black
+                } else {
+                    image_data.data[i] = this.colors.bc;
+                    image_data.data[i+1] = this.colors.bc;
+                    image_data.data[i+2] = this.colors.bc;
+                }
+            }
+        }
+        this.context.putImageData(image_data, wx, wy);
+    };
+
+    GotYa.resize = function(wx, wy) {
+        var image_data = this.getImageData(0, 0, this.width, this.height);
+        var resize_data = this.context.createImageData(wx, wy);
+        var xr = image_data.width / wx;
+        var yr = image_data.height / wy;
+
+        for (var x = 0; x < wx; x++){
+            for (var y = 0; y < wy; y++){
+                var i = x*4+y*4*wx;
+                var ax = Math.floor(x*xr);
+                var ay = Math.floor(y*yr);
+                if (ax > image_data.width) ax = wx-1;
+                if (ay > image_data.height) ay = wy-1;
+                var v = ax*4+ay*4*image_data.width;
+
+                resize_data.data[i+0] = image_data.data[v];
+                resize_data.data[i+1] = image_data.data[v+1];
+                resize_data.data[i+2] = image_data.data[v+2];
+                resize_data.data[i+3] = image_data.data[v+3];
+            }
+        }
+
+        this.canvas.width = wx;
+        this.canvas.height = wy;
+        this.width = wx;
+        this.height = wy;
+        this.context.putImageData(resize_data, 0, 0);
+    };
+
+    GotYa.allneighborcount = function (x, y, image_data, c) {
+        if (!image_data) {
+            image_data = this.getImageData();
+        }
+        if (!c) c = this.colors.fc;
+
+        var b = 0;
+        for (var i=0; i<=2; i++) {
+            if (image_data.data[(x-1)*4+(y-i)*4*image_data.width] == c) b++;
+            if (image_data.data[(x-i)*4+(y-1)*4*image_data.width] == c) b++;
+            if (image_data.data[(x+1)*4+(y+i)*4*image_data.width] == c) b++;
+            if (image_data.data[(x+i)*4+(y+1)*4*image_data.width] == c) b++;
+        }
+        return b;
+    };
+
+    GotYa.simpleneighborcount = function (x, y, image_data, c) {
+
+        if (!image_data) image_data = this.getImageData();
+        if (c == undefined) c = this.colors.fc;
+
+        var b = 0;
+        var dd = image_data.data;
+        var fak = 4*image_data.width;
+
+        if (dd[x*4+(y-1)*fak] == c) b++;
+        if (dd[x*4+(y+1)*fak] == c) b++;
+        if (dd[(x-1)*4+y*fak] == c) b++;
+        if (dd[(x+1)*4+y*fak] == c) b++;
+
+        return b;
+    };
+
+    GotYa.findandreplace = function(n, wx, wy, w, h, c) {
+        if (wx == undefined) wx = 0;
+        if (wy == undefined) wy = 0;
+        if (w == undefined) w = this.width;
+        if (h == undefined) h = this.height;
+        var image_data = this.getImageData(wx, wy, w, h);
+        for (var x = 0; x < image_data.width; x++){
+            for (var y = 0; y < image_data.height; y++){
+                var i = x*4+y*4*image_data.width;
+                if (image_data.data[i] != c &&
+                    this.simpleneighborcount(x,y,image_data,c) > n)  {
+                    image_data.data[i] = c;
+                    image_data.data[i+1] = c;
+                    image_data.data[i+2] = c;
+                    image_data.data[i+3] = 255;
+                }
+            }
+        }
+        this.context.putImageData(image_data, wx, wy);
+    };
+
+    GotYa.removenoise = function(n, wx, wy, w, h) {
+        if (wx == undefined) wx = 0;
+        if (wy == undefined) wy = 0;
+        if (w == undefined) w = this.width;
+        if (h == undefined) h = this.height;
+        this.findandreplace(n, wx, wy, w, h, this.colors.bc);
+    };
+
+    GotYa.strengthenlines = function(n, wx, wy, w, h) {
+        if (wx == undefined) wx = 0;
+        if (wy == undefined) wy = 0;
+        if (w == undefined) w = this.width;
+        if (h == undefined) h = this.height;
+        this.findandreplace(n, wx, wy, w, h, this.colors.fc);
+    };
+
+    GotYa.move = function(x1,y1,w,h,x2,y2) {
+        var objImgData = this.getImageData(x1, y1, w, h);
+        this.context.putImageData(objImgData, x2, y2);
+    };
+
+    GotYa.rateregions = function(results, minscore){
+        if (minscore == null) minscore = 0;
+        var numComparisonAsc = function(a, b) { return b.count-a.count; };
+        results.sort(numComparisonAsc);
+        var ret = new Array();
+        var n = new Array();
+        var m, r, a, i, drin, dran, equalscore;
+        
+        while (results.length != 0) {
+            m = results[0];
+
+            if (m.count < minscore) break;
+            ret.push(m);
+
+            n = new Array();
+            r = this.cfg.minoverlappingregiondistance;
+            // allow a overlapping regions
+            a = this.cfg.maxoverlappingregions;
+            for (i=1; i<results.length; i++) {
+                // are there overlapping regions?
+                drin = (
+                    ((results[i].x >= m.x) &&
+                    (results[i].x <= m.x + m.size) ||
+                    (results[i].x + m.size >= m.x) &&
+                    (results[i].x + m.size <= m.x + m.size)) &&
+                    ((results[i].y >= m.y) &&
+                    (results[i].y <= m.y + m.size) ||
+                    (results[i].y + m.size >= m.y) &&
+                    (results[i].y + m.size <= m.y + m.size))
+                    );
+                // please don't cover too much pixels
+                dran = (
+                    Math.abs(results[i].x - m.x) > r &&
+                    Math.abs(results[i].y - m.y) > r
+                );
+                // please don't cover the same pixels again
+                equalscore = (results[i].count == m.count);
+
+                if ((a && dran && !equalscore) || !drin) {
+                    n.push(results[i]);
+                    if (a) a--;
+                }
+            }
+            results = n;
+        }
+
+        return ret;
+        //        this.context.putImageData(image_data, 0, 0);
+    };
+
+    GotYa.findregions = function(s, w, results, asyncy){
+        var image_data = this.getImageData(0, 0, this.width, this.height);
+        if (s < 4) return;
+        if (results == null) results = new Array();
+
+        var myma, mxma, ix, tx, ty, ix, y, x, my, c, mx, t;
+        var yma = (image_data.height-s);
+        var yst = -1;
+        var xma = (image_data.width-s);
+        var penalize = this.cfg.penalizeoutsideneigh * this.cfg.penalizeneighbors;
+
+        if (asyncy) {
+            yst = asyncy.yst;
+            yma = asyncy.yst+1;
+        }
+
+        for (y = yst; y < yma; y++){
+            for (x = -1; x<xma; x++){
+                c = 0;
+                // count pixels
+                myma = (y+s);
+                mxma = (x+s);
+                for (my = y; my < myma; my++) {
+                    for (mx = x; mx < mxma; mx++) {
+                        ix = mx*4+my*4*image_data.width;
+                        if (image_data.data[ix] == this.colors.fc) c++;
+                    }
+                }
+                if (c >= w) {
+                    // penalize border pixels and double-penalize
+                    // borderpixels with neighbors outside
+                    for (t=0; t<s; t++) {
+                        tx = 0;
+                        ty = 0;
+                        for (var r=0; r < 4; r++) {
+                            if (r == 0) {
+                                tx = x-1;
+                                ty = y-1+t;
+                            } else if (r == 1) {
+                                tx = x-1+t;
+                                ty = y-1;
+                            } else if (r == 2) {
+                                tx = x+s;
+                                ty = y+s-t;
+                            } else if (r == 3) {
+                                tx = x+s-t;
+                                ty = y+s;
+                            }
+                            ix = tx*4+ty*4*image_data.width;
+
+                            if (image_data.data[ix] == this.colors.fc) {
+                                c -= (this.simpleneighborcount(tx,ty,image_data,this.colors.fc)-this.cfg.allowedoutsideneighbors) * penalize;
+                            }
+                        }
+                    }
+
+                    var r = new Object();
+                    r.count = c + (33-s)*4; // small regions are better
+                    r.x = x<0 ? 0: x;
+                    r.y = y<0 ? 0: y;
+                    r.size = s;
+                    results.push(r);
+                }
+            }
+        }
+        return results;
+    };
+
+    GotYa.filter1 = function(ff, ft) {
+        var g = this;
+
+        if (ff == null) ff = 255-72;
+        if (ft == null) ft = 255-28;
+
+        g.grey();
+        g.invert();
+
+        g.ease(ff, true, g.colors.bc);
+        g.ease(ft, false, g.colors.bc);
+
+        g.removenoise(2);
+        g.strengthenlines(1);
+
+        g.removenoise(2);
+        g.strengthenlines(1);
+
+        g.resize(150,150);
+        g.removenoise(3);
+        g.strengthenlines(1);
+        g.sw();
+        // g.filter(ff, ft);
+    };
+
+    GotYa.filter2 = function(ff, ft) {
+        // TODO: convert to bw mode
+        var g = this;
+        if (ff == null) ff = 30;
+        if (ft == null) ft = 69;
+
+        g.easec(ff+16,ff+16,ff,  true, g.colors.bc);
+        g.easec(ft-16,ft-16,ft, false, g.colors.bc);
+
+        g.grey();
+
+        g.removenoise(2);
+        g.strengthenlines(1);
+
+        g.removenoise(2);
+        g.strengthenlines(1);
+
+
+        g.resize(150,150);
+
+        g.removenoise(3);
+        g.strengthenlines(1);
+        g.filter(ff, ft);
+    };
+
+    GotYa.filter3 = function (ff, ft) {
+        // TODO: convert to bw mode
+        var g = this;
+        if (ff == null) ff = 33;
+        if (ft == null) ft = 62;
+
+        g.grey();
+
+        g.filter(ff, ft);
+
+        g.removenoise(2);
+        g.strengthenlines(2);
+
+        g.grey();
+
+        g.resize(150,150);
+    };
+
+    GotYa.filtert = function(ff, ft) {
+        // TODO: convert to bw mode
+        var g = this;
+
+        if (ff == null) ff = 25;
+        if (ft == null) ft = 69;
+
+        g.grey();
+
+        g.ease(ff, true, g.colors.bc);
+        g.ease(ft, false, g.colors.bc);
+
+        /*g.removenoise(2);
+        g.strengthenlines(1);
+
+        g.removenoise(2);
+        g.strengthenlines(1);*/
+
+        g.resize(150,150);
+        g.removenoise(3);
+        g.strengthenlines(1);
+        g.sw();
+        g.strengthenlines(3);
+    };
+
+    GotYa.initregions = function() {
+        for (var i=0; i < this.regions.length; i++) {
+            this.regions[i].matchpx = 0;
+            this.regions[i].matchdeg = 0;
+            this.regions[i].matchnr = 0;
+        }
+    };
+
+    GotYa.finddigit = function(ctrl, index) {
+        var d = ctrl[index].digit;
+        var rotation =  ctrl[index].rotation;
+        var region = ctrl[index].region;
+        var number = ctrl[index].number;
+
+        var allnumbers = (number == null);
+        var allregions = (region == null);
+        var allrotations = (rotation == null);
+        if (region == null) region = 0;
+        if (number == null) number = 0;
+        if (rotation == null) rotation = this.cfg.digitrotationmin;
+
+        var roma = (allrotations ? this.cfg.digitrotationmin : (rotation));
+        var nrma = (allnumbers ? this.numbers.length : (number+1));
+        var rema = (allregions ? this.regions.length : (region+1));
+        var nr, r, o_data, m, w, n, i;
+
+        for (w=rotation; w<=roma; w++)    {
+            for (n=number; n<nrma; n++)    {
+                if (this.numbers[n].width > 0) {
+                    nr = this.numbers[n];
+                    if (d.lastdeg != w || d.lastnr != n) {
+                        d.context.save();
+                        // d.context.clearRect(0,0,2*this.numbers[n].width,2*this.numbers[n].height);
+                        d.context.translate(nr.width,nr.height);
+                        d.context.rotate(w*Math.PI / 180);
+                        d.loadImgByNumber(nr,
+                                          nr.width*2,
+                                          nr.height*2,
+                                          nr.width,
+                                          nr.height);
+                        d.context.restore();
+                        d.swc();
+                        d.lastdeg = w;
+                        d.lastnr = n;
+                        d.data = d.getImageData(0, 0, d.width, d.height);
+                        this.setpxborders(d.data);
+                    }
+                    for (i=region; i<rema; i++) {
+                        r = this.regions[i];
+                        o_data = this.getImageData(r.x, r.y, r.size, r.size);
+                        m = this.matchingpixelfast(d.data, o_data, this.cfg.pixelfindjitter);
+                        if (m.c > r.matchpx) {
+                            this.regions[i].matchpx = m.c;
+                            this.regions[i].matchdeg = w;
+                            this.regions[i].matchnr = n+1;
+                            this.regions[i].jitterx = m.x;
+                            this.regions[i].jittery = m.y;
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    GotYa.finddigit_thr = function(ctrl, index) {
+
+        // thr
+        var d = ctrl[index].digit;
+        var n = ctrl[index].number;
+        var w = ctrl[index].rotation;
+
+        if (this.numbers[n].width == 0) {
+            ctrl[index].threadmgm = 2;
+            return;
+        }
+        ctrl[index].matchingpxthr=0;
+
+        if (d.lastdeg != w || d.lastnr != n) {
+            d.context.save();
+            d.context.translate(this.numbers[n].width,this.numbers[n].height);
+            d.context.rotate(w*Math.PI / 180);
+            d.loadImgByNumber(
+                              ctrl[index].gotya.numbers[n],
+                              ctrl[index].gotya.numbers[n].width*2,
+                              ctrl[index].gotya.numbers[n].height*2,
+                              ctrl[index].gotya.numbers[n].width,
+                              ctrl[index].gotya.numbers[n].height);
+            d.context.restore();
+            d.sw();
+            d.lastdeg = w;
+            d.lastnr = n;
+            d.data = d.getImageData(0, 0, d.width, d.height);
+            this.setpxborders(d.data);
+        }
+
+        for (var region=0; region < this.regions.length; region++) {
+
+            var r = ctrl[index].gotya.regions[region];
+            var o_data = this.getImageData(r.x, r.y, r.size, r.size);
+            var work = new Worker('gotya_core.jsi');
+        
+            work.onmessage = function(event) {
+                var r = event.data.region;
+                var i = event.data.index;
+                var m = event.data.ret;
+                var n = event.data.n;
+                var w = event.data.w;
+                /* onmessage runs on main thread, that's why there should be
+                   no concurrent accesses to matchingpxthr... */
+                if (m.c > ctrl[i].gotya.regions[r].matchpx) {
+                    ctrl[i].gotya.regions[r].matchpx = m.c;
+                    ctrl[i].gotya.regions[r].matchdeg = w;
+                    ctrl[i].gotya.regions[r].matchnr = n+1;
+                    ctrl[i].gotya.regions[r].jitterx = m.x;
+                    ctrl[i].gotya.regions[r].jittery = m.y;
+                }
+                ctrl[i].matchingpxthr--;
+                if (ctrl[i].matchingpxthr == 0) {
+                    ctrl[i].threadmgm = 2;
+                }
+            };
+            
+            work.onerror = function(error) {
+                dump("Worker error: " + error.message + "\n");
+                throw error;
+            };
+
+            var m = new Object();
+            m.index = index;
+            m.region = region;
+            m.matchingpixel = true;
+            m.cfg = ctrl[index].gotya.cfg;
+            m.colors = ctrl[index].gotya.colors;
+            m.d_img = this.ImageData2Array(d.data);
+            m.o_img = this.ImageData2Array(o_data);
+            m.j = this.cfg.pixelfindjitter;
+            m.w = w;
+            m.n = n;
+            ctrl[index].matchingpxthr++;
+            work.postMessage(m);
+        }
+    };
+
+    GotYa.rand = function(n) {
+        return (Math.floor(Math.random()*n + 1))
+    };
+
+    GotYa.calcclick = function(d, f) {
+        var ret = new Object();
+
+        if (this.regions[0].matchpx > 0) {
+            var n = this.regions[0].matchnr-1;
+            var dxr = (d.owidth == null) ? 1 : d.width / d.owidth;
+            var dyr = (d.oheight == null) ? 1 : d.height / d.oheight;
+
+            // this.printf("this.regions[0].x " + this.regions[0].x + " d.oheight " + d.oheight + "dxr" + dxr);
+            ret.x = Math.floor((
+                this.regions[0].x+this.regions[0].jitterx +
+                Math.floor(this.numbers[n].click.x*dxr)) * f);
+            ret.y = Math.floor((
+                this.regions[0].y+this.regions[0].jittery +
+                Math.floor(this.numbers[n].click.y*dyr)) * f);
+            if (true) {
+                ret.x += GotYa.rand(4) - 2;
+                ret.y += GotYa.rand(4) - 2;
+            }
+        } else {
+            ret.x = 0;
+            ret.y = 0;
+        }
+        return ret;
+    };
+
+    GotYa.finddigitresult = function(d) {
+        var numComparisonAsc = function(a, b) { return b.matchpx-a.matchpx; };
+        this.regions.sort(numComparisonAsc);
+        if (this.regions[0].matchpx > 0) {
+            this.printf(
+                "this.regions[0].matchdeg="+this.regions[0].matchdeg+
+                "this.regions[0].matchnr="+this.regions[0].matchnr+
+                "this.regions[0].matchpx="+this.regions[0].matchpx);
+            var n = this.regions[0].matchnr-1;
+            d.context.save();
+            d.context.translate(this.numbers[n].width,this.numbers[n].height);
+            d.context.rotate(this.regions[0].matchdeg*Math.PI / 180);
+            d.loadImgByNumber(
+                this.numbers[n],
+                this.numbers[n].width*2,
+                this.numbers[n].height*2,
+                this.numbers[n].width,
+                this.numbers[n].height);
+            d.context.restore();
+            d.swc();
+            this.paint(
+                this.regions[0].x+this.regions[0].jitterx,
+                this.regions[0].y+this.regions[0].jittery,
+                d.getImageData());
+        }
+    };
+
+    GotYa.paintimage = function (ox,oy,image) {
+        var width = image.data.length;
+        var height = image.data[0].length;
+        
+        for (var x = 0; x < width; x++){
+            for (var y = 0; y < height; y++){
+                var c = image.data[x][y];
+                this.context.fillStyle = "rgb("+c+","+c+","+c+")";
+                this.context.fillRect (x+ox, y+oy, 1, 1);
+            }
+        }
+    };
+
+    GotYa.paint = function (ox,oy, imgData) {
+        this.rect(ox,oy,imgData.width,imgData.height,false);
+        for (var x = 0; x < imgData.width; x++){
+            for (var y = 0; y < imgData.height; y++){
+                var i = x*4+y*4*imgData.width;
+                var r = imgData.data[i+0];
+                var g = imgData.data[i+1];
+                var b = imgData.data[i+2];
+                if (GotYa.eq(b, this.colors.fc)) {
+                    this.context.fillStyle = "rgb(" + (GotYa.eq(r,this.colors.fc) ? 200 : 0) +","+
+                                                      (GotYa.eq(g,this.colors.fc) ? 200 : 0) +","+ 70 +")";
+                    this.context.fillRect (x+ox, y+oy, 1, 1);
+                }
+            }
+        }
+    };
+
+    GotYa.markregion = function (region) {
+        if (region != null) {
+            var m=region;
+            this.rect(m.x+1,m.y+1,m.size+1,m.size+1);
+        } else {
+            for (var i=0; i < this.regions.length; i++) {
+                var m = this.regions[i];
+                this.rect(m.x+1,m.y+1,m.size+1,m.size+1);
+            }
+        }
+    };
+
+    GotYa.setpxborders = function (d_data) {
+        var minx = d_data.width;
+        var maxx = 0;
+        var miny = d_data.height;
+        var maxy = 0;
+        for (var x=0; x<d_data.width; x++) {
+            for (var y=0; y<d_data.height; y++) {
+                var i = x*4+y*4*d_data.width;
+                if (GotYa.eq(d_data.data[i+2], this.colors.fc)) {
+                    if (minx > x) minx = x;
+                    if (miny > y) miny = y;
+                    if (maxx < x) maxx = x;
+                    if (maxy < y) maxy = y;
+                }
+            }
+        }
+        d_data.maxx = maxx;
+        d_data.minx = minx;
+        d_data.maxy = maxy;
+        d_data.miny = miny;
+    };
+
+    GotYa.matchingpixelfast = function (d_data, o_data, j) {
+        if (j == null) j = 0;
+
+        var minx = (d_data.minx == null) ? 0 : d_data.minx;
+        var maxx = (d_data.maxx == null) ? d_data.width-1 : d_data.maxx;
+        var miny = (d_data.miny == null) ? 0 : d_data.miny;
+        var maxy = (d_data.maxy == null) ? d_data.height-1 : d_data.maxy;
+
+        var xj, yj, y, x, dp, d, pp, n;
+        var ofak = 4*o_data.width;
+        var dfak = 4*d_data.width;
+        var dd = d_data.data;
+        var oo = o_data.data;
+        var bc=new Object();
+        bc.c = 0;
+
+        var c = new Array();
+        for (xj = -j; xj <= j; xj++) {
+            c[xj] = new Array();
+            for (yj = -j; yj <= j; yj++) {
+                c[xj][yj] = 100;
+            }
+        }
+
+        for (x = minx; x <= maxx; x++){
+            for (y = miny ; y <= maxy; y++){
+                /* blue == colors.fc if pixel is set */
+                dp = x*4+y*dfak;
+                d = dd[dp+2];
+                if (d == this.colors.fc) {
+                    pp = (dd[dp] ==  this.colors.fc);
+                    for (xj = -j; xj <= j; xj++) {
+                        for (yj = -j; yj <= j; yj++) {
+                            if (oo[(x+xj)*4+(y+yj)*ofak] == this.colors.fc) {
+                                if (pp) {
+                                    /* penalize red pixels */
+                                    c[xj][yj]+=this.cfg.pxnotmatchscore;
+                                } else {
+                                    c[xj][yj]+=this.cfg.pxmatchscore;
+                                }
+                            } else if (!pp) {
+                                n = this.simpleneighborcount(x+xj, y+yj, o_data);
+                                if (n) {
+                                    c[xj][yj]+=this.cfg.pxneighmatchscore;
+                                } else {
+                                    c[xj][yj]+=this.cfg.pxnotmatchscore;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        for (xj = -j; xj <= j; xj++) {
+            for (yj = -j; yj <= j; yj++) {
+                if (c[xj][yj] > bc.c) {
+                    bc.x = xj;
+                    bc.y = yj;
+                    bc.c = c[xj][yj];
+                }
+            }
+        }
+
+        return bc;
+    };
+
+    GotYa.printf = function(s) {
+        if (this.debug) this.debug.innerHTML = s + '<br>' + this.debug.innerHTML;
+    };
+
+    GotYa.initialize(canvas, parent, h, w);
+    return GotYa;
+};
+
+GotYaFramework.rungotya = function(ctrl, callback, step, index) {
+
+    if (step == null) step = 0;
+    if (index == null) index = 0;
+
+    if (step > 5) {
+        step = 0;
+        index++;
+    }
+
+    if (index >= ctrl.length) {
+        ctrl = null;
+        return;
+    }
+
+    var g = ctrl[index].gotya;
+
+    if (step == 0) {
+        ctrl[index].rotation = g.cfg.digitrotationmin;
+        ctrl[index].number = 0;
+        ctrl[index].asyncy = null;
+        ctrl[index].digit = null;
+        ctrl[index].region = null;
+        ctrl[index].start = (new Date()).getTime();
+        g.filter1();
+
+        /* prepare next step */
+        g.regions = null;
+
+        step++;
+    } else if (step == 1 || step == 2) {
+        var ss = (step == 1) ? 28 : 32;
+        var sw = (step == 1) ? 60 : 70;
+        if (ctrl[index].threading) {
+            if (!ctrl[index].threadmgm) {
+
+                var w = new Worker('gotya_core.jsi');
+
+                w.onmessage = function(event) {
+                    if (event.data.debug) {
+                        alert(event.data.text);
+                        return;
+                    }
+                    if (event.data.paint) {
+                        ctrl[0].gotya.paintimage(50,50,event.data.image);
+                        return;
+                    }
+
+                    var i = event.data.index;
+                    ctrl[i].gotya.regions = event.data.ret;
+                    ctrl[i].threadmgm = 2;
+                };
+
+                w.onerror = function(error) {
+                    dump("Worker error: " + error.message + "\n");
+                    throw error;
+                };
+
+                ctrl[index].threadmgm = 1;
+
+                var m = new Object();
+                m.index = index;
+                m.findregions = true;
+                m.cfg = g.cfg;
+                m.colors = g.colors;
+                m.image = g.ImageData2Array(g.getImageData());
+                m.s = ss;
+                m.w = sw;
+                m.results = g.regions;
+                w.postMessage(m);
+
+            } else if (ctrl[index].threadmgm == 2) {
+                ctrl[index].threadmgm = 0;
+                step++;
+            }
+        } else {
+            if (ctrl[index].asyncy == null) {
+                var yma = (g.height - ss);
+                var oo = {yst: -1, yma: yma};
+                ctrl[index].asyncy = oo;
+            } else {
+                g.regions = g.findregions(ss, sw, g.regions, ctrl[index].asyncy);
+                // g.printf("g.regions " + g.regions.length)
+                if (ctrl[index].asyncy.yst++ >= ctrl[index].asyncy.yma) {
+                    ctrl[index].asyncy = null;
+                    step++;
+                }
+            }
+        }
+    } else if (step == 3) {
+        g.initregions();
+        g.regions = g.rateregions(g.regions, g.cfg.regionminscore);
+        // g.printf("g.regions[0].count = " + g.regions[0].count);
+        step++;
+    } else if (step == 4) {
+        if (1) {
+            if (ctrl[index].digit == null) {
+                var c = ctrl[index].gotya.canvas.parentNode;
+                var n = new GotYaFramework.GotYa("number"+index, c, 32, 32);
+                ctrl[index].digit = n;
+            }
+            // ctrl[index].gotya.printf("index " + index + " region=" + ctrl[index].region + " number=" + (Number(ctrl[index].number) + 1));
+            if (ctrl[index].number < ctrl[index].gotya.numbers.length) {
+                if (ctrl[index].rotation <= g.cfg.digitrotationmax) {
+                    if (ctrl[index].threading) {
+                        if (!ctrl[index].threadmgm) {
+                            ctrl[index].threadmgm = 1;
+                            g.finddigit_thr(ctrl, index);
+                        } else if (ctrl[index].threadmgm == 2) {
+                            ctrl[index].threadmgm = 0;
+                            ctrl[index].rotation+=g.cfg.digitrotationstep;
+                        }
+                    } else {
+                        g.finddigit(ctrl, index);
+                        ctrl[index].rotation+=g.cfg.digitrotationstep;
+                    }
+                } else {
+                    ctrl[index].number++;
+                    ctrl[index].rotation = g.cfg.digitrotationmin;
+                }
+            } else {
+                g.finddigitresult(ctrl[index].digit);
+                step++;
+            }
+        } else {
+            step++;
+        }
+    } else if (step == 5) {
+        g.invert();
+        g.markregion();
+        g.resize(205,200);
+        g.rect(0,0,205,200,false);
+
+        /* finally calculate the coordinates to click :D */
+        ctrl[index].click = g.calcclick(ctrl[index].digit, 203/150 /*resize factor*/);
+        g.circle(ctrl[index].click.x, ctrl[index].click.y, 2);
+        ctrl[index].stop = (new Date()).getTime();
+        step++;
+
+        if (callback != null) {
+            window.setTimeout(function () { callback(ctrl, index); }, 1);
+        }
+    }
+
+    window.setTimeout(function () { GotYaFramework.rungotya(ctrl, callback, step, index); }, 1);
+};
+
+}; // end GotYaFramework.initRunPart()
+
+GotYaFramework.run = function(mode) {
+    if (mode == null) mode == 0;
+
+    if (mode == 1) {
+
+        var code = '';
+        code += ' if (typeof(GotYaFramework) == "undefined") { \n';
+        code += '     GotYaFramework = {};\n';
+        code += '     GotYaFramework.initRunPart = ' + GotYaFramework.initRunPart.toString() + ';\n';
+        code += ' }\n';
+        code += ' GotYaFramework.initRunPart();\n';
+
+        var crackit = function(dataUrl) {
+           var capid = 'captcha_img';
+           if (typeof generateCaptcha !== 'function') {
+               window.setTimeout(function () { crackit(dataUrl); }, 500);
+           } else {
+               var b = document.getElementById('myCaptchaDbg');
+               var ctrl = new Array();
+               var n = GotYaFramework.generatenumbers();
+               var g = new GotYaFramework.GotYa('myGotYa', b);
+               /*ARGH xxs problem loading the script from biniok.net :( */
+               var threading = false;
+               /*
+               try {
+                   var worker = new Worker('http://pennergame.biniok.net/js/'+'gotya_core.jsi');
+               } catch (e) {
+                   threading = false;
+               }
+               */
+               if (dataUrl) {
+                   g.loadImgByFile(dataUrl);
+               } else {
+                   g.loadImgByImgId(capid);
+               }
+               g.setnumbers(n);
+               var c = new Object();
+               c.gotya = g;
+               c.threading = threading;
+               ctrl.push(c);
+
+               var e = function(ctrl, index) {
+                   document.getElementById(capid).src = ctrl[index].gotya.canvas.toDataURL();
+                   document.getElementById('myCaptchaDbg').style.display = 'none';
+                   this.click = ctrl[index].click;
+               };
+
+               var checkLoad = function() {
+                   if (g.loaded) {
+                       GotYaFramework.rungotya(ctrl, e);
+                   } else {
+                       window.setTimeout(checkLoad, 100);
+                   }
+               };
+               checkLoad();
+           }
+        };
+
+        code += "this.crackit = " + crackit;
+        if (BaseLib.browser.chrome) {
+            var e = eval;
+            e(code);
+        } else {
+            BaseLib.injectJS(code);
+        }
+
+        var addDiv = function() {
+            var b = document.getElementById('sidebar_bot');
+            if (!b) {
+                BaseLib.setTimeoutEx(addDiv, 500);
+                return;
+            }
+            var workdiv = document.createElement('div');
+            workdiv.setAttribute('id', 'myCaptchaDbg');
+            if (!Config.gotya_debug) {
+                workdiv.style.display = 'none';
+            }
+            b.appendChild(workdiv);
+        }
+
+        addDiv();
+
+    } else {
+        var c = BaseLib.getElementsByClassNameForElements('span' ,'captcha')[0];
+        if (c) {
+            var button = unsafeWindow.document.createElement('input');
+            button.type = 'button';
+            button.value = 'Gotya!';
+            button.setAttribute('class', 'cancel');
+            button.setAttribute('style', 'position: relative; top: -20px; left: 85px;');
+            button.setAttribute('id', 'gotya_button');
+            button.setAttribute('onclick', 'crackit();');
+            button.addEventListener('click', GotYaFramework.injectGotyaThrFn, true);
+
+            c.appendChild(button);
+        }
+    }
+};
+
+GotYaFramework.injectGotyaThrFn = function() {
+    // var i = document.getElementById('captcha_img');
+    var code = ''; // create Element
+
+    /* note: this funtion will be used to workaround XSS issues
+       in case the captchas are moved to a separate domain */
+    // var d = "";
+    code +="function generateCaptcha(id, p) {\n";
+    /* see the note above
+       script.innerHTML +="    var img = document.createElement('img');\n";
+       script.innerHTML +="    img.setAttribute('id', id);\n";
+       script.innerHTML +="    img.src = '" + d + "';\n";
+       script.innerHTML +="    p.appendChild(img);\n";
+    */
+    code +="};\n";
+
+    if (BaseLib.browser.chrome) {
+        var e = eval;
+        e(code);
+    } else {
+        BaseLib.injectJS(code);
+    }
+};
+
+GotYaFramework.onRunlevel = function(runlevel) {
+    if (runlevel == 60) {
+        if (Config.nutze_gotya || Config.bot) {
+            GotYaFramework.run(1);
+        }
+    } else if (runlevel == 61) {
+        if (Config.nutze_gotya) {
+            GotYaFramework.run(2);
+        }
+    }
+};
+
+}; // end GotYaFramework.init()

@@ -1,0 +1,2532 @@
+/** 
+ * @filename gametype.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var Globals = new Object();
+var UrlHandler = new Object();
+var GameType = new Object();
+var Language = new Object();
+
+Registry.register("Globals", Globals);
+Registry.register("UrlHandler", UrlHandler);
+Registry.register("GameType", GameType);
+Registry.register("Language", Language);
+
+// ########### Global Settings ##############
+
+Globals.init = function () {
+    Globals.darkRed = '#9f0000';
+    Globals.darkGreen = '#106f10';
+};
+
+// ########### UrlHandler ##############
+
+UrlHandler.init = function () {
+    UrlHandler.m_pennergame = 0;
+    UrlHandler.m_dossergame = 1;
+    UrlHandler.m_pgberlin = 2;
+    UrlHandler.m_clodogame = 3;
+    UrlHandler.m_menelgame = 4;
+    UrlHandler.m_mendigogame = 5;
+    UrlHandler.m_bumrise = 6;
+    UrlHandler.m_pgmuenchen = 7;
+    UrlHandler.m_serserionline = 8;
+    UrlHandler.m_pgmalle = 9;
+    UrlHandler.m_pghalloween = 10;
+    UrlHandler.m_pgreloaded = 11;
+
+    var url = document.URL;
+    var http = 'http://';
+
+    UrlHandler.loadConstants = function() {
+        UrlHandler.http = http;
+        UrlHandler.wwwstr = 'www';
+        UrlHandler.url = url.replace(http, "");
+        // remove last '/' to avoid the last empty slashPart
+        UrlHandler.questionMarkParts = UrlHandler.url.split('?');
+        var surl = UrlHandler.questionMarkParts[0].replace(/\/$/, '');
+        UrlHandler.slashParts = surl.split('/');
+        UrlHandler.dotParts = UrlHandler.slashParts[0].split('.');
+
+        if (url.search(BaseLib.escapeForRegExp('pennergame.de')) != -1) {
+            if (url.search('reloaded.pennergame.de') != -1) {
+                UrlHandler.mode = UrlHandler.m_pgreloaded;
+                UrlHandler.configPrefix = 'm_pgreloaded';
+                UrlHandler.highscorePrefix = 'reloaded';
+                UrlHandler.changePrefix = 'reloaded';
+                UrlHandler.www = 'reloaded';
+                UrlHandler.local = 'pg_RL';
+            } else if (url.search('berlin.pennergame.de') != -1) {
+                UrlHandler.mode = UrlHandler.m_pgberlin;
+                UrlHandler.configPrefix = 'pg_berlin';
+                UrlHandler.highscorePrefix = 'berlin';
+                UrlHandler.changePrefix = 'berlin';
+                UrlHandler.www = 'berlin';
+                UrlHandler.local = 'bl_DE';
+            } else if (url.search(BaseLib.escapeForRegExp('muenchen.pennergame.de')) != -1) {
+                UrlHandler.mode = UrlHandler.m_pgmuenchen;
+                UrlHandler.configPrefix = 'pg_muenchen';
+                UrlHandler.highscorePrefix = 'muenchen';
+                UrlHandler.changePrefix = 'muenchen';
+                UrlHandler.www = 'muenchen';
+                UrlHandler.local = 'mu_DE';
+            } else if (url.search(BaseLib.escapeForRegExp('malle.pennergame.de')) != -1) {
+                UrlHandler.mode = UrlHandler.m_pgmalle;
+                UrlHandler.configPrefix = 'pg_malle';
+                UrlHandler.highscorePrefix = 'malle';
+                UrlHandler.changePrefix = 'malle';
+                UrlHandler.www = 'malle';
+                UrlHandler.local = 's1_DE';
+            } else if (url.search(BaseLib.escapeForRegExp('halloween.pennergame.de')) != -1) {
+                UrlHandler.mode = UrlHandler.m_pghalloween;
+                UrlHandler.configPrefix = 'pg_halloween';
+                UrlHandler.highscorePrefix = 'halloween';
+                UrlHandler.changePrefix = 'halloween';
+                UrlHandler.www = 'halloween';
+                UrlHandler.local = 's2_DE';
+            } else {
+                UrlHandler.mode = UrlHandler.m_pennergame;
+                UrlHandler.configPrefix = 'pennergame';
+                UrlHandler.highscorePrefix = 'www';
+                UrlHandler.changePrefix = 'change';
+                UrlHandler.www = 'www';
+                UrlHandler.local = 'de_DE';
+            }
+            UrlHandler.mainUrl = 'pennergame';
+            UrlHandler.ext = '.de';
+            UrlHandler.forumPrefix = 'board';
+            UrlHandler.donationsHelper = 'http://www.spenden-community.com';
+        } else if (url.search(BaseLib.escapeForRegExp('dossergame.co.uk')) != -1) {
+            UrlHandler.mode = UrlHandler.m_dossergame;
+            UrlHandler.mainUrl = 'dossergame';
+            UrlHandler.configPrefix = 'dossergame';
+            UrlHandler.ext = '.co.uk';
+            UrlHandler.highscorePrefix = 'www';
+            UrlHandler.changePrefix = 'change';
+            UrlHandler.www = 'www';
+            UrlHandler.forumPrefix = 'board';
+            UrlHandler.local = 'en_EN';
+            UrlHandler.donationsHelper = 'http://www.multi-donation.net';
+        } else if (url.search(BaseLib.escapeForRegExp('clodogame.fr')) != -1) {
+            UrlHandler.mode = UrlHandler.m_clodogame;
+            UrlHandler.mainUrl = 'clodogame';
+            UrlHandler.configPrefix = 'clodogame';
+            UrlHandler.ext = '.fr';
+            UrlHandler.highscorePrefix = 'www';
+            UrlHandler.changePrefix = 'change';
+            UrlHandler.www = 'www';
+            UrlHandler.forumPrefix = 'board';
+            UrlHandler.local = 'fr_FR';
+            UrlHandler.donationsHelper = '';
+        } else if (url.search(BaseLib.escapeForRegExp('menelgame.pl')) != -1) {
+            UrlHandler.mode = UrlHandler.m_menelgame;
+            UrlHandler.mainUrl = 'menelgame';
+            UrlHandler.configPrefix = 'menelgame';
+            UrlHandler.ext = '.pl';
+            UrlHandler.highscorePrefix = 'www';
+            UrlHandler.changePrefix = 'change';
+            UrlHandler.www = 'www';
+            UrlHandler.forumPrefix = 'board';
+            UrlHandler.local = 'pl_PL';
+            UrlHandler.donationsHelper = '';
+        } else if (url.search(BaseLib.escapeForRegExp('mendigogame.es')) != -1) {
+            UrlHandler.mode = UrlHandler.m_mendigogame;
+            UrlHandler.mainUrl = 'mendigogame';
+            UrlHandler.configPrefix = 'mendigogame';
+            UrlHandler.ext = '.es';
+            UrlHandler.highscorePrefix = 'www';
+            UrlHandler.changePrefix = 'change';
+            UrlHandler.www = 'www';
+            UrlHandler.forumPrefix = 'board';
+            UrlHandler.local = 'es_ES';
+            UrlHandler.donationsHelper = '';
+        } else if (url.search(BaseLib.escapeForRegExp('bumrise.com')) != -1) {
+            UrlHandler.mode = UrlHandler.m_bumrise;
+            UrlHandler.mainUrl = 'bumrise';
+            UrlHandler.configPrefix = 'bumrise';
+            UrlHandler.ext = '.com';
+            UrlHandler.highscorePrefix = 'www';
+            UrlHandler.changePrefix = 'change';
+            UrlHandler.www = 'www';
+            UrlHandler.forumPrefix = 'board';
+            UrlHandler.local = 'us_EN';
+            UrlHandler.donationsHelper = 'http://www.multi-donation.net';
+        } else if (url.search(BaseLib.escapeForRegExp('serserionline.com')) != -1) {
+            UrlHandler.mode = UrlHandler.m_serserionline;
+            UrlHandler.mainUrl = 'serserionline';
+            UrlHandler.configPrefix = 'serserionline';
+            UrlHandler.ext = '.com';
+            UrlHandler.highscorePrefix = 'www';
+            UrlHandler.changePrefix = 'change';
+            UrlHandler.www = 'www';
+            UrlHandler.forumPrefix = 'board';
+            UrlHandler.local = 'tr_TR';
+            UrlHandler.donationsHelper = 'http://www.multi-donation.net';
+        }
+
+        if (UrlHandler.www.search('.') != -1) {
+            if (UrlHandler.dotParts[0] == UrlHandler.www.split('.')[0] &&
+                UrlHandler.dotParts[1] == UrlHandler.www.split('.')[1]) {
+                // remove the first two array elements and insert UrlHandler.www
+                UrlHandler.dotParts.splice(0,2,UrlHandler.www);
+            }
+        }
+
+        UrlHandler.highscoreJoindate = 'joindate';
+        UrlHandler.highscoreRank = 'rank';
+        UrlHandler.highscoreStuff = 'stuff';
+        UrlHandler.highscoreUserAdd = 'user/';
+        UrlHandler.highscoreRange = 'user';
+        UrlHandler.highscoreMax = 'max';
+        UrlHandler.highscoreMin = 'min';
+        UrlHandler.haustierFaktor = (120 / 136);
+
+        UrlHandler.blog = 'blog';
+        UrlHandler.img = 'img';
+        UrlHandler.inodes = 'inodes';
+        UrlHandler.fight = 'fight';
+        UrlHandler.forum = 'forum';
+        UrlHandler.pet = 'pet';
+        UrlHandler.overview = 'overview';
+        UrlHandler.activities = 'activities';
+        UrlHandler.messages = 'messages';
+        UrlHandler.read = 'read';
+        UrlHandler.stock = 'stock';
+        UrlHandler.bottle = 'bottle';
+        UrlHandler.attack = 'attack';
+        UrlHandler.settings = 'settings';
+        UrlHandler.highscore = 'highscore';
+        UrlHandler.range = 'range';
+        UrlHandler.profil = 'profil';
+        UrlHandler.id = 'id';
+        UrlHandler.stock = 'stock';
+        UrlHandler.plunder = 'plunder';
+        UrlHandler.armoury = 'armoury';
+        UrlHandler.sell = 'sell';
+        UrlHandler.use = 'use';
+        UrlHandler.change = 'change';
+        UrlHandler.craft = 'craft';
+        UrlHandler.dodo = 'do';
+        UrlHandler.bande = 'bande'; // for gang profile use only!
+        UrlHandler.gang = 'gang';
+        UrlHandler.memberlist = 'memberlist';
+        UrlHandler.credit = 'credit';
+        UrlHandler.fightlog = 'fightlog';
+        UrlHandler.login = 'login';
+        UrlHandler.check = 'check';
+        UrlHandler.redirect = 'redirect';
+        UrlHandler.stuff = 'stuff';
+        UrlHandler.payin = 'payin';
+        UrlHandler.city = 'city';
+        UrlHandler.district = 'district';
+        UrlHandler.upgrades = 'upgrades';
+        UrlHandler.view = 'view';
+        UrlHandler.pact = 'pact';
+        UrlHandler.skills = 'skills';
+        UrlHandler.change_please = 'change_please';
+        UrlHandler.statistics = 'statistics';
+        UrlHandler.cityList = 'city_list';
+        UrlHandler.petStore = 'pet_store';
+        UrlHandler.home = 'home';
+        UrlHandler.weapon_store = 'weapon_store';
+        UrlHandler.def = 'def';
+        UrlHandler.scrounge = 'scrounge';
+        UrlHandler.music_store = 'music_store';
+        UrlHandler.pennerbarXml = 'pennerbar.xml';
+        UrlHandler.actionAtt = 'att';
+        UrlHandler.actionDef = 'def';
+        UrlHandler.actionDex = 'agi';
+        UrlHandler.actionMitleid = 'mitleid';
+        UrlHandler.write = 'write';
+        UrlHandler.games = 'games';
+
+        UrlHandler.inodesUrl = http + UrlHandler.inodes + '.' + UrlHandler.mainUrl + UrlHandler.ext + '/';
+        UrlHandler.wwwUrl = http + UrlHandler.www + '.' + UrlHandler.mainUrl + UrlHandler.ext + '/';
+        UrlHandler.loginUrl = UrlHandler.wwwUrl + UrlHandler.login + '/';
+        UrlHandler.loginCheckUrl = UrlHandler.wwwUrl + UrlHandler.login + '/' + UrlHandler.check + '/';
+        UrlHandler.changePleaseUrl = http + UrlHandler.changePrefix + '.' + UrlHandler.mainUrl + UrlHandler.ext + '/' + UrlHandler.change_please + '/';
+        UrlHandler.imgUrl = http + UrlHandler.img + '.' + UrlHandler.mainUrl + UrlHandler.ext + '/';
+        UrlHandler.overviewUrl = UrlHandler.wwwUrl + UrlHandler.overview + '/';
+        UrlHandler.activitiesUrl = UrlHandler.wwwUrl + UrlHandler.activities + '/';
+
+        UrlHandler.stockBeerUrl = UrlHandler.wwwUrl + UrlHandler.stock + '/foodstuffs/';
+        UrlHandler.stockBreadUrl = UrlHandler.wwwUrl + UrlHandler.stock + '/foodstuffs/food/';
+        UrlHandler.foodUseUrl = UrlHandler.wwwUrl + UrlHandler.stock + '/foodstuffs/use/';
+        UrlHandler.washBuyUrl = UrlHandler.wwwUrl + 'city/washhouse/buy/';
+        UrlHandler.firstAidUrl = UrlHandler.wwwUrl + 'city/medicine/firstaid/';
+        UrlHandler.medicineHelpUrl = UrlHandler.wwwUrl + 'city/medicine/help/';
+        UrlHandler.supermarketBuyUrl = UrlHandler.wwwUrl + 'city/supermarket/buy/';
+        UrlHandler.gangKittyPayUrl = UrlHandler.wwwUrl + '/gang/cash/add/';
+        UrlHandler.gangFightUrl = UrlHandler.wwwUrl + 'gang/fight/';
+        UrlHandler.buyLuckUrl = UrlHandler.wwwUrl + 'city/games/buy/';
+        UrlHandler.luckUrl = UrlHandler.wwwUrl + 'city/games/';
+        UrlHandler.gangChatAddUrl = UrlHandler.wwwUrl + 'gang/chat/add/';
+        UrlHandler.messageSendUrl = UrlHandler.wwwUrl + '/messages/write/send/';
+        UrlHandler.messageOutUrl = UrlHandler.wwwUrl + '/messages/out/';
+        UrlHandler.messageDeleteUrl = UrlHandler.wwwUrl + '/messages/delete/';
+        UrlHandler.messageReadUrl = UrlHandler.wwwUrl + '/messages/read/';
+        UrlHandler.musicPayoutUrl = UrlHandler.wwwUrl + '/overview/music_payout/';
+
+        UrlHandler.messagesUrl = UrlHandler.wwwUrl + UrlHandler.messages + '/';
+        UrlHandler.messagesWriteToUrl = UrlHandler.wwwUrl + UrlHandler.messages + '/' + UrlHandler.write + '/?to=';
+        UrlHandler.stockPlunderUrl = UrlHandler.wwwUrl + UrlHandler.stock + '/' + UrlHandler.plunder + '/';
+        UrlHandler.stockPlunderSellUrl = UrlHandler.wwwUrl + UrlHandler.stock + '/' + UrlHandler.plunder + '/' + UrlHandler.sell + '/';
+        UrlHandler.stockPlunderUseUrl = UrlHandler.wwwUrl + UrlHandler.stock + '/' + UrlHandler.plunder + '/' + UrlHandler.use + '/';
+        UrlHandler.stockPlunderCraftUrl = UrlHandler.wwwUrl + UrlHandler.stock + '/' + UrlHandler.plunder + '/' + UrlHandler.craft + '/';
+        UrlHandler.stockPlunderCraftDoUrl = UrlHandler.wwwUrl + UrlHandler.stock + '/' + UrlHandler.plunder + '/' + UrlHandler.craft + '/' + UrlHandler.dodo + '/';
+        UrlHandler.stockArmouryUrl = UrlHandler.wwwUrl + UrlHandler.stock + '/' + UrlHandler.armoury + '/';
+        UrlHandler.stockArmouryUseUrl = UrlHandler.wwwUrl + UrlHandler.stock + '/' + UrlHandler.armoury + '/use/';
+        UrlHandler.weaponStoreUrl = UrlHandler.wwwUrl + 'city/weapon_store/';
+        UrlHandler.fightOverviewUrl = UrlHandler.wwwUrl + UrlHandler.fight + '/' + UrlHandler.overview + '/';
+        UrlHandler.gangUrl = UrlHandler.wwwUrl + UrlHandler.gang + '/';
+        UrlHandler.gangCreditUrl = UrlHandler.wwwUrl + UrlHandler.gang + '/' + UrlHandler.credit + '/';
+        UrlHandler.gangCreditUrlAll = UrlHandler.gangCreditUrl + '?showall=1';
+        UrlHandler.gangStuffUrl = UrlHandler.wwwUrl + UrlHandler.gang + '/' + UrlHandler.stuff + '/';
+        UrlHandler.gangStuffPayinUrl = UrlHandler.wwwUrl + UrlHandler.gang + '/' + UrlHandler.stuff + '/' + UrlHandler.payin + '/';
+        UrlHandler.gangUpgradesUrl = UrlHandler.wwwUrl + UrlHandler.gang + '/' + UrlHandler.stuff + '/' + UrlHandler.upgrades + '/';
+        UrlHandler.friendlistUrl = UrlHandler.wwwUrl + 'friendlist/';
+        UrlHandler.districtUrl = UrlHandler.wwwUrl + UrlHandler.city + '/' + UrlHandler.district + '/';
+        UrlHandler.districtBuyUrl = UrlHandler.wwwUrl + UrlHandler.city + '/' + UrlHandler.district + '/buy/';
+        UrlHandler.cityListUrl = UrlHandler.wwwUrl + UrlHandler.cityList + '/';
+        UrlHandler.cityHomeUrl = UrlHandler.wwwUrl + UrlHandler.city + '/' + UrlHandler.home + '/';
+        UrlHandler.cityHomeBuyUrl = UrlHandler.wwwUrl + UrlHandler.city + '/' + UrlHandler.home + '/buy/';
+        UrlHandler.highscoreUrl = http + UrlHandler.highscorePrefix + '.' + UrlHandler.mainUrl + UrlHandler.ext + '/' + UrlHandler.highscore + '/';
+        UrlHandler.highscoreGangUrl = UrlHandler.highscoreUrl + UrlHandler.gang + '/';
+        UrlHandler.gangPactUrl = UrlHandler.wwwUrl + UrlHandler.gang + '/' + UrlHandler.pact + '/';
+        UrlHandler.skillsUrl = UrlHandler.wwwUrl + UrlHandler.skills + '/';
+        UrlHandler.petSkillsUrl = UrlHandler.wwwUrl + UrlHandler.skills + '/' + UrlHandler.pet + '/';
+        UrlHandler.dailyTaskUrl = UrlHandler.wwwUrl + 'daily/';
+        UrlHandler.petFightsUrl = UrlHandler.wwwUrl + UrlHandler.fight + '/' + UrlHandler.pet + '/';
+
+        UrlHandler.pgMediaUrl = 'http://static.pennergame.de/';
+        UrlHandler.highscoreJoindateUrl = UrlHandler.highscoreUrl + UrlHandler.highscoreJoindate + '/';
+        UrlHandler.highscoreRankUrl = UrlHandler.highscoreUrl + UrlHandler.highscoreRank + '/';
+        UrlHandler.highscoreStuffUrl = UrlHandler.highscoreUrl + UrlHandler.highscoreStuff + '/';
+        UrlHandler.petUrl = UrlHandler.pgMediaUrl + 'img/pv4/' + 'shop/' + UrlHandler.local + '/tiere/';
+        UrlHandler.homesUrl = UrlHandler.pgMediaUrl + 'img/pv4/' + 'shop/' + UrlHandler.local + '/eigenheim/';
+        UrlHandler.weaponsUrl = UrlHandler.pgMediaUrl + 'img/pv4/' + 'shop/' + UrlHandler.local + '/waffen/';
+        UrlHandler.begPlacesUrl = UrlHandler.pgMediaUrl + 'img/pv4/' + 'shop/' + UrlHandler.local + '/schnorrplatz/';
+        UrlHandler.instrumentsUrl = UrlHandler.pgMediaUrl + 'img/pv4/' + 'shop/' + UrlHandler.local + '/musikladen/';
+        UrlHandler.dotsUrl = UrlHandler.pgMediaUrl + 'img/pv4/' + 'dots/';
+        UrlHandler.plunderImgUrl = UrlHandler.pgMediaUrl+'img/pv4/'+'plunder/';
+        UrlHandler.smiliesUrl = UrlHandler.pgMediaUrl + 'img/pv4/' + 'smilies/';
+
+        UrlHandler.icoFav = 'http://static.pennergame.de/img/pv4/favicon.ico';
+        UrlHandler.icoMailDel = 'http://static.pennergame.de/img/pv4/icons/mail_del.png';
+        UrlHandler.icoBuddyOff = 'http://static.pennergame.de/img/pv4/icons/buddy_off.png';
+        UrlHandler.icoBuddyOn = 'http://static.pennergame.de/img/pv4/icons/buddy_on.png';
+        UrlHandler.icoNewMsg = UrlHandler.pgMediaUrl + 'img/pv4/icons/new_msg.gif';
+        UrlHandler.icoBottle = 'http://static.pennergame.de/img/pv4/shop/de_DE/inventar/Pfandflasche.png';
+        UrlHandler.icoAtt = UrlHandler.pgMediaUrl+'/img/pv4/'+'icons/att.png';
+        UrlHandler.icoDef = UrlHandler.pgMediaUrl+'/img/pv4/'+'icons/def.png';
+        UrlHandler.icoCash = 'http://static.pennergame.de/img/pv4/icons/cash.png';
+        UrlHandler.icoAttackWarning = 'http://static.pennergame.de/img/pv4/icons/attackwarning.png';
+        UrlHandler.icoAlertSmall = 'http://static.pennergame.de/img/pv4/icons/alert_smal.png';
+        UrlHandler.icoAwardBack = UrlHandler.pgMediaUrl + 'img/pv4/icons/award_back_a.png';
+
+        UrlHandler.bandenProfilUrlSuffix = 'profil/bande:';
+        UrlHandler.userProfilUrlSuffix = 'profil/id:';
+        UrlHandler.forumUrl = http + UrlHandler.forumPrefix + '.' + UrlHandler.mainUrl + UrlHandler.ext + '/';
+        UrlHandler.twitterUrl = http + 'twitter.com/FarbflutGmbH';
+
+        UrlHandler.plunder_css = 'http://static.pennergame.de/styles/pv5/plunder.css';
+        UrlHandler.tooltip_js = 'http://static.pennergame.de/js/pv4/tooltip.js';
+        UrlHandler.smilies_wink = 'http://www.greensmilies.com/smile/smiley_emoticons_wink2.gif';
+        UrlHandler.pennerbar = UrlHandler.wwwUrl + UrlHandler.pennerbarXml;
+
+        UrlHandler.biniok = 'http://pennergame.biniok.net/';
+        UrlHandler.sslbiniok = 'https://ssl-id.de/pennergame.biniok.net/';
+        UrlHandler.biniokPics = UrlHandler.biniok + 'pics/';
+        // NOTE: this will be replaced by script compiler in ManyInOne case :-)
+        UrlHandler.homeUrl = UrlHandler.biniok + MD5.get("pgAllInOneScript").toString() + '/';
+        UrlHandler.scriptHtml = UrlHandler.homeUrl + 'changelog/' + 'pgAllInOneScript.html';
+        UrlHandler.configServer = UrlHandler.sslbiniok + 'config/config.php';
+        UrlHandler.notifyServer = UrlHandler.sslbiniok + 'notify/sendmail.php';
+        UrlHandler.gangfightsServer = UrlHandler.sslbiniok + 'gangfights/gangfights.php';
+        UrlHandler.bbcodeUserscriptUrl = 'http://userscripts.org/scripts/show/84920';
+        UrlHandler.downfightDe = 'http://www.downfight.de/';
+        UrlHandler.downfightDeDown = UrlHandler.downfightDe + '?seite=downfihgt_' + UrlHandler.local;
+        UrlHandler.downfightDeUp = UrlHandler.downfightDe + '?seite=hochfight_' + UrlHandler.local;
+    };
+
+    UrlHandler.nop = 'javascript://nop/';
+
+    UrlHandler.createDownfightersAttackUrl = function() {
+        return UrlHandler.highscoreUrl + UrlHandler.highscoreUserAdd + '1' + '/' + '?downfighters=1';
+    };
+    UrlHandler.createUpfightersAttackUrl = function() {
+        return UrlHandler.highscoreUrl + UrlHandler.highscoreUserAdd + '1' + '/' + '?upfighters=1';
+    };
+    UrlHandler.createPreferredAttackUrl = function() {
+        return UrlHandler.highscoreUrl + UrlHandler.highscoreUserAdd + '1' + '/' + '?preferred=1';
+    };
+    UrlHandler.createHighscorePage = function(page) {
+        return UrlHandler.highscoreUrl + UrlHandler.highscoreUserAdd + page + '/';
+    };
+    UrlHandler.createHighscoreRange = function(min, max) {
+        return UrlHandler.highscoreUrl + UrlHandler.highscoreRange + '/?' +
+               UrlHandler.highscoreMin + '=' + min + '&' +
+               UrlHandler.highscoreMax + '=' + max;
+    };
+    UrlHandler.createHighscoreJoindate = function(min, max) {
+        return UrlHandler.highscoreUrl + UrlHandler.highscoreJoindate + '/?' +
+               UrlHandler.highscoreMin + '=' + min + '&' +
+               UrlHandler.highscoreMax + '=' + max;
+    };
+    UrlHandler.createApiUrlGang = function(uid) {
+        return UrlHandler.wwwUrl + 'dev/api/gang.' + uid + '.xml';
+    };
+    UrlHandler.createApiUrlUser = function(uid) {
+        return UrlHandler.wwwUrl + 'dev/api/user.' + uid + '.xml';
+    };
+    UrlHandler.createApiUrlUsername = function(uname) {
+        return UrlHandler.wwwUrl + 'dev/api/user.getname.xml?name=' + encodeURIComponent(uname);
+    };
+    UrlHandler.createApiUrlMyUser = function() {
+        var url = UrlHandler.createApiUrlUser(UserInfo.uid);
+        if (UrlHandler.fetchMyProfileWithoutCache == undefined ||
+            UrlHandler.fetchMyProfileWithoutCache == true) {
+            url += "?" + "ts=" + (new Date()).getTime();
+        }
+        UrlHandler.fetchMyProfileWithoutCache = false;
+        return url;
+    };
+    UrlHandler.createProfilUrlUser = function(uid) {
+        return UrlHandler.wwwUrl + UrlHandler.userProfilUrlSuffix + uid + '/';
+    };
+    UrlHandler.createProfilUrlGang = function(uid) {
+        return UrlHandler.wwwUrl + UrlHandler.bandenProfilUrlSuffix + uid + '/';
+    };
+    UrlHandler.createFightLogUrl = function(page) {
+        var ret = UrlHandler.wwwUrl + UrlHandler.fight + "/" + UrlHandler.fightlog + '/';
+        if (page) {
+            ret += (page + '/');
+        }
+        return ret;
+    };
+    UrlHandler.createFightToUrl = function(uname) {
+        return UrlHandler.wwwUrl + 'fight/?to='+uname;
+    };
+
+    UrlHandler.createGangSearchUrl = function(gang) {
+        gang = encodeURIComponent(gang.replace('&amp;', '&'));
+        return UrlHandler.highscoreGangUrl + '?gang=' + gang + '&min=&max=';
+    };
+
+    UrlHandler.sigUrl = UrlHandler.inodesUrl + UrlHandler.local + '/signaturen/';
+
+    UrlHandler.doWwwRedirect = function() {
+        if (this.dotParts[0] == UrlHandler.wwwstr &&
+            UrlHandler.www != UrlHandler.wwwstr) {
+            UrlHandler.doRedirect(document.URL.replace(UrlHandler.wwwstr + '.', ''));
+        } else {
+            UrlHandler.doRedirect(document.URL.replace(UrlHandler.http, UrlHandler.http + UrlHandler.www + "."));
+        }
+    };
+
+    UrlHandler.doRedirect = function(url, time) {
+        if (time == undefined) {
+            window.location = url;
+        } else {
+            BaseLib.setTimeoutEx(function () { window.location = url; },  time);
+        }
+    };
+
+    UrlHandler.doReload = function(time, rt, ts) {
+        var url = document.URL;
+        if (ErrorChecker.wasPosted() && BaseLib.tab) {
+            BaseLib.tab.postreload = true;
+        }
+        if (rt != undefined) {
+            url = UrlHandler.urlSetParam(url, "rt" , rt);
+        }
+        if (ts != undefined) {
+            url = UrlHandler.urlSetParam(url, "ts" , ts);
+        }
+        if (time) {
+            UrlHandler.doRedirect(url);
+        } else {
+            UrlHandler.doRedirect(url,  time);
+        }
+        Log.dbg("Url: reload (" + url + ")");
+    };
+
+    UrlHandler.doNothing = function() {
+    };
+
+    UrlHandler.getNonPostUrl = function() {
+        if (this.slashParts.length > 1) {
+            // remove last slash part
+            return url.replace(this.slashParts[this.slashParts.length - 1] + '/', '');
+        }
+        return url;
+    };
+
+    UrlHandler.isNetErrorUrl = function() {
+        return (url.search('about:') != -1);
+    };
+
+    UrlHandler.isGameInternalUrl = function() {
+        return UrlHandler.questionMarkParts.length >= 1 &&
+               UrlHandler.questionMarkParts[0].charAt(UrlHandler.questionMarkParts[0].length - 1) == '/';
+    };
+
+    UrlHandler.needRedirect = function() {
+        return (this.dotParts[0] == UrlHandler.mainUrl ||
+                (this.dotParts[0] == UrlHandler.wwwstr &&
+                 UrlHandler.www != UrlHandler.wwwstr));
+    };
+
+    UrlHandler.isWwwUrl = function() {
+        return (this.dotParts[0] == UrlHandler.www);
+    };
+
+    UrlHandler.isWwwOnlyUrl = function() {
+        return (this.dotParts[0] == UrlHandler.www && this.slashParts.length == 1);
+    };
+
+    UrlHandler.isNonSpeedFactorUrl = function() {
+        return !UrlHandler.isProfileUserUrl() && !UrlHandler.isProfileGangUrl();
+    }
+
+    UrlHandler.isStockUrl = function() {
+        return (this.slashParts.length >= 2 && this.slashParts[1] == UrlHandler.stock);
+    };
+
+    UrlHandler.isOverviewUrl = function() {
+        return (this.slashParts.length >= 2 && this.slashParts[1] == UrlHandler.overview);
+    };
+
+    UrlHandler.isStockBottleUrl = function() {
+        return (this.slashParts.length >= 3 && this.slashParts[1] == UrlHandler.stock && this.slashParts[2] == UrlHandler.bottle);
+    };
+
+    UrlHandler.isStockPlunderUrl = function() {
+        return (this.slashParts.length >= 3 && this.slashParts[1] == UrlHandler.stock && this.slashParts[2] == UrlHandler.plunder) && !UrlHandler.isStockPlunderCraftUrl();
+    };
+
+    UrlHandler.isStockPlunderCraftUrl = function() {
+        return (this.slashParts.length >= 4 && this.slashParts[1] == UrlHandler.stock && this.slashParts[2] == UrlHandler.plunder && this.slashParts[3] == UrlHandler.craft);
+    };
+
+    UrlHandler.isFightOverviewUrl = function() {
+        if (this.slashParts.length >= 3) {
+            return (this.slashParts[1] == UrlHandler.fight && this.slashParts[2] == UrlHandler.overview);
+        }
+        return (this.slashParts.length >= 2 && this.slashParts[1] == UrlHandler.fight);
+    };
+
+    UrlHandler.isFightUrlPenner = function() {
+        if (this.slashParts.length >= 3) {
+            return (this.slashParts[1] == UrlHandler.fight && this.slashParts[2] != UrlHandler.pet);
+        }
+        return (this.slashParts.length >= 2 && this.slashParts[1] == UrlHandler.fight);
+    };
+
+    UrlHandler.isFightToUrl = function() {
+        return (this.slashParts.length >= 3 &&
+                this.slashParts[1] == UrlHandler.fight &&
+                this.slashParts[2] == UrlHandler.overview &&
+                this.questionMarkParts.length >= 2 &&
+                this.questionMarkParts[1].search('to=') != -1);
+    };
+
+    UrlHandler.isFightLogUrl = function() {
+        return (this.slashParts.length >= 3 && this.slashParts[1] == UrlHandler.fight && this.slashParts[2] == UrlHandler.fightlog);
+    };
+
+    UrlHandler.isGangPactUrl = function() {
+        return (this.slashParts.length >= 3 && this.slashParts[1] == UrlHandler.gang && this.slashParts[2] == UrlHandler.pact);
+    };
+
+    UrlHandler.isSettingsUrl = function() {
+        return (this.slashParts.length >= 2 && this.slashParts[1] == UrlHandler.settings);
+    };
+
+    UrlHandler.highscoreSortedUpByPoints = function() {
+        return ((UrlHandler.isHighscoreUrl() && this.slashParts.length == 2) ||
+                (UrlHandler.isHighscoreUrl() && (this.slashParts.length >= 3) && this.slashParts[2] == UrlHandler.highscoreRank));
+    };
+
+    UrlHandler.isDownfightersAttackUrl = function() {
+        if (this.questionMarkParts.length < 2 || this.questionMarkParts[1].search('downfighters=1') == -1) return false;
+        return UrlHandler.isHighscoreUrl();
+    };
+    UrlHandler.isUpfightersAttackUrl = function() {
+        if (this.questionMarkParts.length < 2 || this.questionMarkParts[1].search('upfighters=1') == -1) return false;
+        return UrlHandler.isHighscoreUrl();
+    };
+    UrlHandler.isPreferredAttackUrl = function() {
+        if (this.questionMarkParts.length < 2 || this.questionMarkParts[1].search('preferred=1') == -1) return false;
+        return UrlHandler.isHighscoreUrl();
+    };
+
+    UrlHandler.isAllInConfigUrl = function() {
+        if (this.questionMarkParts.length < 2 || this.questionMarkParts[1].search('allinconfig=1') == -1) return false;
+        return UrlHandler.isHighscoreUrl();
+    };
+
+    UrlHandler.isHighscoreUrl = function() {
+        if (this.slashParts.length < 2) return false;
+        if (this.slashParts.length == 2) return (this.slashParts[1] == UrlHandler.highscore);
+        return (this.slashParts[1] == UrlHandler.highscore &&
+                this.slashParts[2] != UrlHandler.gang &&
+                this.slashParts[2] != UrlHandler.highscoreStuff);
+    };
+
+    UrlHandler.isActivitiesUrl = function() {
+        return (this.slashParts.length == 2 && this.slashParts[1] == UrlHandler.activities);
+    };
+
+    UrlHandler.isSkillsUrl = function() {
+        return ((this.slashParts.length >= 2 && this.slashParts[1] == UrlHandler.skills && this.slashParts[2] != UrlHandler.pet) ||
+                (this.slashParts.length == 2 && this.slashParts[1] == UrlHandler.skills));
+    };
+
+    UrlHandler.isPetSkillsUrl = function() {
+        return (this.slashParts.length >= 2 &&
+                this.slashParts[1] == UrlHandler.skills &&
+                this.slashParts[2] == UrlHandler.pet);
+    };
+
+    UrlHandler.isProfileUserUrl = function() {
+        return (this.slashParts.length >= 3 &&
+                this.slashParts[1] == UrlHandler.profil &&
+                (this.slashParts[2].substr(0, UrlHandler.id.length) == UrlHandler.id || this.slashParts[2].substr(0, UrlHandler.bande.length) != UrlHandler.bande));
+    };
+
+    UrlHandler.isProfileGangUrl = function() {
+        return (this.slashParts.length >= 3 &&
+                this.slashParts[1] == UrlHandler.profil &&
+                this.slashParts[2].substr(0, UrlHandler.bande.length) == UrlHandler.bande);
+    };
+    UrlHandler.isShowByIdUrl = function() {
+        return UrlHandler.isHighscoreUrl() && UrlHandler.urlGetParam("showbyid");
+    };
+
+    UrlHandler.isDonationUrl = function() {
+        return (
+            (this.slashParts.length == 2 && this.slashParts[1] == UrlHandler.change_please) ||
+            (this.slashParts.length > 2 && this.slashParts[1] == UrlHandler.change_please && this.slashParts[2] != UrlHandler.statistics)
+        );
+    };
+
+    UrlHandler.isGangUrl = function() {
+        return (this.slashParts.length == 2 && this.slashParts[1] == UrlHandler.gang);
+    };
+
+    UrlHandler.isGangShoutboxUrl = function() {
+        return (this.slashParts.length == 2 && this.slashParts[1] == UrlHandler.gang) ||
+               (this.slashParts.length > 2 && this.slashParts[1] == UrlHandler.gang && BaseLib.extractNumber(this.slashParts[2]) > 0);
+    };
+
+    UrlHandler.isGangCreditUrl = function() {
+        return (this.slashParts.length >= 3 && this.slashParts[1] == UrlHandler.gang && this.slashParts[2] == UrlHandler.credit);
+    };
+
+    UrlHandler.isGangMemberlist = function() {
+        return (this.slashParts.length >= 3 && this.slashParts[1] == UrlHandler.gang && this.slashParts[2] == UrlHandler.memberlist);
+    };
+
+    UrlHandler.isGangFightUrl = function() {
+        return (this.slashParts.length == 3 && this.slashParts[1] == UrlHandler.gang && this.slashParts[2] == UrlHandler.fight);
+    };
+
+    UrlHandler.isGangForumUrl = function() {
+        return (this.slashParts.length > 3 && this.slashParts[1] == UrlHandler.gang && this.slashParts[2] == UrlHandler.forum);
+    };
+
+    UrlHandler.isGangFightlogUrl = function() {
+        return (this.slashParts.length >= 4 && this.slashParts[1] == UrlHandler.gang && this.slashParts[2] == UrlHandler.fight && this.slashParts[3] == UrlHandler.fightlog);
+    };
+
+    UrlHandler.isGangFightViewUrl = function() {
+        return (this.slashParts.length >= 4 && this.slashParts[1] == UrlHandler.gang && this.slashParts[2] == UrlHandler.fight && this.slashParts[3] == UrlHandler.view);
+    };
+
+    UrlHandler.isMessageReadUrl = function() {
+        return (this.slashParts.length > 3 && this.slashParts[1] == UrlHandler.messages && this.slashParts[2] == UrlHandler.read);
+    };
+
+    UrlHandler.isMessageWriteUrl = function() {
+        return (this.slashParts.length >= 3 && this.slashParts[1] == UrlHandler.messages && this.slashParts[2] == UrlHandler.write);
+    };
+
+    UrlHandler.isMessageInboxUrl = function() {
+        return ((this.slashParts.length == 2 && this.slashParts[1] == UrlHandler.messages) ||
+                (this.slashParts.length >= 3 && this.slashParts[1] == UrlHandler.messages && BaseLib.extractNumber(this.slashParts[2])));
+    };
+
+    UrlHandler.isDistrictUrl = function() {
+        return (this.slashParts.length >= 3 && this.slashParts[1] == UrlHandler.city && this.slashParts[2] == UrlHandler.district);
+    };
+
+    UrlHandler.isLoginUrl = function() {
+        return (this.slashParts.length >= 2 && this.slashParts[1] == UrlHandler.login);
+    };
+
+    UrlHandler.isRedirectUrl = function() {
+        return (this.slashParts.length >= 2 && this.slashParts[1] == UrlHandler.redirect);
+    };
+
+    UrlHandler.isForumUrl = function() {
+        return (this.dotParts[0] == UrlHandler.forumPrefix);
+    };
+
+    UrlHandler.isMyUrl = function() {
+        return (this.dotParts[1] == UrlHandler.mainUrl);
+    };
+
+    UrlHandler.isPetStoreUrl = function() {
+        return (this.slashParts.length >= 3 && this.slashParts[1] == UrlHandler.city && this.slashParts[2] == UrlHandler.petStore);
+    };
+
+    UrlHandler.isHoboHomeUrl = function() {
+        return (this.slashParts.length >= 3 && this.slashParts[1] == UrlHandler.city && this.slashParts[2] == UrlHandler.home);
+    };
+
+    UrlHandler.isWeaponShopAttUrl = function() {
+        return (
+            (this.slashParts.length == 3 && this.slashParts[1] == UrlHandler.city && this.slashParts[2] == UrlHandler.weapon_store) ||
+            (this.slashParts.length > 3 && this.slashParts[1] == UrlHandler.city && this.slashParts[2] == UrlHandler.weapon_store && this.slashParts[3] != UrlHandler.def)
+        );
+    };
+
+    UrlHandler.isBegPlaceUrl = function() {
+        return (this.slashParts.length >= 3 && this.slashParts[1] == UrlHandler.city && this.slashParts[2] == UrlHandler.scrounge);
+    };
+
+    UrlHandler.isInstrumentsUrl = function() {
+        return (this.slashParts.length >= 3 && this.slashParts[1] == UrlHandler.city && this.slashParts[2] == UrlHandler.music_store);
+    };
+
+    UrlHandler.isCityGamesUrl = function() {
+        return (this.slashParts.length == 3 && this.slashParts[1] == UrlHandler.city && this.slashParts[2] == UrlHandler.games);
+    };
+
+    UrlHandler.getIdFromUrl = function() {
+        if (this.slashParts.length < 3) {
+            return 0;
+        }
+        return this.slashParts[2].split(':')[1];
+    };
+
+    UrlHandler.getUsernameFromUrl = function() {
+        if (this.slashParts.length < 3) {
+            return null;
+        }
+        return this.slashParts[2];
+    };
+
+    UrlHandler.getInboxPageFromUrl = function() {
+        if (this.slashParts.length < 3) {
+            return 1;
+        }
+        return this.slashParts[2];
+    };
+
+    UrlHandler.getStartPageFromUrl = function() {
+        var search_start = -1;
+        var durl = document.URL;
+        var usernumberafterhighscore = true;
+
+        // TODO: i'm sure there is a better was to do this... ;)
+        var tag = '#!pageisset!#';
+        if (durl.replace(/(\/[0-9]+\/)/, tag).search(tag) == -1) return search_start;
+
+        if (durl.search(UrlHandler.highscoreRange) != -1 ||
+            durl.search(UrlHandler.highscoreRank) != -1 ||
+            durl.search(UrlHandler.highscoreJoindate) != -1) {
+            usernumberafterhighscore = false;
+        }
+        var p = durl.split("/");
+        for (var i=0; i < p.length; i++) {
+            if ((i>1) && (p[i-1] == UrlHandler.highscore)) {
+                if (usernumberafterhighscore) {
+                    search_start = p[i];
+                } else {
+                    if ((i+1) < p.length)
+                        search_start = p[i+1];
+                }
+            }
+        }
+        return search_start;
+    };
+
+    UrlHandler.getGangfightIdFromUrl = function() {
+        if (this.slashParts.length < 5) {
+            return 0;
+        }
+        return this.slashParts[4];
+    };
+
+    UrlHandler.createShowByIdURL = function(id, min, max) {
+        var url = UrlHandler.urlSetParam(UrlHandler.createHighscorePage(1), "showbyid", id);
+        if (min != undefined) url = UrlHandler.urlSetParam(url, UrlHandler.highscoreMin, min);
+        if (max != undefined) url = UrlHandler.urlSetParam(url, UrlHandler.highscoreMax, max);
+        return url;
+    };
+
+    UrlHandler.createSuperSearchURL = function(page, durl) {
+        if (durl == undefined)
+            durl = document.URL;
+
+        if (UrlHandler.getStartPageFromUrl() == -1) {
+            /* set page to 1 if no other page is set */
+            durl = durl.replace('/'+UrlHandler.highscoreRange+'/', '/'+UrlHandler.highscoreRange+'/1/');
+            durl = durl.replace('/'+UrlHandler.highscoreRank+'/', '/'+UrlHandler.highscoreRank+'/1/');
+            durl = durl.replace('/'+UrlHandler.highscoreJoindate+'/', '/'+UrlHandler.highscoreJoindate+'/1/');
+        }
+
+        /* replace old page number by new one ...*/
+        durl = durl.replace(/(\/[0-9]+\/)/, '/' + page + '/');
+
+        var p= new Array();
+        p.push("markmoney");
+        p.push("super_mpl");
+        p.push("reg_earliest");
+        p.push("reg_latest");
+
+        var url = UrlHandler.urlRemoveParam(durl, p);
+        url =  UrlHandler.urlSetParam(url, "supersearch", page);
+        return url;
+    };
+
+    UrlHandler.urlRemoveParam = function(durl,  param) {
+        if (param.constructor.toString().indexOf("Array") == -1) {
+            var t = param;
+            param = new Array();
+            param.push(t);
+        }
+
+        var pos = durl.search(/\?/);
+
+        if (pos != -1) {
+            var t = durl.split('?');
+            var url = t[0];
+            var wertestring = t[1];
+            var paare = wertestring.split("&");
+            var paar;
+            var sep = "?";
+            for (var i = 0; i < paare.length; i++) {
+                paar = paare[i].split("=");
+                var found = false;
+                for (var j = 0; j < param.length; j++) {
+                    if (paar[0] == param[j]) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    url += sep + paar[0] + "=" + paar[1];
+                    sep = "&";
+                }
+            }
+            return url;
+        } else {
+            return durl;
+        }
+    };
+
+    UrlHandler.urlSetParam = function(durl, param, value) {
+        if (param.constructor.toString().indexOf("Array") == -1) {
+            var t = param;
+            param = new Array();
+            param.push(t);
+        }
+        if (value.constructor.toString().indexOf("Array") == -1) {
+            var t = value;
+            value = new Array();
+            value.push(t);
+        }
+
+        var url = UrlHandler.urlRemoveParam(durl, param);
+        var sep = "?";
+        if (url.search(/\?/) != -1) {
+            sep = "&";
+        }
+
+        for (var j = 0; j < param.length; j++) {
+            url += sep + param[j] + "=" + value[j];
+            sep = "&";
+        }
+
+        return url;
+    };
+
+    UrlHandler.urlGetParam = function(param, defltval) {
+        var wertestring = location.search.slice(1);
+        var paare = wertestring.split("&");
+        var paar;
+        var ret = defltval;
+        for (var i = 0; i < paare.length; i++) {
+            paar = paare[i].split("=");
+            var value = unescape(paar[1]).replace("+", " ");
+            if (paar[0] == param) {
+                ret = value;
+                break;
+            }
+        }
+        return ret;
+    };
+
+    UrlHandler.isBBCodeUrl = function() {
+        return (UrlHandler.isGangForumUrl() || UrlHandler.isGangShoutboxUrl() || UrlHandler.isMessageReadUrl());
+    };
+
+    UrlHandler.isPostEditUrl = function() {
+        var url = document.URL;
+        return (url.search('editpost') != -1 ||
+                url.search(BaseLib.escapeForRegExp("messages/write")) != -1);
+    };
+
+    UrlHandler.onRunlevel = function(runlevel) {
+        if (runlevel == 1) {
+            UrlHandler.loadConstants();
+        }
+    };
+
+};
+
+// ########### Game Type - constants for some games ##############
+
+GameType.init = function() {
+    GameType.loadConstants = function() {
+        GameType.timeOffset = Number(0);
+        GameType.costsBeer = 85;
+        GameType.costsBread = 170;
+
+        GameType.attFactor = 1.1;
+        GameType.defFactor = 1.0;
+
+        GameType.usersPerHsPage = 20;
+
+        GameType.wutBoostAtt = 4;
+
+        GameType.maxLuck = 10;
+
+        GameType.emptyTrolley = true;
+        GameType.hasCaptcha = UrlHandler.mode != UrlHandler.m_pgreloaded;
+        GameType.hasRewards = (UrlHandler.mode != UrlHandler.m_pghalloween &&
+                               UrlHandler.mode != UrlHandler.m_pgmalle &&
+                               UrlHandler.mode != UrlHandler.m_serserionline &&
+                               UrlHandler.mode != UrlHandler.m_pgreloaded);
+        GameType.skillCount = (UrlHandler.mode == UrlHandler.m_pgmalle || UrlHandler.mode == UrlHandler.m_pghalloween) ? 3 : 2;
+        GameType.hasHealth = (UrlHandler.mode == UrlHandler.m_pgmalle);
+        GameType.fightWaitTime = (UrlHandler.mode == UrlHandler.m_pgmalle || UrlHandler.mode == UrlHandler.m_pghalloween) ? 12 : 36;
+        GameType.hasAtomReactor = UrlHandler.mode == UrlHandler.m_pghalloween;
+        GameType.hasGangLeague = UrlHandler.mode == UrlHandler.m_pghalloween ||
+                                 UrlHandler.mode == UrlHandler.m_pennergame ||
+                                 UrlHandler.mode == UrlHandler.m_pgberlin ||
+                                 UrlHandler.mode == UrlHandler.m_pgmuenchen;
+        GameType.plunderV5 = UrlHandler.mode == UrlHandler.m_pgreloaded;
+
+        if (UrlHandler.mode == UrlHandler.m_pgberlin ||
+            UrlHandler.mode == UrlHandler.m_pgmuenchen) {
+            GameType.sameskill2times = true;
+        } else {
+            GameType.sameskill2times = false;
+        }
+
+        if (UrlHandler.mode == UrlHandler.m_clodogame) {
+            GameType.wiwuKurs = 40;
+        } else {
+            GameType.wiwuKurs = 21;
+        }
+
+        if (UrlHandler.mode == UrlHandler.m_pgberlin) {
+            GameType.maxSpenden = 10;
+        } else {
+            GameType.maxSpenden = 50;
+        }
+
+        if (UrlHandler.mode == UrlHandler.m_pgberlin) {
+            GameType.maxUsefulDefLevel = 65;
+        } else if (UrlHandler.mode == UrlHandler.m_pgmuenchen) {
+            GameType.maxUsefulDefLevel = 75;
+        } else {
+            GameType.maxUsefulDefLevel = 0; // to infinity and beyond! ;)
+        }
+
+        /* the max age of useful let fight values depends on skill time
+           limits and the current game duration
+           note: use a very low value for speed worlds */
+        if (GameType.maxUsefulDefLevel != 0) {
+            GameType.maxLetsFightAge = 2 * 24 * 60 * 60;
+        } else if (UrlHandler.mode == UrlHandler.m_bumrise) {
+            GameType.maxLetsFightAge = 4 * 24 * 60 * 60;
+        } else {
+            GameType.maxLetsFightAge = 7 * 24 * 60 * 60;
+        }
+
+        GameType.hasDownfight = UrlHandler.mode == UrlHandler.m_pennergame ||
+                                UrlHandler.mode == UrlHandler.m_pgberlin ||
+                                UrlHandler.mode == UrlHandler.m_pgmuenchen;
+
+        if (UrlHandler.mode == UrlHandler.m_pennergame) {
+            GameType.gamestart = '06.06.2008';
+        } else if (UrlHandler.mode == UrlHandler.m_pgberlin) {
+            GameType.gamestart = '15.04.2009';
+        } else if (UrlHandler.mode == UrlHandler.m_pgmuenchen) {
+            GameType.gamestart = '10.03.2010';
+        } else if (UrlHandler.mode == UrlHandler.m_pgmalle) {
+            GameType.gamestart = '27.07.2010';
+        } else if (UrlHandler.mode == UrlHandler.m_pghalloween) {
+            GameType.gamestart = '30.09.2010';
+        } else if (UrlHandler.mode == UrlHandler.m_dossergame) {
+            GameType.gamestart = '10.03.2009';
+        } else if (UrlHandler.mode == UrlHandler.m_bumrise) {
+            GameType.gamestart = '12.02.2010';
+        } else if (UrlHandler.mode == UrlHandler.m_serserionline) {
+            GameType.gamestart = '21.12.2010';
+        } else {
+            GameType.gamestart = '01.01.2008';
+        }
+    };
+
+    GameType.onRunlevel = function(runlevel) {
+        if (runlevel == 2) {
+            GameType.loadConstants();
+        }
+    };
+};
+
+// ########### Language handler ##############
+
+Language.init = function () {
+
+    Language.unbekannt = '__unknown__';
+
+    Language.pets = new Array();
+    Language.homes = new Array();
+    Language.weapons = new Array();
+    Language.begPlaces = new Array();
+    Language.instruments = new Array();
+    Language.numbers = [];
+
+    Language.createDummyPets = function() {
+        Language.pets.push(new Types.Pet(-1, '', "???", 0, 0, 0, 1));
+        Language.pets.push(new Types.Pet(-1, '', "???", 1, 1, 1, 100));
+        Language.pets.push(new Types.Pet(-1, '', "???", 2, 3, 7, 150));
+        Language.pets.push(new Types.Pet(-1, '', "???", 5, 4, 12, 380));
+        Language.pets.push(new Types.Pet(-1, '', "???", 7, 5, 16, 500));
+        Language.pets.push(new Types.Pet(-1, '', "???", 8, 3, 1, 750));
+        Language.pets.push(new Types.Pet(-1, '', "???", 10, 5, 0, 1500));
+        Language.pets.push(new Types.Pet(-1, '', "???", 13, 10, 17, 2250));
+        Language.pets.push(new Types.Pet(-1, '', "???", 18, 15, 19, 7500));
+        Language.pets.push(new Types.Pet(-1, '', "???", 25, 20, 32, 8500));
+        Language.pets.push(new Types.Pet(-1, '', "???", 27, 25, 22, 8800));
+        Language.pets.push(new Types.Pet(-1, '', "???", 44, 38, 10, 9500));
+        Language.pets.push(new Types.Pet(-1, '', "???", 36, 40, 21, 10000));
+        Language.pets.push(new Types.Pet(-1, '', "???", 28, 29, 62, 20000));
+        Language.pets.push(new Types.Pet(-1, '', "???", 39, 41, 38, 30000));
+        Language.pets.push(new Types.Pet(-1, '', "???", 55, 45, 43, 60000));
+        Language.pets.push(new Types.Pet(-1, '', "???", 65, 59, 1, 100000));
+        Language.pets.push(new Types.Pet(-1, '', "???", 59, 40, 56, 147000));
+        Language.pets.push(new Types.Pet(-1, '', "???", 32, 28, 133, 200000));
+        Language.pets.push(new Types.Pet(-1, '', "???", 62, 69, 80, 250000));
+        Language.pets.push(new Types.Pet(-1, '', "???", 74, 89, 34, 350000));
+        Language.pets.push(new Types.Pet(-1, '', "???", 71, 82, 98, 300000));
+        Language.pets.push(new Types.Pet(-1, '', "???", 95, 75, 30, 480000));
+        Language.pets.push(new Types.Pet(-1, '', "???", 136, 46, 69, 500000));
+        Language.pets.push(new Types.Pet(-1, '', "???", 52, 43, 230, 600000));
+        Language.pets.push(new Types.Pet(-1, '', "???", 100, 95, 39, 700000));
+        Language.pets.push(new Types.Pet(-1, '', "???", 110, 101, 42, 2500000));
+        Language.pets.push(new Types.Pet(-1, '', "???", 138, 87, 64, 6900000));
+        Language.pets.push(new Types.Pet(-1, '', "???", 138, 87, 67, 6900000));
+        Language.pets.push(new Types.Pet(-1, '', "???", 26, 12, 248, 0));
+    };
+
+    Language.createDummyHomes = function() {
+        Language.homes.push(new Types.Home(-1, '', '???', 1, 1));
+        Language.homes.push(new Types.Home(-1, '', '???', 4, 1000));
+        Language.homes.push(new Types.Home(-1, '', '???', 8, 5000));
+        Language.homes.push(new Types.Home(-1, '', '???', 17, 10000));
+        Language.homes.push(new Types.Home(-1, '', '???', 21, 15000));
+        Language.homes.push(new Types.Home(-1, '', '???', 24, 24000));
+        Language.homes.push(new Types.Home(-1, '', '???', 28, 35000));
+        Language.homes.push(new Types.Home(-1, '', '???', 31, 41000));
+        Language.homes.push(new Types.Home(-1, '', '???', 34, 58000));
+        Language.homes.push(new Types.Home(-1, '', '???', 42, 75000));
+        Language.homes.push(new Types.Home(-1, '', '???', 51, 100000));
+        Language.homes.push(new Types.Home(-1, '', '???', 58, 130000));
+        Language.homes.push(new Types.Home(-1, '', '???', 64, 160000));
+        Language.homes.push(new Types.Home(-1, '', '???', 73, 200000));
+        Language.homes.push(new Types.Home(-1, '', '???', 82, 240000));
+        Language.homes.push(new Types.Home(-1, '', '???', 89, 360000));
+        Language.homes.push(new Types.Home(-1, '', '???', 102, 510000));
+        Language.homes.push(new Types.Home(-1, '', '???', 125, 820000));
+        Language.homes.push(new Types.Home(-1, '', '???', 147, 1560000));
+        Language.homes.push(new Types.Home(-1, '', '???', 158, 4700000));
+        Language.homes.push(new Types.Home(-1, '', '???', 176, 22400000));
+        Language.homes.push(new Types.Home(-1, '', '???', 200, 59000000));
+    };
+
+    Language.createDummyWeapons = function(newStyle) {
+        Language.weapons.push(new Types.Weapon(-1, '', '???', 1, 200));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 4 : 3, 500));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 8 : 6, 1500));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 12 : 9, 2000));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 16 : 12, 3000));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 20 : 15, 5000));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 24 : 18, 5500));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 28 : 21, 6000));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 32 : 25, 7500));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 36 : 28, 8000));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 40 : 31, 12000));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 44 : 34, 18000));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 48 : 37, 20000));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 52 : 41, 25000));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 56 : 44, 30000));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 60 : 47, 35000));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 64 : 50, 50000));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 68 : 54, 100000));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 72 : 58, 500000));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 76 : 62, 750000));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 80 : 66, 1500000));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 85 : 70, 2500000));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 90 : 75, 10000000));
+        Language.weapons.push(new Types.Weapon(-1, '', '???', newStyle ? 100 : 80, 50000000));
+    };
+
+    Language.createDummyBegPlaces = function() {
+        Language.begPlaces.push(new Types.BegPlace(-1, '', '???', 10, 100));
+        Language.begPlaces.push(new Types.BegPlace(-1, '', '???', 50, 4500));
+        Language.begPlaces.push(new Types.BegPlace(-1, '', '???', 100, 8000));
+        Language.begPlaces.push(new Types.BegPlace(-1, '', '???', 200, 15000));
+        Language.begPlaces.push(new Types.BegPlace(-1, '', '???', 300, 20000));
+        Language.begPlaces.push(new Types.BegPlace(-1, '', '???', 400, 40000));
+        Language.begPlaces.push(new Types.BegPlace(-1, '', '???', 500, 50000));
+        Language.begPlaces.push(new Types.BegPlace(-1, '', '???', 700, 70000));
+    };
+
+    Language.createDummyInstruments = function() {
+        Language.instruments.push(new Types.Instrument(1, '', '???', 100));
+        Language.instruments.push(new Types.Instrument(2, '', '???', 300));
+        Language.instruments.push(new Types.Instrument(3, '', '???', 1000));
+        Language.instruments.push(new Types.Instrument(4, '', '???', 2000));
+        Language.instruments.push(new Types.Instrument(5, '', '???', 4000));
+        Language.instruments.push(new Types.Instrument(6, '', '???', 7000));
+        Language.instruments.push(new Types.Instrument(7, '', '???', 12000));
+        Language.instruments.push(new Types.Instrument(8, '', '???', 53000));
+        Language.instruments.push(new Types.Instrument(9, '', '???', 90000));
+    };
+
+    Language.loadLanguage = function() {
+        Language.lokalesKomma = ',';
+        Language.javascriptKomma = '.';
+        Language.numberConversion = [
+            { unit: "Trilliarden",factor: 1000000000000000000000 },
+            { unit: "Trillionen", factor: 1000000000000000000 },
+            { unit: "Billiarden", factor: 1000000000000000 },
+            { unit: "Billionen",  factor: 1000000000000 },
+            { unit: "Milliarden", factor: 1000000000 },
+            { unit: "Millionen",  factor: 1000000 } ];
+
+        if (UrlHandler.mode == UrlHandler.m_pennergame ||
+            UrlHandler.mode == UrlHandler.m_pgberlin ||
+            UrlHandler.mode == UrlHandler.m_pgmuenchen ||
+            UrlHandler.mode == UrlHandler.m_pgmalle ||
+            UrlHandler.mode == UrlHandler.m_pghalloween ||
+            UrlHandler.mode == UrlHandler.m_pgreloaded) {
+
+            Language.numbers = [
+                [ "ein", "eine", "einer" ],
+                [ "zwei" ],
+                [ "drei" ],
+                [ "vier" ],
+                [ "fünf", "f&uuml;nf" ],
+                [ "sechs" ],
+                [ "sieben" ],
+                [ "acht" ],
+                [ "neun" ],
+                [ "zehn" ],
+            ];
+
+            Language.duHastHeute = 'Du hast heute ';
+            Language.SpendenErhalten = ' Spenden erhalten';
+            Language.currency = "&euro;";
+            Language.formatMoney = function(m) {
+                return Language.currency + m;
+            };
+            Language.angreifen = "Angriff";
+            Language.punkte = "Punkte";
+            Language.beschreibung = "Beschreibung:";
+            Language.motd = 'MotD';
+            Language.ueberwiesAm = /&uuml;berwies\s+am\s+/;
+            Language.bekamAm = /bekam\s+am\s+/;
+            Language.selbsterstelltesHaustier = 'Bei dem Tier handelt es sich um ein selbsterstelltes Haustier und basiert auf den Basiswerten von';
+            Language.platz = 'Platz';
+            Language.mitglieder = 'Mitglieder';
+            Language.buendnisse = 'Bündnisse';
+
+            Language.angriffErfolgreich = "Angriff erfolgreich gestartet";
+            Language.aufSucheGegangen = "Pfandflaschensuche gegangen";
+            Language.wirdBeendet = "wird gerade beendet";
+            Language.klickeDigit = "Bitte klicke auf die"; //  <b>Zahl</b>";
+            Language.istImUrlaubsmodus = "Urlaub";
+            Language.nebensaechlicheAktivitaet = "Du kannst zur Zeit, aufgrund deiner nebens"; // &auml;chlichen Aktivit&auml;t, keinen Angriff starten.";
+            Language.spielerNichtGefunden = "Der Spieler wurde nicht gefunden.";
+            Language.falschePunktzahl = "Der Spieler hat zuviele bzw. zu wenig Punkte."; // Bitte &uuml;berpr&uuml;fe deine Eingabe.";
+            Language.angriffInnerhalb36h = "36";
+            Language.weiterbildung2mal = 'eine Weiterbildung nicht 2 mal';
+            Language.weiterbildungErfolgreich = 'Weiterbildung erfolgreich gestartet';
+
+            Language.att = 'ATT';
+            Language.def = 'DEF';
+            Language.geschick1 = 'Geschick';
+            Language.geschick2 = 'Geschicklichkeit';
+
+            Language.erhoehtSpenden = 'Einnahmen durch Spenden um ';
+            Language.mehrSpenden = [ '(+', ' Spendengeld' ];
+            Language.verringertBildungszeit = 'Verringert Bildungszeiten um ';
+            Language.verringertBildungszeitFuerDex = /* Verringert Bildungszeiten fue*/'r Geschicklichkeit um ';
+            Language.verringertAngriffszeit = 'Verringert Angriffszeit um ';
+            Language.verringertSammelzeit = 'Verringert die Zeit die du zum Sammeln brauchst um ';
+            Language.mehrPlunder = [ 'werden bis zu ', ' Plunderst' ]; // uecke gefunden.
+            Language.angriffInMinuten = [ [ 'Führt deinen aktuellen Angriff innerhalb der nächsten ',  ' Minuten aus' ],
+                                          [ 'Beendet deinen aktuellen Kampf in den ', ' folgenden Minuten'  ] ];
+            Language.attBoost = [ '(+', ' ATT bis zum nächsten Kampf' ];
+            Language.collectBoost = [ [ '(+', '% Flaschenfund' ], [ '(+', '% Pfandflaschen'] ];
+            Language.angelegt = "Angelegt";
+            Language.effekt = "Effekt: ";
+            Language.verbuendetMit = "ndet mit:";
+            Language.erhoehtUm = [ 'Erh&ouml;ht', 'Erhöht', 'um' ];
+            Language.schutzVorRegen = 'Schützt dich vor Regen';
+            Language.erhoehtSauberkeit = 'Erhöht deine Sauberkeit nach Benutzung um ';
+
+            Language.nextLevel = /* nae */"chste Stufe";
+            Language.skillAttack = "Angriff";
+            Language.skillDefense = "Verteidigung";
+            Language.skillDexterity = "Geschicklichkeit";
+            Language.skillDexterityPet = "Kunstst";     // uecke
+            Language.skillDexterityPet2 = "Kunstst";    // uecke
+            Language.skillSpeech = "Sprechen";
+            Language.skillEducation = "Bildungsstufe";
+            Language.skillMusic = "Musik";
+            Language.skillNetworking = "Sozialkontakte";
+            Language.skillConcentration = "Konzentration";
+            Language.skillPickpocketing = "Taschendiebstahl";
+            Language.skillSurvivalTraining = "Überlebenstraining";
+
+            Language.heute = "Heute";
+            Language.morgen = "Morgen";
+
+            Language.activityConcentration = "Konzentrieren";
+            Language.activityCollect = "Pfandflaschen sammeln";
+
+            Language.nebenbeschaeftigung = "Nebenbesch&auml;ftigung:";
+            Language.nebenbeschaeftigungKeine = "Keine";
+            Language.nebenbeschaeftigungKaempfen = "K&auml;mpfen";
+            Language.nebenbeschaeftigungSammeln = "Pfandflaschensammeln";
+
+            Language.wutGestartet = "Wutentfachung ist aktiv!";
+            Language.wutGestopptVonGegner = "Achtung: Ein Gegner hat deine Wutentfachung gestoppt!";
+            Language.wiwuGestartet = "Wirtschaftswunder ist aktiv!";
+            Language.duProfitierstNicht = Language.unbekannt;
+            Language.passwortFalsch = "Der Benutzername und/oder das Passwort sind ungültig.";
+
+            Language.Einziehen = "Einziehen";
+            Language.Bewohnt = "Bewohnt";
+
+            Language.bandeHerrschtIn = "Diese Bande herrscht in ";
+
+            Language.tagesaufgabe = "Tagesaufgabe";
+            Language.plunderEinzahlen = "Plunder in die Plunderbank deiner Bande einzahlen";
+            Language.kampfStarten = "Einen Kampf gewinnen";
+            Language.sammelnStarten = "Einmal Flaschensammeln starten";
+            Language.sauberWerden = "Jetzt einmal 100% sauber werden";
+            Language.bierTrinken = "Promillepegel über 2‰";
+            Language.snackEssen = "Jetzt einen kleinen Snack essen";
+            Language.inBandenkasseEinzahlen = "Geld in deine Bandenkasse einzahlen";
+            Language.nachrichtSenden = "Jetzt eine PN an einen Freund versenden";
+            Language.shoutboxSpam = "Jetzt in der SB posten";
+            Language.haustierkampfStarten = "Jetzt einen Haustierkampf starten";
+            Language.verbrechenBegehen = "Ein Verbrechen begehen";
+            Language.haustierWbStarten = "Eine Haustierweiterbildung starten";
+            Language.plunderBasteln = "Einen Plunder basteln";
+            Language.loseKaufen = "Jetzt Lose kaufen";
+            Language.flaschenVerkaufen = "Jetzt Flaschen verkaufen";
+            Language.plunderVerkaufen = "Jetzt Plunder verkaufen";
+            Language.bierKaufen = "Jetzt im Supermarkt Getränke kaufen";
+
+            Language.plunderZumEinzahlen = [
+                "Kaputte Brille",
+                "Dir-unbekanntes Artefakt",
+                "Rostiger Nagel",
+                "Marodes Holzbrett",
+                "Glasscherbe",
+                "Textilfetzen"
+            ];
+
+            Language.plunderZumVerkaufen = [
+                "Kaputte Brille",
+                "Dir-unbekanntes Artefakt",
+                "Rostiger Nagel",
+                "Marodes Holzbrett",
+                "Glasscherbe",
+                "Textilfetzen",
+                "iWin",
+                "Hussmans Spezialwaffe",
+                "Alter Mofamotor",
+                "Regenschirm",
+                "Kaputter Regenschirm",
+                "Verdreckter Zauberstab",
+                "Rostiges Taschenmesser",
+                "Murmel",
+                "Verbogenes Fahrrad"
+            ];
+
+            Language.plunderZumBasteln = [
+                "Nagelkeule",
+                "Holzschild",
+                "Lockfutter"
+            ];
+
+            Language.kostenloseKronkorken = "Kronkorken";
+            Language.pennergameSupport = "Pennergame.de Support";
+            Language.duKannstLoseKaufen = [ 'Du kannst heute noch', 'Lose kaufen' ];
+
+            if (UrlHandler.mode == UrlHandler.m_pennergame) {
+                Language.pets.push(new Types.Pet(-1, '00001', "Kakerlake", 0, 0, 0, 1));
+                Language.pets.push(new Types.Pet(-1, '68930', "Goldfisch", 1, 1, 1, 100));
+                Language.pets.push(new Types.Pet(-1, '11836', "Maus", 2, 3, 7, 150));
+                Language.pets.push(new Types.Pet(-1, '73308', "Hamster", 5, 4, 12, 380));
+                Language.pets.push(new Types.Pet(-1, '52483', "Wellensittich", 7, 5, 16, 500));
+                Language.pets.push(new Types.Pet(-1, '31451', "Taube", 8, 3, 1, 750));
+                Language.pets.push(new Types.Pet(-1, '73684', "Ratte", 10, 5, 0, 1500));
+                Language.pets.push(new Types.Pet(-1, '77310', "Hase", 13, 10, 17, 2250));
+                Language.pets.push(new Types.Pet(-1, '21903', "Frettchen", 18, 15, 19, 7500));
+                Language.pets.push(new Types.Pet(-1, '73735', "Katze", 25, 20, 32, 8500));
+                Language.pets.push(new Types.Pet(-1, '89386', "Falke", 27, 25, 22, 8800));
+                Language.pets.push(new Types.Pet(-1, '61402', "Schlange", 44, 38, 10, 9500));
+                Language.pets.push(new Types.Pet(-1, '62474', "Hausziege", 36, 40, 21, 10000));
+                Language.pets.push(new Types.Pet(-1, '12758', "Pudel", 28, 29, 62, 20000));
+                Language.pets.push(new Types.Pet(-1, '48263', "Adler", 39, 41, 38, 30000));
+                Language.pets.push(new Types.Pet(-1, '09051', "Sch&auml;ferhund", 55, 45, 43, 60000, "ferhund"));
+                Language.pets.push(new Types.Pet(-1, '15240', "Pitbull", 65, 59, 1, 100000));
+                Language.pets.push(new Types.Pet(-1, '62456', "Cockerspaniel", 59, 40, 56, 147000));
+                Language.pets.push(new Types.Pet(-1, '32563', "Chihuahua", 32, 28, 133, 200000));
+                Language.pets.push(new Types.Pet(-1, '90385', "Pferd", 62, 69, 80, 250000));
+                Language.pets.push(new Types.Pet(-1, '64220', "Nilpferd", 74, 89, 34, 350000));
+                Language.pets.push(new Types.Pet(-1, '98962', "Giraffe", 71, 82, 98, 300000));
+                Language.pets.push(new Types.Pet(-1, '73953', "Krokodil", 95, 75, 30, 480000));
+                Language.pets.push(new Types.Pet(-1, '43703', "Tiger", 136, 46, 69, 500000));
+                Language.pets.push(new Types.Pet(-1, '12536', "&Auml;ffchen", 52, 43, 230, 600000, "ffchen"));
+                Language.pets.push(new Types.Pet(-1, '25834', "Nashorn", 100, 95, 39, 700000));
+                Language.pets.push(new Types.Pet(-1, '94826', "Elefant", 110, 101, 42, 2500000));
+                Language.pets.push(new Types.Pet(-1, '14896', "Eisb&auml;r", 138, 87, 64, 6900000, "Eisb"));
+                Language.pets.push(new Types.Pet(-1, 'mammut_xmas', "Mammut", 138, 87, 67, 6900000));
+                Language.pets.push(new Types.Pet(-1, '73933', "Dressierte Maus", 43, 37, 253, 0));
+
+                Language.homes.push(new Types.Home(-1, '02461', 'B&uuml;rgersteig', 1, 1));
+                Language.homes.push(new Types.Home(-1, '88985', 'Park', 4, 1000));
+                Language.homes.push(new Types.Home(-1, '56297', 'Parkbank', 8, 5000));
+                Language.homes.push(new Types.Home(-1, '80092', 'Pennerbox', 17, 10000));
+                Language.homes.push(new Types.Home(-1, '12312', 'Brunnen', 21, 15000));
+                Language.homes.push(new Types.Home(-1, '97642', 'Br&uuml;cke', 24, 24000));
+                Language.homes.push(new Types.Home(-1, '16368', 'Katakomben', 28, 35000));
+                Language.homes.push(new Types.Home(-1, '74476', 'Elbstrand', 31, 41000));
+                Language.homes.push(new Types.Home(-1, '5234', 'Baumhaus', 34, 58000));
+                Language.homes.push(new Types.Home(-1, '09053', 'Zelt', 42, 75000));
+                Language.homes.push(new Types.Home(-1, '84757', 'Wolfsrudel', 51, 100000));
+                Language.homes.push(new Types.Home(-1, '97424', 'Wohnwagen', 58, 130000));
+                Language.homes.push(new Types.Home(-1, '64553', 'Boot', 64, 160000));
+                Language.homes.push(new Types.Home(-1, '37534', 'Grabkammer', 73, 200000));
+                Language.homes.push(new Types.Home(-1, '59157', 'Tiefgarage', 82, 240000));
+                Language.homes.push(new Types.Home(-1, '74245', 'Kakaofabrik', 89, 260000));
+                Language.homes.push(new Types.Home(-1, '10908', 'Kran', 102, 310000));
+                Language.homes.push(new Types.Home(-1, '66739', 'Leuchtturm', 125, 420000));
+                Language.homes.push(new Types.Home(-1, '28535', 'Alte Kirche', 147, 560000));
+                Language.homes.push(new Types.Home(-1, '52693', 'Burg', 158, 4700000));
+                Language.homes.push(new Types.Home(-1, '94127', 'Sternwarte', 176, 22400000));
+                Language.homes.push(new Types.Home(-1, '54142', 'Schloss', 200, 59000000));
+
+                Language.weapons.push(new Types.Weapon(-1, 'zahnstocher', 'Zahnstocher', 1, 200));
+                Language.weapons.push(new Types.Weapon(-1, 'flasche', 'Zerbrochene Flasche', 3, 500));
+                Language.weapons.push(new Types.Weapon(-1, 'wasserbombe', 'Wasserbomben', 6, 1500));
+                Language.weapons.push(new Types.Weapon(-1, 'knaller', 'Silvesterknaller', 9, 2000));
+                Language.weapons.push(new Types.Weapon(-1, '16249', 'Spraydose', 12, 3000));
+                Language.weapons.push(new Types.Weapon(-1, 'gurtel', 'G&uuml;rtel', 15, 5000));
+                Language.weapons.push(new Types.Weapon(-1, 'schlagstock', 'Gummikn&uuml;ppel', 18, 5500));
+                Language.weapons.push(new Types.Weapon(-1, 'gulli', 'Gullideckel', 21, 6000));
+                Language.weapons.push(new Types.Weapon(-1, 'kette', 'Kettenschloss', 25, 7500));
+                Language.weapons.push(new Types.Weapon(-1, 'schlagring', 'Schlagring', 28, 8000));
+                Language.weapons.push(new Types.Weapon(-1, 'stange', 'Heizungsrohr', 31, 12000));
+                Language.weapons.push(new Types.Weapon(-1, '82464', 'Hammer', 34, 18000));
+                Language.weapons.push(new Types.Weapon(-1, 'spry', 'Pfefferspray', 37, 20000));
+                Language.weapons.push(new Types.Weapon(-1, 'schocker', 'Elektroschocker', 41, 25000));
+                Language.weapons.push(new Types.Weapon(-1, '42563', 'Feuerl&ouml;scher', 44, 30000));
+                Language.weapons.push(new Types.Weapon(-1, 'schwert', 'Schwert', 47, 35000));
+                Language.weapons.push(new Types.Weapon(-1, 'alteknarre', 'Alte Knarre', 50, 50000));
+                Language.weapons.push(new Types.Weapon(-1, 'knarre', 'Pistole', 54, 100000));
+                Language.weapons.push(new Types.Weapon(-1, 'machinegun', 'Maschinengewehr', 58, 500000));
+                Language.weapons.push(new Types.Weapon(-1, 'shotgun', 'Shotgun', 62, 750000));
+                Language.weapons.push(new Types.Weapon(-1, 'kanone', 'Kanone', 66, 1500000));
+                Language.weapons.push(new Types.Weapon(-1, 'warmachine', 'Kriegsmaschine', 70, 2500000));
+                Language.weapons.push(new Types.Weapon(-1, '41832', 'Atombombe', 75, 10000000));
+                Language.weapons.push(new Types.Weapon(-1, '73550', 'Schwarzes Loch', 80, 50000000));
+
+                Language.begPlaces.push(new Types.BegPlace(-1, 'kindergarten', 'Kindergarten', 10, 100));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'punks', 'Punks', 50, 4500));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'arbeitsamt', 'Arbeitsamt', 100, 8000));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'kneipe', 'Kneipe', 200, 15000));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'bahnhof', 'Bahnhof', 300, 20000));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'ubahn', 'U-Bahn', 400, 40000));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'einkaufzentrum', 'Einkaufszentrum', 500, 50000));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'boerse', 'Boerse', 700, 70000));
+
+                Language.instruments.push(new Types.Instrument(1, 'grashalm', 'Grashalm-Fl&ouml;te', 100));
+                Language.instruments.push(new Types.Instrument(2, 'flaschenfloete', 'Flaschen-Fl&ouml;te', 300));
+                Language.instruments.push(new Types.Instrument(3, 'glocke', 'Glocke', 1000));
+                Language.instruments.push(new Types.Instrument(4, 'trommel', 'Trommel', 2000));
+                Language.instruments.push(new Types.Instrument(5, 'akkordeon', 'Akkordeon', 4000));
+                Language.instruments.push(new Types.Instrument(6, 'radio', 'Radio', 7000));
+                Language.instruments.push(new Types.Instrument(7, 'gitarre', 'Gitarre', 12000));
+                Language.instruments.push(new Types.Instrument(8, 'saxophon', 'Saxophon', 53000));
+                Language.instruments.push(new Types.Instrument(9, 'choir', 'Chor', 90000));
+            } else if (UrlHandler.mode == UrlHandler.m_pgmuenchen) {
+                Language.pets.push(new Types.Pet(-1, '00001', "L&auml;use", 0, 0, 0, 1, "use"));
+                Language.pets.push(new Types.Pet(-1, '68930', "Schabe", 1, 1, 1, 100));
+                Language.pets.push(new Types.Pet(-1, '11836', "Hendl", 2, 3, 7, 150));
+                Language.pets.push(new Types.Pet(-1, '73308', "Ratte", 5, 4, 12, 380));
+                Language.pets.push(new Types.Pet(-1, '52483', "Zebramangusten", 7, 5, 16, 500));
+                Language.pets.push(new Types.Pet(-1, '31451', "Taube", 8, 3, 1, 750));
+                Language.pets.push(new Types.Pet(-1, '73684', "Emsen", 10, 5, 0, 1500));
+                Language.pets.push(new Types.Pet(-1, '77310', "Schneehase", 13, 10, 17, 2250));
+                Language.pets.push(new Types.Pet(-1, '21903', "Erdhenne", 18, 15, 19, 7500));
+                Language.pets.push(new Types.Pet(-1, '73735', "Katze", 25, 20, 32, 8500));
+                Language.pets.push(new Types.Pet(-1, '89386', "Steinadler", 27, 25, 22, 8800));
+                Language.pets.push(new Types.Pet(-1, '61402', "Wolpertinger", 44, 38, 10, 9500));
+                Language.pets.push(new Types.Pet(-1, '62474', "Mufflon", 36, 40, 21, 10000));
+                Language.pets.push(new Types.Pet(-1, '12758', "Zamperl", 28, 29, 62, 20000));
+                Language.pets.push(new Types.Pet(-1, '48263', "Oachkatzl", 39, 41, 38, 30000));
+                Language.pets.push(new Types.Pet(-1, '09051', "G&auml;mse", 55, 45, 43, 60000));
+                Language.pets.push(new Types.Pet(-1, '15240', "Facke", 65, 59, 1, 100000));
+                Language.pets.push(new Types.Pet(-1, '62456', "Bisamratte", 59, 40, 56, 147000));
+                Language.pets.push(new Types.Pet(-1, '32563', "Gartenschl&auml;fer", 32, 28, 133, 200000));
+                Language.pets.push(new Types.Pet(-1, '90385', "Elwetritsch", 62, 69, 80, 250000));
+                Language.pets.push(new Types.Pet(-1, '64220', "Seelöwe", 74, 89, 34, 350000));
+                Language.pets.push(new Types.Pet(-1, '98962', "Giraffe", 71, 82, 98, 300000));
+                Language.pets.push(new Types.Pet(-1, '73953', "Krokodil", 95, 75, 30, 480000));
+                Language.pets.push(new Types.Pet(-1, '43703', "Tiger", 136, 46, 69, 500000));
+                Language.pets.push(new Types.Pet(-1, '12536', "Affe", 52, 43, 230, 600000));
+                Language.pets.push(new Types.Pet(-1, '25834', "Nashorn", 100, 95, 39, 700000));
+                Language.pets.push(new Types.Pet(-1, '94826', "Elefant", 110, 101, 42, 2500000));
+                Language.pets.push(new Types.Pet(-1, '14896', "Eisbär", 145, 98, 51, 6900000, "Eisb"));
+                Language.pets.push(new Types.Pet(-1, 'mammut_xmas', "Mammut", 145, 98, 55, 6900000));
+                Language.pets.push(new Types.Pet(-1, '73933', "Dressierte Maus", 43, 37, 253, 0));
+
+                Language.homes.push(new Types.Home(-1, '02461', 'B&uuml;rgersteig', 1, 1));
+                Language.homes.push(new Types.Home(-1, 'frauenkirche', 'Frauenkirche', 4, 1000));
+                Language.homes.push(new Types.Home(-1, '56297', 'Parkbank', 8, 5000));
+                Language.homes.push(new Types.Home(-1, 'park', 'Park', 17, 10000));
+                Language.homes.push(new Types.Home(-1, '94127', 'Sternwarte', 21, 15000));
+                Language.homes.push(new Types.Home(-1, '97642', 'Br&uuml;cke', 24, 24000));
+                Language.homes.push(new Types.Home(-1, 'tierpark', 'Tierpark Hellabrunn', 28, 35000));
+                Language.homes.push(new Types.Home(-1, 'isarauen', 'Isarauen', 31, 41000));
+                Language.homes.push(new Types.Home(-1, '09053', 'Zelt', 34, 58000));
+                Language.homes.push(new Types.Home(-1, '12312', 'Brunnen', 42, 75000));
+                Language.homes.push(new Types.Home(-1, 'nymphenburg', 'Schloss Nymphenburg', 51, 100000));
+                Language.homes.push(new Types.Home(-1, 'freiheit', 'M&uuml;nchener Freiheit', 58, 130000));
+                Language.homes.push(new Types.Home(-1, '5234', 'Baumhaus', 64, 160000));
+                Language.homes.push(new Types.Home(-1, '64553', 'Boot', 73, 200000));
+                Language.homes.push(new Types.Home(-1, 'allianzarena', 'Allianz-Arena', 82, 240000));
+                Language.homes.push(new Types.Home(-1, 'wohnwagen', 'Wohnwagen', 89, 260000));
+                Language.homes.push(new Types.Home(-1, 'starnbergersee', 'Starnberger See', 102, 310000));
+                Language.homes.push(new Types.Home(-1, 'bavaria', 'Bavaria', 125, 420000));
+                Language.homes.push(new Types.Home(-1, 'p1', 'Club P1', 147, 560000));
+                Language.homes.push(new Types.Home(-1, 'tiefgarage', 'Tiefgarage', 158, 4700000));
+                Language.homes.push(new Types.Home(-1, 'bierzelt', 'Bierzelt', 176, 22400000));
+                Language.homes.push(new Types.Home(-1, 'riesenrad', 'Riesenrad', 200, 59000000));
+
+                // TODO: fill these out
+                Language.weapons.push(new Types.Weapon(-1, 'zahnstocher', 'Zahnstocher', 1, 200));
+                Language.weapons.push(new Types.Weapon(-1, 'wasserbomben', 'Starnberger Wasserbomben', 3, 500));
+                Language.weapons.push(new Types.Weapon(-1, 'flueche', 'Fl&uuml;che', 6, 1500));
+                Language.weapons.push(new Types.Weapon(-1, 'holzhammer', 'Holzhammer', 9, 2000));
+                Language.weapons.push(new Types.Weapon(-1, 'nachtkrabb', 'Nachtkrabb', 12, 3000));
+                Language.weapons.push(new Types.Weapon(-1, 'mass_bier', 'Maßkrug', 15, 5000));
+                Language.weapons.push(new Types.Weapon(-1, 'filzhut', 'Filzhut', 18, 5500));
+                Language.weapons.push(new Types.Weapon(-1, 'lederguertel', 'Ledergürtel', 21, 6000));
+                Language.weapons.push(new Types.Weapon(-1, 'trachtenschuhe', 'Trachtenschuhe', 25, 7500));
+                Language.weapons.push(new Types.Weapon(-1, 'gebirgssteine', 'Gebirgssteine', 28, 8000));
+                Language.weapons.push(new Types.Weapon(-1, 'lederhose', 'Lederhose', 31, 12000));
+                Language.weapons.push(new Types.Weapon(-1, 'kanone', 'Alte Kanone', 34, 18000));
+                Language.weapons.push(new Types.Weapon(-1, 'nagelpistole', 'Nagelpistole', 37, 20000));
+                Language.weapons.push(new Types.Weapon(-1, 'verfl_messer', 'Verfluchtes Messer', 41, 25000));
+                Language.weapons.push(new Types.Weapon(-1, 'warmachine', 'Kriegsmaschine', 44, 30000));
+                Language.weapons.push(new Types.Weapon(-1, 'degen', 'Degen', 47, 35000));
+                Language.weapons.push(new Types.Weapon(-1, 'gewehr', 'Gewehr', 50, 50000));
+                Language.weapons.push(new Types.Weapon(-1, 'bay_flag', 'Bayrische Flagge', 54, 100000));
+                Language.weapons.push(new Types.Weapon(-1, 'blitzgewitter', 'Blitzgewitter', 58, 500000));
+                Language.weapons.push(new Types.Weapon(-1, 'kutte', 'M&ouml;nchskutte', 62, 750000));
+                Language.weapons.push(new Types.Weapon(-1, 'bierfass', 'Bierf&auml;sser', 66, 1500000));
+                Language.weapons.push(new Types.Weapon(-1, 'ninjasterne', 'Ninjasterne', 70, 2500000));
+                Language.weapons.push(new Types.Weapon(-1, '41832', 'Atombombe', 75, 10000000));
+                Language.weapons.push(new Types.Weapon(-1, '73550', 'Schwarzes Loch', 80, 50000000));
+
+                Language.begPlaces.push(new Types.BegPlace(-1, 'englischergarten', 'Englischer Garten', 10, 100));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'viktualienmarkt', 'Viktualienmarkt', 50, 4500));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'brauhaus', 'Hofbräuhaus', 100, 8000));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'tram', 'Tram', 200, 15000));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'diewiesn', 'Die Wiesn', 300, 20000));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'hbf', 'Bahnhof', 400, 40000));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'feinkost', 'Feinkost Käfer', 500, 50000));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'maximillianstr', 'Maximilianstraße', 700, 70000));
+
+                Language.instruments.push(new Types.Instrument(1, 'maultrommel', 'Maultrommel', 100));
+                Language.instruments.push(new Types.Instrument(2, 'schwegel', 'Schwegel', 300));
+                Language.instruments.push(new Types.Instrument(3, 'gemshorn', 'Gemshorn', 1000));
+                Language.instruments.push(new Types.Instrument(4, 'harmonika', 'Schrammelharmonika', 3, 2000));
+                Language.instruments.push(new Types.Instrument(5, 'zither', 'Zither', 4000));
+                Language.instruments.push(new Types.Instrument(6, 'trompete', 'Trompete', 7000));
+                Language.instruments.push(new Types.Instrument(7, 'jodler', 'Jodler', 12000));
+                Language.instruments.push(new Types.Instrument(8, '', '???', 53000));
+                Language.instruments.push(new Types.Instrument(9, '', '???', 90000));
+            } else if (UrlHandler.mode == UrlHandler.m_pgmalle) {
+                Language.pets.push(new Types.Pet(-1, 'kakerlake', "Kakerlake", 0, 0, 0, 1, "use"));
+                Language.pets.push(new Types.Pet(-1, 'doener_tier', "D&ouml;nertier", 1, 1, 1, 100));
+                Language.pets.push(new Types.Pet(-1, 'brite', "Britischer Sonnenanbeter", 2, 3, 2, 150));
+                Language.pets.push(new Types.Pet(-1, 'strassenhund', "Straßenk&ouml;ter", 5, 4, 2, 380));
+                Language.pets.push(new Types.Pet(-1, 'krabbe', "Krabbe", 7, 5, 4, 500));
+                Language.pets.push(new Types.Pet(-1, 'sangriaeimer', "Sangria-Eimer", 8, 3, 15, 750));
+                Language.pets.push(new Types.Pet(-1, 'kamel', "Kamel", 9, 7, 8, 1500));
+                Language.pets.push(new Types.Pet(-1, 'seeigel', "Seeigel", 10, 20, 12, 2250));
+                Language.pets.push(new Types.Pet(-1, 'eidechse', "Balearen-Eidechse", 18, 15, 40, 7500));
+                Language.pets.push(new Types.Pet(-1, 'ketze', "Katze", 22, 16, 32, 8500));
+                Language.pets.push(new Types.Pet(-1, 'mowe', "M&ouml;we", 27, 25, 22, 8800));
+                Language.pets.push(new Types.Pet(-1, 'floh', "Sandfl&ouml;he", 44, 30, 4, 9500));
+                Language.pets.push(new Types.Pet(-1, 'mucke', "M&uuml;cke", 52, 40, 1, 10000));
+                Language.pets.push(new Types.Pet(-1, 'badeente', "Badeente", 28, 29, 62, 20000));
+                Language.pets.push(new Types.Pet(-1, 'deutscher', "Deutscher Tourist", 39, 41, 20, 30000));
+                Language.pets.push(new Types.Pet(-1, 'seestern', "Seestern", 55, 45, 28, 60000));
+                Language.pets.push(new Types.Pet(-1, 'qualle', "Qualle", 65, 59, 1, 100000));
+                Language.pets.push(new Types.Pet(-1, 'delphin', "Delphin", 68, 40, 140, 147000));
+                Language.pets.push(new Types.Pet(-1, 'stier', "Stier", 75, 62, 30, 200000));
+                Language.pets.push(new Types.Pet(-1, 'barrakuda', "Barrakuda", 106, 101, 12, 200000));
+                Language.pets.push(new Types.Pet(-1, 'luchs', "Luchs", 68, 69, 80, 250000));
+                Language.pets.push(new Types.Pet(-1, 'nachktbader', "Skandinavische Nacktbaderin", 74, 71, 13, 350000));
+                Language.pets.push(new Types.Pet(-1, 'papagei', "Papagei", 74, 89, 34, 300000));
+                Language.pets.push(new Types.Pet(-1, 'pitbull', "Englischer Pitbull", 95, 75, 30, 480000));
+                Language.pets.push(new Types.Pet(-1, 'flamingo', "Flamingo", 36, 46, 280, 500000));
+                Language.pets.push(new Types.Pet(-1, 'gecko', "Gecko", 52, 95, 78, 600000));
+                Language.pets.push(new Types.Pet(-1, 'esel', "Esel", 82, 87, 39, 800000));
+                Language.pets.push(new Types.Pet(-1, 'hausziege', "Hausziege", 75, 69, 42, 1600000));
+                Language.pets.push(new Types.Pet(-1, 'bierhelm', "Sprechender Bierhelm", 110, 164, 130, 3200000));
+                Language.pets.push(new Types.Pet(-1, '73933', "Dressierte Maus", 43, 37, 253, 0));
+
+                Language.homes.push(new Types.Home(-1, 'strand', "Strand", 1, 1));
+                Language.homes.push(new Types.Home(-1, 'sonnenliege', "Sonnenliege", 4, 1000));
+                Language.homes.push(new Types.Home(-1, 'luftmatratze', "Luftmatratze", 8, 5000));
+                Language.homes.push(new Types.Home(-1, 'strandpromenade', "Strandpromenade", 17, 10000));
+                Language.homes.push(new Types.Home(-1, 'doener', "Aladin Döner", 21, 15000));
+                Language.homes.push(new Types.Home(-1, 'zelt', "Zelt", 24, 24000));
+                Language.homes.push(new Types.Home(-1, 'karaokebar', "Karaoke-Bar", 28, 35000));
+                Language.homes.push(new Types.Home(-1, 'klohaus', "Klohaus", 31, 41000));
+                Language.homes.push(new Types.Home(-1, 'wohnwagen', "Wohnwagen", 34, 58000));
+                Language.homes.push(new Types.Home(-1, 'mickie', "Mickie Krause-Perücke", 42, 75000));
+                Language.homes.push(new Types.Home(-1, 'jetski', "Jet-Ski", 51, 100000));
+                Language.homes.push(new Types.Home(-1, 'palme', "Palme", 58, 130000));
+                Language.homes.push(new Types.Home(-1, 'umkleide', "Umkleidekabine", 64, 160000));
+                Language.homes.push(new Types.Home(-1, 'sandburg', "Sandburg", 73, 200000));
+                Language.homes.push(new Types.Home(-1, 'pool', "Trockengelegter Pool", 82, 240000));
+                Language.homes.push(new Types.Home(-1, 'pavillon', "Strandpavillon", 89, 260000));
+                Language.homes.push(new Types.Home(-1, 'hotelzimmer', "2-Sterne-Hotelzimmer", 102, 310000));
+                Language.homes.push(new Types.Home(-1, 'hoehle', "Höhle", 125, 420000));
+                Language.homes.push(new Types.Home(-1, 'arena', "Stierkampfarena", 147, 560000));
+                Language.homes.push(new Types.Home(-1, 'abflughalle', "Abflughalle", 158, 1200000));
+                Language.homes.push(new Types.Home(-1, 'eimer', 'Sangria-Eimer', 176, 2600000));
+                Language.homes.push(new Types.Home(-1, 'koenig', 'K&ouml;nig von Mallorca-Umhang', 200, 5000000));
+
+                Language.weapons.push(new Types.Weapon(-1, 'zahnstocher', "Imbiss-Zahnstocher", 1, 200));
+                Language.weapons.push(new Types.Weapon(-1, 'flasche', "Abgebrochene Flasche", 3, 500));
+                Language.weapons.push(new Types.Weapon(-1, 'wasserbombe', "Wasserbomben", 7, 1500));
+                Language.weapons.push(new Types.Weapon(-1, 'knaller', "Böller", 9, 2000));
+                Language.weapons.push(new Types.Weapon(-1, '16249', "Spraydose", 12, 3000));
+                Language.weapons.push(new Types.Weapon(-1, 'gurtel', "Ledergürtel", 16, 5000));
+                Language.weapons.push(new Types.Weapon(-1, 'schlagstock', "Gummiknüppel", 18, 5500));
+                Language.weapons.push(new Types.Weapon(-1, 'gulli', "Gullideckel", 21, 6000));
+                Language.weapons.push(new Types.Weapon(-1, 'kette', "Kettenschloss", 25, 7500));
+                Language.weapons.push(new Types.Weapon(-1, 'schlagring', "Schlagring", 28, 8000));
+                Language.weapons.push(new Types.Weapon(-1, 'stange', "Rohr", 31, 12000));
+                Language.weapons.push(new Types.Weapon(-1, '82464', "Hammer", 34, 18000));
+                Language.weapons.push(new Types.Weapon(-1, 'spry', "Pfefferspray", 37, 20000));
+                Language.weapons.push(new Types.Weapon(-1, 'schocker', "Elektroschocker", 45, 25000));
+                Language.weapons.push(new Types.Weapon(-1, '42563', 'Feuerl&ouml;scher', 44, 30000));
+                Language.weapons.push(new Types.Weapon(-1, 'schwert', 'Schwert', 47, 35000));
+                Language.weapons.push(new Types.Weapon(-1, 'alteknarre', 'Alte Knarre', 51, 50000));
+                Language.weapons.push(new Types.Weapon(-1, 'knarre', 'Dirty Harry', 54, 100000));
+                Language.weapons.push(new Types.Weapon(-1, 'machinegun', 'Maschinenpistole', 58, 500000));
+                Language.weapons.push(new Types.Weapon(-1, 'shotgun', 'Double Barrel Shotgun', 62, 750000));
+                Language.weapons.push(new Types.Weapon(-1, 'kanone', 'Riesenkanone', 66, 1500000));
+                Language.weapons.push(new Types.Weapon(-1, 'warmachine', "Derber Panzer", 70, 2500000));
+                Language.weapons.push(new Types.Weapon(-1, '41832', "Atombombe", 75, 6000000));
+                Language.weapons.push(new Types.Weapon(-1, '73550', 'Schwarzes Loch', 78, 12000000));
+
+                Language.begPlaces.push(new Types.BegPlace(-1, 'playa_de_palma', "Playa de Palma", 10, 100));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'almrauschen', "Almrausch", 50, 4500));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'bierstraße', "Bierstraße", 100, 8000));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'schinkenstraße', "Schinkenstraße", 200, 0));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'oberbayern', "Oberbayern", 300, 0));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'megapark', "MegaPark", 400, 40000));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'bierkonig', "Bierkönig", 500, 0));
+                Language.begPlaces.push(new Types.BegPlace(-1, 'ballermann', "Ballermann 6", 700, 70000));
+
+                Language.instruments.push(new Types.Instrument(1, 'grashalm', "Grashalm-Flöte", 100));
+                Language.instruments.push(new Types.Instrument(2, 'flaschenfloete', "Flaschen-Flöte", 300));
+                Language.instruments.push(new Types.Instrument(3, 'glocke', "Glocke", 1000));
+                Language.instruments.push(new Types.Instrument(4, 'trommel', "Trommel", 2000));
+                Language.instruments.push(new Types.Instrument(5, 'akkordeon', "Akkordeon", 4000));
+                Language.instruments.push(new Types.Instrument(6, 'radio', 'Radio', 7000));
+                Language.instruments.push(new Types.Instrument(7, 'gitarre', 'Gitarre', 12000));
+                Language.instruments.push(new Types.Instrument(8, 'saxophon', 'Saxophon', 53000));
+                Language.instruments.push(new Types.Instrument(9, 'choir', 'Chor', 90000));
+            } else if (UrlHandler.mode == UrlHandler.m_pghalloween){
+                Language.createDummyPets();
+                Language.createDummyHomes();
+                Language.createDummyWeapons(false);
+                Language.createDummyBegPlaces();
+                Language.createDummyInstruments();
+            } else if (UrlHandler.mode == UrlHandler.m_pgberlin){
+                // TODO: fill these out
+                Language.createDummyPets();
+                Language.pets.push(new Types.Pet(-1, '', "Ph&ouml;nix", 146, 107, 95, 14900000, 'nix'));
+                Language.createDummyHomes();
+                Language.createDummyWeapons(false);
+                Language.createDummyBegPlaces();
+                Language.createDummyInstruments();
+            } else {
+                // TODO: fill these out
+                Language.createDummyPets();
+                Language.createDummyHomes();
+                Language.createDummyWeapons(false);
+                Language.createDummyBegPlaces();
+                Language.createDummyInstruments();
+            }
+        } else if (UrlHandler.mode == UrlHandler.m_dossergame) {
+            Language.numbers = [
+                [ "one", "One" ],
+                [ "two", "Two" ],
+                [ "three", "Three" ],
+                [ "four", "Four" ],
+                [ "five", "Five" ],
+                [ "six", "Six" ],
+                [ "seven", "Seven" ],
+                [ "eight", "Eight" ],
+                [ "nine", "Nine" ],
+                [ "ten", "Ten" ]
+            ];
+
+            Language.duHastHeute = 'Today you already received ';
+            Language.SpendenErhalten = 'donations, ';
+            Language.currency = "&pound;";
+            Language.formatMoney = function(m) {
+                return m + "&nbsp;" + Language.currency;
+            };
+            Language.angreifen = "Attack";
+            Language.punkte = "Points";
+            Language.beschreibung = "Description:";
+            Language.motd = 'MotD';
+            Language.ueberwiesAm = "transferred on ";
+            Language.bekamAm = Language.unbekannt;
+            Language.selbsterstelltesHaustier = Language.unbekannt;
+            Language.platz = "Place";
+            Language.mitglieder = 'Members';
+            Language.buendnisse = 'Alliances';
+
+            Language.angriffErfolgreich = "Fight successfully started";
+            Language.aufSucheGegangen = Language.unbekannt;
+            Language.wirdBeendet = Language.unbekannt;
+            Language.klickeDigit = "Please click on the"; // digit.";
+            Language.istImUrlaubsmodus = "Your victim is on holiday"; // and can't be attacked.";
+            Language.nebensaechlicheAktivitaet = "You can't start a new attack because"; // you're multitasking at the moment.";
+            Language.spielerNichtGefunden = "This player coudn't be found.";
+            Language.falschePunktzahl = "points";
+            Language.angriffInnerhalb36h = "36";
+            Language.weiterbildung2mal = Language.unbekannt;
+            Language.weiterbildungErfolgreich = "Your further education course has started.";
+
+            Language.att = 'ATT';
+            Language.def = 'DEF';
+            Language.geschick1 = Language.unbekannt;
+            Language.geschick2 = Language.unbekannt;
+
+            Language.erhoehtSpenden = Language.unbekannt;
+            Language.mehrSpenden = Language.unbekannt;
+            Language.verringertBildungszeit = 'Decreases time for educations by ';
+            Language.verringertBildungszeitFuerDex = Language.unbekannt;
+            Language.verringertAngriffszeit = 'Decreases attack time by ';
+            Language.verringertSammelzeit = Language.unbekannt;
+            Language.mehrPlunder = Language.unbekannt;
+            Language.angriffInMinuten = Language.unbekannt;
+            Language.attBoost = Language.unbekannt;
+            Language.collectBoost = Language.unbekannt;
+            Language.angelegt = Language.unbekannt;
+            Language.effekt = "Effect: ";
+            Language.verbuendetMit = "In alliance with:";
+            Language.erhoehtUm = [ Language.unbekannt, Language.unbekannt, Language.unbekannt ];
+            Language.schutzVorRegen = Language.unbekannt;
+            Language.erhoehtSauberkeit = Language.unbekannt;
+
+            Language.nextLevel = "Next level";
+            Language.skillAttack = "Attack";
+            Language.skillDefense = "Defense";
+            Language.skillDexterity = "Dexterity";
+            Language.skillDexterityPet = "Sympathy";
+            Language.skillDexterityPet2 = "Tricks";
+            Language.skillSpeech = "Speech";
+            Language.skillEducation = "Educational level";
+            Language.skillMusic = "Music";
+            Language.skillNetworking = "Networking";
+            Language.skillConcentration = "Concentration";
+            Language.skillPickpocketing = "Pickpocketing";
+            Language.skillSurvivalTraining = Language.unbekannt;
+
+            Language.heute = "Today";
+            Language.morgen = "Tomorrow";
+
+            Language.activityConcentration = "Concentration";
+            Language.activityCollect = "Collect junk";
+
+            Language.nebenbeschaeftigung = "Multi-tasking activities:";
+            Language.nebenbeschaeftigungKeine = "none";
+            Language.nebenbeschaeftigungKaempfen = "Fights";
+            Language.nebenbeschaeftigungSammeln = "Gather junk";
+
+            Language.wutGestartet = "Rage activated!";
+            Language.wutGestopptVonGegner = Language.unbekannt;
+            Language.wiwuGestartet = "Economic Miracle activated!";
+            Language.duProfitierstNicht = Language.unbekannt;
+            Language.passwortFalsch = "The username and/or password is not valid.";
+
+            Language.Einziehen = "Go to";
+            Language.Bewohnt = "Occupied";
+
+            Language.bandeHerrschtIn = Language.unbekannt;
+
+            Language.tagesaufgabe = "Daily Task";
+            Language.plunderEinzahlen = "Deposit junk into the gang's inventory";
+            Language.kampfStarten = Language.unbekannt;
+            Language.sammelnStarten = Language.unbekannt;
+            Language.sauberWerden = Language.unbekannt;
+            Language.bierTrinken = 'BAC over 2‰';
+            Language.snackEssen = Language.unbekannt;
+            Language.inBandenkasseEinzahlen = Language.unbekannt;
+            Language.nachrichtSenden = Language.unbekannt;
+            Language.shoutboxSpam = Language.unbekannt;
+            Language.haustierkampfStarten = Language.unbekannt;
+            Language.verbrechenBegehen = Language.unbekannt;
+            Language.haustierWbStarten = Language.unbekannt;
+            Language.plunderBasteln = Language.unbekannt;
+            Language.loseKaufen = Language.unbekannt;
+            Language.flaschenVerkaufen = Language.unbekannt;
+            Language.plunderVerkaufen = Language.unbekannt;
+            Language.bierKaufen = Language.unbekannt;
+
+            Language.plunderZumEinzahlen = [ ];
+            Language.plunderZumVerkaufen = [ ];
+            Language.plunderZumBasteln = [ ];
+
+            Language.kostenloseKronkorken = Language.unbekannt;
+            Language.pennergameSupport = Language.unbekannt;
+            Language.duKannstLoseKaufen = Language.unbekannt;
+
+            // TODO: fill these out
+            Language.createDummyPets();
+            Language.createDummyHomes();
+            Language.createDummyWeapons(true);
+            Language.createDummyBegPlaces();
+            Language.createDummyInstruments();
+        } else if (UrlHandler.mode == UrlHandler.m_clodogame) {
+            Language.duHastHeute = 'Dans la rue, <strong>';
+            Language.SpendenErhalten = '</strong> personnes t\'ont';
+            Language.currency = "&euro;";
+            Language.formatMoney = function(m) {
+                return Language.currency + m;
+            };
+            Language.beschreibung = Language.unbekannt;
+            Language.motd = Language.unbekannt;
+            Language.punkte = Language.unbekannt;
+            Language.angreifen = "Attaque";
+            Language.ueberwiesAm = "effectue un virement le ";
+            Language.bekamAm = Language.unbekannt;
+            Language.selbsterstelltesHaustier = Language.unbekannt;
+            Language.platz = "Place";
+            Language.mitglieder = Language.unbekannt;
+            Language.buendnisse = Language.unbekannt;
+
+            Language.angriffErfolgreich = Language.unbekannt;
+            Language.aufSucheGegangen = Language.unbekannt;
+            Language.wirdBeendet = Language.unbekannt;
+            Language.klickeDigit = "Cliquer sur le chiffre";
+            Language.istImUrlaubsmodus = "vacances"; // ???
+            Language.nebensaechlicheAktivitaet = "A cause de tes activit"; // es annexes, tu ne peux pas commencer d'attaque pour le moment.
+            Language.spielerNichtGefunden = "Le joueur n'a pas";       // ...
+            Language.falschePunktzahl = "Le joueur a trop ou pas assez de points";
+            Language.angriffInnerhalb36h = "36";
+            Language.weiterbildung2mal = Language.unbekannt;
+            Language.weiterbildungErfolgreich = Language.unbekannt;
+
+            Language.att = 'ATT';
+            Language.def = 'DEF';
+            Language.geschick1 = Language.unbekannt;
+            Language.geschick2 = Language.unbekannt;
+
+            Language.erhoehtSpenden = Language.unbekannt;
+            Language.mehrSpenden = Language.unbekannt;
+            Language.verringertBildungszeit = Language.unbekannt;
+            Language.verringertBildungszeitFuerDex = Language.unbekannt;
+            Language.verringertAngriffszeit = Language.unbekannt;
+            Language.verringertSammelzeit = Language.unbekannt;
+            Language.mehrPlunder = Language.unbekannt;
+            Language.angriffInMinuten = Language.unbekannt;
+            Language.attBoost = Language.unbekannt;
+            Language.collectBoost = Language.unbekannt;
+            Language.angelegt = Language.unbekannt;
+            Language.effekt = Language.unbekannt;
+            Language.verbuendetMit = Language.unbekannt;
+            Language.erhoehtUm = [ Language.unbekannt, Language.unbekannt, Language.unbekannt ];
+            Language.schutzVorRegen = Language.unbekannt;
+            Language.erhoehtSauberkeit = Language.unbekannt;
+
+            Language.nextLevel = Language.unbekannt;
+            Language.skillAttack = Language.unbekannt;
+            Language.skillDefense = Language.unbekannt;
+            Language.skillDexterity = Language.unbekannt;
+            Language.skillDexterityPet = Language.unbekannt;
+            Language.skillDexterityPet2 = Language.unbekannt;
+            Language.skillSpeech = Language.unbekannt;
+            Language.skillEducation = Language.unbekannt;
+            Language.skillMusic = Language.unbekannt;
+            Language.skillNetworking = Language.unbekannt;
+            Language.skillConcentration = Language.unbekannt;
+            Language.skillPickpocketing = Language.unbekannt;
+            Language.skillSurvivalTraining = Language.unbekannt;
+
+            Language.heute = Language.unbekannt;
+            Language.morgen = Language.unbekannt;
+
+            Language.activityConcentration = Language.unbekannt;
+            Language.activityCollect = Language.unbekannt;
+
+            Language.nebenbeschaeftigung = Language.unbekannt;
+            Language.nebenbeschaeftigungKeine = Language.unbekannt;
+            Language.nebenbeschaeftigungKaempfen = Language.unbekannt;
+            Language.nebenbeschaeftigungSammeln = Language.unbekannt;
+
+            Language.wutGestartet = Language.unbekannt;
+            Language.wutGestopptVonGegner = Language.unbekannt;
+            Language.wiwuGestartet = Language.unbekannt;
+            Language.duProfitierstNicht = Language.unbekannt;
+            Language.passwortFalsch = Language.unbekannt;
+
+            Language.Einziehen = Language.unbekannt;
+            Language.Bewohnt = Language.unbekannt;
+
+            Language.bandeHerrschtIn = Language.unbekannt;
+
+            Language.tagesaufgabe = Language.unbekannt;
+            Language.plunderEinzahlen = Language.unbekannt;
+            Language.kampfStarten = Language.unbekannt;
+            Language.sammelnStarten = Language.unbekannt;
+            Language.sauberWerden = Language.unbekannt;
+            Language.bierTrinken = Language.unbekannt;
+            Language.snackEssen = Language.unbekannt;
+            Language.inBandenkasseEinzahlen = Language.unbekannt;
+            Language.nachrichtSenden = Language.unbekannt;
+            Language.shoutboxSpam = Language.unbekannt;
+            Language.haustierkampfStarten = Language.unbekannt;
+            Language.verbrechenBegehen = Language.unbekannt;
+            Language.haustierWbStarten = Language.unbekannt;
+            Language.plunderBasteln = Language.unbekannt;
+            Language.loseKaufen = Language.unbekannt;
+            Language.flaschenVerkaufen = Language.unbekannt;
+            Language.plunderVerkaufen = Language.unbekannt;
+            Language.bierKaufen = Language.unbekannt;
+
+            Language.plunderZumEinzahlen = [ ];
+            Language.plunderZumVerkaufen = [ ];
+            Language.plunderZumBasteln = [ ];
+
+            Language.kostenloseKronkorken = Language.unbekannt;
+            Language.pennergameSupport = Language.unbekannt;
+            Language.duKannstLoseKaufen = Language.unbekannt;
+
+            // TODO: fill these out
+            Language.createDummyPets();
+            Language.createDummyHomes();
+            Language.createDummyWeapons(false);
+            Language.createDummyBegPlaces();
+            Language.createDummyInstruments();
+        } else if (UrlHandler.mode == UrlHandler.m_menelgame) {
+            Language.duHastHeute = /Dzisiaj otrzyma.e./;
+            Language.SpendenErhalten = /datk.w/;
+            Language.currency = "z&#x142;";
+            Language.formatMoney = function(m) {
+                return Language.currency + m;
+            };
+            Language.beschreibung = Language.unbekannt;
+            Language.motd = Language.unbekannt;
+            Language.punkte = Language.unbekannt;
+            Language.angreifen = "Atak";
+            Language.ueberwiesAm = /przela. dnia /;
+            Language.bekamAm = Language.unbekannt;
+            Language.selbsterstelltesHaustier = Language.unbekannt;
+            Language.platz = "Miejsce";
+            Language.mitglieder = Language.unbekannt;
+            Language.buendnisse = Language.unbekannt;
+
+            Language.angriffErfolgreich = Language.unbekannt;
+            Language.aufSucheGegangen = Language.unbekannt;
+            Language.wirdBeendet = Language.unbekannt;
+            Language.klickeDigit = "Kliknij na"; // liczbe";
+            Language.istImUrlaubsmodus = "urlopowy";                // ???
+            Language.nebensaechlicheAktivitaet = "Z powodu dodatkowych "; // ....
+            Language.spielerNichtGefunden = /Gracz nie zosta. odnaleziony/;
+            Language.falschePunktzahl = /ma.o punkt.w/;
+            Language.angriffInnerhalb36h = "36";
+            Language.weiterbildung2mal = Language.unbekannt;
+            Language.weiterbildungErfolgreich = Language.unbekannt;
+
+            Language.att = 'ATT';
+            Language.def = 'DEF';
+            Language.geschick1 = Language.unbekannt;
+            Language.geschick2 = Language.unbekannt;
+
+            Language.erhoehtSpenden = Language.unbekannt;
+            Language.mehrSpenden = Language.unbekannt;
+            Language.verringertBildungszeit = Language.unbekannt;
+            Language.verringertBildungszeitFuerDex = Language.unbekannt;
+            Language.verringertAngriffszeit = Language.unbekannt;
+            Language.verringertSammelzeit = Language.unbekannt;
+            Language.mehrPlunder = Language.unbekannt;
+            Language.angriffInMinuten = Language.unbekannt;
+            Language.attBoost = Language.unbekannt;
+            Language.collectBoost = Language.unbekannt;
+            Language.angelegt = Language.unbekannt;
+            Language.effekt = Language.unbekannt;
+            Language.verbuendetMit = Language.unbekannt;
+            Language.erhoehtUm = [ Language.unbekannt, Language.unbekannt, Language.unbekannt ];
+            Language.schutzVorRegen = Language.unbekannt;
+            Language.erhoehtSauberkeit = Language.unbekannt;
+
+            Language.nextLevel = Language.unbekannt;
+            Language.skillAttack = Language.unbekannt;
+            Language.skillDefense = Language.unbekannt;
+            Language.skillDexterity = Language.unbekannt;
+            Language.skillDexterityPet = Language.unbekannt;
+            Language.skillDexterityPet2 = Language.unbekannt;
+            Language.skillSpeech = Language.unbekannt;
+            Language.skillEducation = Language.unbekannt;
+            Language.skillMusic = Language.unbekannt;
+            Language.skillNetworking = Language.unbekannt;
+            Language.skillConcentration = Language.unbekannt;
+            Language.skillPickpocketing = Language.unbekannt;
+            Language.skillSurvivalTraining = Language.unbekannt;
+
+            Language.heute = Language.unbekannt;
+            Language.morgen = Language.unbekannt;
+
+            Language.activityConcentration = Language.unbekannt;
+            Language.activityCollect = Language.unbekannt;
+
+            Language.nebenbeschaeftigung = Language.unbekannt;
+            Language.nebenbeschaeftigungKeine = Language.unbekannt;
+            Language.nebenbeschaeftigungKaempfen = Language.unbekannt;
+            Language.nebenbeschaeftigungSammeln = Language.unbekannt;
+
+            Language.wutGestartet = Language.unbekannt;
+            Language.wutGestopptVonGegner = Language.unbekannt;
+            Language.wiwuGestartet = Language.unbekannt;
+            Language.duProfitierstNicht = Language.unbekannt;
+            Language.passwortFalsch = Language.unbekannt;
+
+            Language.Einziehen = Language.unbekannt;
+            Language.Bewohnt = Language.unbekannt;
+
+            Language.bandeHerrschtIn = Language.unbekannt;
+
+            Language.tagesaufgabe = Language.unbekannt;
+            Language.plunderEinzahlen = Language.unbekannt;
+            Language.kampfStarten = Language.unbekannt;
+            Language.sammelnStarten = Language.unbekannt;
+            Language.sauberWerden = Language.unbekannt;
+            Language.bierTrinken = Language.unbekannt;
+            Language.snackEssen = Language.unbekannt;
+            Language.inBandenkasseEinzahlen = Language.unbekannt;
+            Language.nachrichtSenden = Language.unbekannt;
+            Language.shoutboxSpam = Language.unbekannt;
+            Language.haustierkampfStarten = Language.unbekannt;
+            Language.verbrechenBegehen = Language.unbekannt;
+            Language.haustierWbStarten = Language.unbekannt;
+            Language.plunderBasteln = Language.unbekannt;
+            Language.loseKaufen = Language.unbekannt;
+            Language.flaschenVerkaufen = Language.unbekannt;
+            Language.plunderVerkaufen = Language.unbekannt;
+            Language.bierKaufen = Language.unbekannt;
+
+            Language.plunderZumEinzahlen = [ ];
+            Language.plunderZumVerkaufen = [ ];
+            Language.plunderZumBasteln = [ ];
+
+            Language.kostenloseKronkorken = Language.unbekannt;
+            Language.pennergameSupport = Language.unbekannt;
+            Language.duKannstLoseKaufen = Language.unbekannt;
+
+            // TODO: fill these out
+            Language.createDummyPets();
+            Language.createDummyHomes();
+            Language.createDummyWeapons(false);
+            Language.createDummyBegPlaces();
+            Language.createDummyInstruments();
+        } else if (UrlHandler.mode == UrlHandler.m_mendigogame) {
+            Language.duHastHeute = 'Hoy has recibido ';
+            Language.SpendenErhalten = 'donaciones, lo que';
+            Language.currency = "&euro;";
+            Language.formatMoney = function(m) {
+                return Language.currency + m;
+            };
+            Language.beschreibung = Language.unbekannt;
+            Language.motd = Language.unbekannt;
+            Language.punkte = Language.unbekannt;
+            Language.angreifen = "Ataque";
+            Language.ueberwiesAm = /transfiri. el d.a /;  // ???
+            Language.bekamAm = Language.unbekannt;
+            Language.selbsterstelltesHaustier = Language.unbekannt;
+            Language.platz = "Puesto";
+            Language.mitglieder = Language.unbekannt;
+            Language.buendnisse = Language.unbekannt;
+
+            Language.angriffErfolgreich = Language.unbekannt;
+            Language.aufSucheGegangen = Language.unbekannt;
+            Language.wirdBeendet = Language.unbekannt;
+            Language.klickeDigit = "Haz clic en el";    // ...numero
+            Language.istImUrlaubsmodus = "vacaciones"; // ???
+            Language.nebensaechlicheAktivitaet = "actividades secundarios";
+            Language.spielerNichtGefunden = "No se ha encontrado el jugador";
+            Language.falschePunktzahl = "El jugador tiene demasiados";
+            Language.angriffInnerhalb36h = "36";
+            Language.weiterbildung2mal = Language.unbekannt;
+            Language.weiterbildungErfolgreich = Language.unbekannt;
+
+            Language.att = 'ATT';
+            Language.def = 'DEF';
+            Language.geschick1 = Language.unbekannt;
+            Language.geschick2 = Language.unbekannt;
+
+            Language.erhoehtSpenden = Language.unbekannt;
+            Language.mehrSpenden = Language.unbekannt;
+            Language.verringertBildungszeit = Language.unbekannt;
+            Language.verringertBildungszeitFuerDex = Language.unbekannt;
+            Language.verringertAngriffszeit = Language.unbekannt;
+            Language.verringertSammelzeit = Language.unbekannt;
+            Language.mehrPlunder = Language.unbekannt;
+            Language.angriffInMinuten = Language.unbekannt;
+            Language.attBoost = Language.unbekannt;
+            Language.collectBoost = Language.unbekannt;
+            Language.angelegt = 'Invertido';
+            Language.effekt = Language.unbekannt;
+            Language.verbuendetMit = Language.unbekannt;
+            Language.erhoehtUm = [ Language.unbekannt, Language.unbekannt, Language.unbekannt ];
+            Language.schutzVorRegen = Language.unbekannt;
+            Language.erhoehtSauberkeit = Language.unbekannt;
+
+            Language.nextLevel = Language.unbekannt;
+            Language.skillAttack = Language.unbekannt;
+            Language.skillDefense = Language.unbekannt;
+            Language.skillDexterity = Language.unbekannt;
+            Language.skillDexterityPet = Language.unbekannt;
+            Language.skillDexterityPet2 = Language.unbekannt;
+            Language.skillSpeech = Language.unbekannt;
+            Language.skillEducation = Language.unbekannt;
+            Language.skillMusic = Language.unbekannt;
+            Language.skillNetworking = Language.unbekannt;
+            Language.skillConcentration = Language.unbekannt;
+            Language.skillPickpocketing = Language.unbekannt;
+            Language.skillSurvivalTraining = Language.unbekannt;
+
+            Language.heute = Language.unbekannt;
+            Language.morgen = Language.unbekannt;
+
+            Language.activityConcentration = Language.unbekannt;
+            Language.activityCollect = Language.unbekannt;
+
+            Language.nebenbeschaeftigung = Language.unbekannt;
+            Language.nebenbeschaeftigungKeine = Language.unbekannt;
+            Language.nebenbeschaeftigungKaempfen = Language.unbekannt;
+            Language.nebenbeschaeftigungSammeln = Language.unbekannt;
+
+            Language.wutGestartet = Language.unbekannt;
+            Language.wutGestopptVonGegner = Language.unbekannt;
+            Language.wiwuGestartet = Language.unbekannt;
+            Language.duProfitierstNicht = Language.unbekannt;
+            Language.passwortFalsch = Language.unbekannt;
+
+            Language.Einziehen = Language.unbekannt;
+            Language.Bewohnt = Language.unbekannt;
+
+            Language.bandeHerrschtIn = Language.unbekannt;
+
+            Language.tagesaufgabe = Language.unbekannt;
+            Language.plunderEinzahlen = Language.unbekannt;
+            Language.kampfStarten = Language.unbekannt;
+            Language.sammelnStarten = Language.unbekannt;
+            Language.sauberWerden = Language.unbekannt;
+            Language.bierTrinken = Language.unbekannt;
+            Language.snackEssen = Language.unbekannt;
+            Language.inBandenkasseEinzahlen = Language.unbekannt;
+            Language.nachrichtSenden = Language.unbekannt;
+            Language.shoutboxSpam = Language.unbekannt;
+            Language.haustierkampfStarten = Language.unbekannt;
+            Language.verbrechenBegehen = Language.unbekannt;
+            Language.haustierWbStarten = Language.unbekannt;
+            Language.plunderBasteln = Language.unbekannt;
+            Language.loseKaufen = Language.unbekannt;
+            Language.flaschenVerkaufen = Language.unbekannt;
+            Language.plunderVerkaufen = Language.unbekannt;
+            Language.bierKaufen = Language.unbekannt;
+
+            Language.plunderZumEinzahlen = [ ];
+            Language.plunderZumVerkaufen = [ ];
+            Language.plunderZumBasteln = [ ];
+
+            Language.kostenloseKronkorken = Language.unbekannt;
+            Language.pennergameSupport = Language.unbekannt;
+            Language.duKannstLoseKaufen = Language.unbekannt;
+
+            // TODO: fill these out
+            Language.createDummyPets();
+            Language.createDummyHomes();
+            Language.createDummyWeapons(false);
+            Language.createDummyBegPlaces();
+            Language.createDummyInstruments();
+        } else if (UrlHandler.mode == UrlHandler.m_bumrise) {
+            Language.numbers = [
+                [ "one", "One" ],
+                [ "two", "Two" ],
+                [ "three", "Three" ],
+                [ "four", "Four" ],
+                [ "five", "Five" ],
+                [ "six", "Six" ],
+                [ "seven", "Seven" ],
+                [ "eight", "Eight" ],
+                [ "nine", "Nine" ],
+                [ "ten", "Ten" ]
+            ];
+
+            Language.duHastHeute = 'You have received ';
+            Language.SpendenErhalten = 'donations today,';
+            Language.currency = "$";
+            Language.formatMoney = function(m) {
+                return Language.currency + m;
+            };
+            Language.angreifen = "Attack";
+            Language.punkte = "Points";
+            Language.beschreibung = "Description:";
+            Language.motd = 'Message of the Day';
+            Language.ueberwiesAm = /Transfer\s+at\s+/;
+            Language.bekamAm = /received\s+at\s+/;
+            Language.selbsterstelltesHaustier = Language.unbekannt;
+            Language.platz = "Place";
+            Language.mitglieder = 'Members';
+            Language.buendnisse = 'Alliances';
+
+            Language.angriffErfolgreich = "Fight successfully started";
+            Language.aufSucheGegangen = "You are collecting bottles";
+            Language.wirdBeendet = "The collection has just ended, please wait a moment";
+            Language.klickeDigit = "Please click on the"; // number.";
+            Language.istImUrlaubsmodus = "The opponent is on vacation and cannot be attacked";
+            Language.nebensaechlicheAktivitaet = "Due to your current activity, you cannot attack right now";
+            Language.spielerNichtGefunden = "The player was not found.";
+            Language.falschePunktzahl = "The player has too many or too few points";
+            Language.angriffInnerhalb36h = "36";
+            Language.weiterbildung2mal = "You cannot have more than "; // 2 skill trainings in line!";;
+            Language.weiterbildungErfolgreich = "Further training has just started";
+
+            Language.att = 'ATT';
+            Language.def = 'DEF';
+            Language.geschick1 = 'Skills';
+            Language.geschick2 = 'DEX';
+
+            Language.erhoehtSpenden = 'Increases Donations by ';
+            Language.mehrSpenden = [ '(+', 'Donations' ];
+            Language.verringertBildungszeit = 'Reduces Education time by ';
+            Language.verringertBildungszeitFuerDex = 'Reduces education time for skills by ';
+            Language.verringertAngriffszeit = 'Reduces attack time by ';
+            Language.verringertSammelzeit = 'Reduces your collecting time by ';
+            Language.mehrPlunder = [ 'capabilities. ', ' Junk items can be found' ]
+            Language.angriffInMinuten = [ [ 'Will make your next attack happen within the next', 'minutes' ],
+                                          [ 'Ends your current fight in the following', 'minutes' ] ];
+            Language.attBoost = [ '(+', / ATT un..l .* next fight/ ];
+            Language.collectBoost = [ ['(+', '% Bottle find' ], [ '(+', '% Bottles found' ] ];
+            Language.angelegt = "Equipped";
+            Language.effekt = "Effect";
+            Language.verbuendetMit = "Allied with";
+            Language.erhoehtUm = [ 'Increases', Language.unbekannt, 'by' ];
+            Language.schutzVorRegen = 'Protects you from the rain';
+            Language.erhoehtSauberkeit = 'Increases your cleanliness by ';
+
+            Language.nextLevel = "Next level";
+            Language.skillAttack = "Attack";
+            Language.skillDefense = "Defense";
+            Language.skillDexterity = "Dexterity";
+            Language.skillDexterityPet = "Stunt";
+            Language.skillDexterityPet2 = "Stunt";
+            Language.skillSpeech = "Speech";
+            Language.skillEducation = "Education level";
+            Language.skillMusic = "Music";
+            Language.skillNetworking = "Social contact";
+            Language.skillConcentration = "Concentration";
+            Language.skillPickpocketing = "Pick-pocketing";
+            Language.skillSurvivalTraining = Language.unbekannt;
+
+            Language.heute = "Today";
+            Language.morgen = "Tomorrow";
+
+            Language.activityConcentration = "Concentrate";
+            Language.activityCollect = "Collect bottles";
+
+            Language.nebenbeschaeftigung = "Additional job:";
+            Language.nebenbeschaeftigungKeine = "No";
+            Language.nebenbeschaeftigungKaempfen = "Fights";
+            Language.nebenbeschaeftigungSammeln = "Collect Bottles";
+
+            Language.wutGestartet = "Rage is active!";
+            Language.wutGestopptVonGegner = Language.unbekannt;
+            Language.wiwuGestartet = "Economic wonder is active!";
+            Language.duProfitierstNicht = "You do not profit from the Gang Ability";
+            Language.passwortFalsch = "The username and/or password is not valid.";
+
+            Language.Einziehen = "Go to";
+            Language.Bewohnt = "Occupied";
+
+            Language.bandeHerrschtIn = "This gang rules ";
+
+            Language.tagesaufgabe = 'Daily Task';
+            Language.plunderEinzahlen = "Deposit junk into the gang's inventory";
+            Language.kampfStarten = 'Win a fight';
+            Language.sammelnStarten = 'Start collecting bottles';
+            Language.sauberWerden = 'Become 100% clean';
+            Language.bierTrinken = 'BAC over 3%';
+            Language.snackEssen = 'Eat a small snack';
+            Language.inBandenkasseEinzahlen = 'Pay Money into the gang account';
+            Language.nachrichtSenden = 'Send a Private message to a friend';
+            Language.shoutboxSpam = 'Post something in the Shoutbox';
+            Language.haustierkampfStarten = 'Start a Petfight';
+            Language.verbrechenBegehen = 'Commit a crime';
+            Language.haustierWbStarten = 'Start a pet development';
+            Language.plunderBasteln = 'Tinker with your Junk';
+            Language.loseKaufen = 'Buy some Luck!';
+            Language.flaschenVerkaufen = 'Sell some bottles';
+            Language.plunderVerkaufen = 'Sell some junk';
+            Language.bierKaufen = 'Purchase drinks in the supermarket';
+
+            Language.plunderZumEinzahlen = [
+                "Broken Glasses",
+                "Mystical Artifact",
+                "Rusty Nail",
+                "Driftwood",
+                "Shard of Glass",
+                "Wool Rag"
+            ];
+
+            Language.plunderZumVerkaufen = [
+                "Broken Glasses",
+                "Mystical Artifact",
+                "Rusty Nail",
+                "Driftwood",
+                "Shard of Glass",
+                "Wool Rag",
+                "iWin",
+                "Hussmans Special Weapon",
+                "Old motor",
+                "Umbrella",
+                "Busted Umbrella",
+                "Magic Wand",
+                "Rusty Pocket Knife",
+                "Marbles",
+                "Verbogenes Fahrrad"
+            ];
+
+            Language.plunderZumBasteln = [
+                "Baseball Bat",
+                "Wooden Shield",
+                "Bottle of Hot Sauce"
+            ];
+
+            Language.kostenloseKronkorken = Language.unbekannt;
+            Language.pennergameSupport = Language.unbekannt;
+            Language.duKannstLoseKaufen = [ 'You can still buy', 'tickets' ];
+
+            Language.pets.push(new Types.Pet(-1, 'cockroach', "Cockroach", 0, 0, 0, 1));
+            Language.pets.push(new Types.Pet(-1, 'goldfish', "Goldfish", 1, 1, 1, 100));
+            Language.pets.push(new Types.Pet(-1, 'mouse', "Mouse", 2, 3, 7, 150));
+            Language.pets.push(new Types.Pet(-1, 'gerbil', "Gerbil", 5, 4, 12, 380));
+            Language.pets.push(new Types.Pet(-1, 'elephant', "Elephant", 7, 5, 16, 500));
+            Language.pets.push(new Types.Pet(-1, 'pigeon', "Pigeons", 8, 3, 1, 750));
+            Language.pets.push(new Types.Pet(-1, 'rat', "Rat", 10, 5, 0, 1500));
+            Language.pets.push(new Types.Pet(-1, 'bunny', "Bunny", 13, 10, 17, 2250));
+            Language.pets.push(new Types.Pet(-1, 'squirrel', "Squirrel", 18, 15, 19, 7500));
+            Language.pets.push(new Types.Pet(-1, 'badger', "Badger", 25, 20, 32, 8500));
+            Language.pets.push(new Types.Pet(-1, 'pig', "Pig", 27, 25, 22, 8800));
+            Language.pets.push(new Types.Pet(-1, 'snowowl', "Snow Owl", 44, 38, 10, 9500));
+            Language.pets.push(new Types.Pet(-1, 'trex', "T-Rex", 36, 40, 21, 10000));
+            Language.pets.push(new Types.Pet(-1, 'muskrat', "Muskrat", 28, 29, 62, 20000));
+            Language.pets.push(new Types.Pet(-1, 'alligator', "Alligator", 39, 41, 38, 30000));
+            Language.pets.push(new Types.Pet(-1, 'cat', "Cat", 55, 45, 43, 60000));
+            Language.pets.push(new Types.Pet(-1, 'chihuahua', "Chiuhuahua", 65, 59, 1, 100000));
+            Language.pets.push(new Types.Pet(-1, 'horse', "Horse", 59, 40, 56, 147000));
+            Language.pets.push(new Types.Pet(-1, 'monkey', "Monkey", 32, 28, 133, 200000));
+            Language.pets.push(new Types.Pet(-1, 'goldenretriever', "Golden Retriever", 62, 69, 80, 250000));
+            Language.pets.push(new Types.Pet(-1, 'goat', "Goat", 74, 89, 34, 350000));
+            Language.pets.push(new Types.Pet(-1, 'coyote', "Coyote", 71, 82, 98, 300000));
+            Language.pets.push(new Types.Pet(-1, 'eagle', "Bald Eagle", 95, 75, 30, 480000));
+            Language.pets.push(new Types.Pet(-1, 'tiger', "Tiger", 136, 46, 69, 500000));
+            Language.pets.push(new Types.Pet(-1, 'camel', "Camel", 52, 43, 230, 600000));
+            Language.pets.push(new Types.Pet(-1, 'pitbull', "Pitbull", 100, 95, 39, 700000));
+            Language.pets.push(new Types.Pet(-1, 'rotweiler', "Rotweiler", 110, 101, 42, 2500000));
+            Language.pets.push(new Types.Pet(-1, 'dragon', "Dragon", 138, 86, 82, 7900000));
+            Language.pets.push(new Types.Pet(-1, 'mammut_xmas', "Mammoth", 138, 86, 84, 7900000));
+            Language.pets.push(new Types.Pet(-1, '73933', "Trained mouse", 26, 12, 248, 0));
+
+            Language.homes.push(new Types.Home(-1, '02461', 'The Street', 1, 1));
+            Language.homes.push(new Types.Home(-1, '88985', 'City Park', 4, 1000));
+            Language.homes.push(new Types.Home(-1, '56297', 'Central Park', 8, 5000));
+            Language.homes.push(new Types.Home(-1, '80092', 'Carboard Box', 17, 10000));
+            Language.homes.push(new Types.Home(-1, 'hudsonriver', 'Down by the Hudson', 21, 15000));
+            Language.homes.push(new Types.Home(-1, 'brooklynbridge', 'Brooklyn Bridge', 24, 24000));
+            Language.homes.push(new Types.Home(-1, '16368', 'Sewers', 28, 35000));
+            Language.homes.push(new Types.Home(-1, 'ellisisland', 'Ellis Island', 31, 41000));
+            Language.homes.push(new Types.Home(-1, 'portopottie', 'Port-O-Pottie', 34, 58000));
+            Language.homes.push(new Types.Home(-1, '09053', 'Tent', 42, 75000));
+            Language.homes.push(new Types.Home(-1, 'liquorstore', 'Liquor Store', 51, 100000));
+            Language.homes.push(new Types.Home(-1, 'camper', 'Abandoned Camper', 58, 130000));
+            Language.homes.push(new Types.Home(-1, 'newstand', 'News Stand', 64, 160000));
+            Language.homes.push(new Types.Home(-1, 'subwaystop', 'Subway Stop', 73, 200000));
+            Language.homes.push(new Types.Home(-1, '59157', 'Parking garage', 82, 240000));
+            Language.homes.push(new Types.Home(-1, 'homelessshelter', 'Homeles Shelter', 89, 360000));
+            Language.homes.push(new Types.Home(-1, 'projects', 'Projects Studio', 102, 510000));
+            Language.homes.push(new Types.Home(-1, 'harlemapt', '1 Br Apartment in Harlem', 125, 820000));
+            Language.homes.push(new Types.Home(-1, 'brooklynheights', 'Home in Brooklyn Heights', 147, 1560000));
+            Language.homes.push(new Types.Home(-1, '52693', 'West Villiage Apartment', 158, 4700000));
+            Language.homes.push(new Types.Home(-1, 'uppereastside', 'Upper East Side Town Home', 176, 22400000));
+            Language.homes.push(new Types.Home(-1, 'empirestate', 'Empire State Building', 200, 59000000));
+
+            Language.weapons.push(new Types.Weapon(-1, 'zahnstocher', 'Toothpicks', 1, 200));
+            Language.weapons.push(new Types.Weapon(-1, 'flasche', 'Broken Bottle', 4, 500));
+            Language.weapons.push(new Types.Weapon(-1, 'wasserbombe', 'Water Balloon', 8, 1500));
+            Language.weapons.push(new Types.Weapon(-1, 'knaller', 'Firecracker', 12, 2000));
+            Language.weapons.push(new Types.Weapon(-1, 'shotgun', 'Sawed off Shot-Gun', 16, 3000));
+            Language.weapons.push(new Types.Weapon(-1, 'fr0249', 'Spray Paint', 20, 5000));
+            Language.weapons.push(new Types.Weapon(-1, 'gurtel', 'Belt', 24, 5500));
+            Language.weapons.push(new Types.Weapon(-1, 'schlagstock', 'Nightstick', 28, 6000));
+            Language.weapons.push(new Types.Weapon(-1, 'gulli', 'Manhole Cover', 32, 7500));
+            Language.weapons.push(new Types.Weapon(-1, 'kette', 'Chain Length', 36, 8000));
+            Language.weapons.push(new Types.Weapon(-1, 'schlagring', 'Brass Knuckles', 40, 12000));
+            Language.weapons.push(new Types.Weapon(-1, 'weapon_01', 'Laser Gun', 44, 18000));
+            Language.weapons.push(new Types.Weapon(-1, 'stange', 'Metal Pipe', 48, 20000));
+            Language.weapons.push(new Types.Weapon(-1, '82464', 'Hammer', 52, 25000));
+            Language.weapons.push(new Types.Weapon(-1, '42563', 'Fire Extinguisher', 56, 30000));
+            Language.weapons.push(new Types.Weapon(-1, 'spry', 'Pepper Spray', 60, 35000));
+            Language.weapons.push(new Types.Weapon(-1, 'schocker', 'Taser', 64, 50000));
+            Language.weapons.push(new Types.Weapon(-1, 'fr1074', 'Tank', 68, 100000));
+            Language.weapons.push(new Types.Weapon(-1, 'schwert', 'Sword', 72, 500000));
+            Language.weapons.push(new Types.Weapon(-1, 'alteknarre', 'Antique Pistol', 76, 750000));
+            Language.weapons.push(new Types.Weapon(-1, 'colt45', 'Colt .45', 80, 1500000));
+            Language.weapons.push(new Types.Weapon(-1, 'tommygun', 'Tommy Gun', 85, 2500000));
+            Language.weapons.push(new Types.Weapon(-1, '41832', 'Atom(ic) Bomb', 90, 10000000));
+            Language.weapons.push(new Types.Weapon(-1, '73550', 'Black Hole', 100, 50000000));
+
+            Language.begPlaces.push(new Types.BegPlace(-1, 'gradeschool', 'Grade School', 10, 100));
+            Language.begPlaces.push(new Types.BegPlace(-1, 'centralparkzoo', 'Central Park Zoo', 50, 4500));
+            Language.begPlaces.push(new Types.BegPlace(-1, 'jobcenter', 'Job Center', 100, 8000));
+            Language.begPlaces.push(new Types.BegPlace(-1, 'bar', 'Bar', 200, 15000));
+            Language.begPlaces.push(new Types.BegPlace(-1, 'grandcentral', 'Grand Central', 300, 20000));
+            Language.begPlaces.push(new Types.BegPlace(-1, 'timessquare', 'Times Square', 400, 40000));
+            Language.begPlaces.push(new Types.BegPlace(-1, '5thave', '5th Avenue', 500, 50000));
+            Language.begPlaces.push(new Types.BegPlace(-1, 'stockexchange', 'New York Stock Exchange', 700, 70000));
+
+            Language.instruments.push(new Types.Instrument(1, 'tincan', 'Tin Can', 100));
+            Language.instruments.push(new Types.Instrument(2, 'combharmonica', 'Comb Harmonica', 300));
+            Language.instruments.push(new Types.Instrument(3, 'chopstick', 'Chop Sticks', 1000));
+            Language.instruments.push(new Types.Instrument(4, 'triangle', 'Triangle', 2000));
+            Language.instruments.push(new Types.Instrument(5, 'bucket', 'Bucket', 4000));
+            Language.instruments.push(new Types.Instrument(6, 'accordian', 'Accordion', 7000));
+            Language.instruments.push(new Types.Instrument(7, 'guitar', 'Guitar', 12000));
+            Language.instruments.push(new Types.Instrument(8, '', '???', 53000));
+            Language.instruments.push(new Types.Instrument(9, '', '???', 90000));
+        } else if (UrlHandler.mode == UrlHandler.m_serserionline) {
+            Language.duHastHeute = "Bu gün ";
+            Language.SpendenErhalten = " bağış elde ettin";
+            Language.currency = "TL";
+            Language.formatMoney = function(m) {
+                return m + " " + Language.currency;
+            };
+            Language.angreifen = "Saldırı";
+            Language.punkte = Language.unbekannt;
+            Language.beschreibung = "Tanım:";
+            Language.motd = Language.unbekannt;
+            Language.ueberwiesAm = /Transfer\s+Tarihi\s+/;
+            Language.bekamAm = Language.unbekannt;
+            Language.selbsterstelltesHaustier = Language.unbekannt;
+            Language.platz = "Sıralama";
+            Language.mitglieder = Language.unbekannt;
+            Language.buendnisse = Language.unbekannt;
+
+            Language.angriffErfolgreich = Language.unbekannt;
+            Language.aufSucheGegangen = Language.unbekannt;
+            Language.wirdBeendet = Language.unbekannt;
+            Language.klickeDigit = Language.unbekannt;
+            Language.istImUrlaubsmodus = Language.unbekannt;
+            Language.nebensaechlicheAktivitaet = Language.unbekannt;
+            Language.spielerNichtGefunden = Language.unbekannt;
+            Language.falschePunktzahl = Language.unbekannt;
+            Language.angriffInnerhalb36h = "36";
+            Language.weiterbildung2mal = Language.unbekannt;
+            Language.weiterbildungErfolgreich = Language.unbekannt;
+
+            Language.att = 'ATT';
+            Language.def = 'DEF';
+            Language.geschick1 = Language.unbekannt;
+            Language.geschick2 = Language.unbekannt;
+
+            Language.erhoehtSpenden = "Bağış esnasında geliri ";
+            Language.mehrSpenden = Language.unbekannt;
+            Language.verringertBildungszeit = "Eğitim süresini ";
+            Language.verringertBildungszeitFuerDex = "Beceri için eğitim süresini ";
+            Language.verringertAngriffszeit = Language.unbekannt;
+            Language.verringertSammelzeit = Language.unbekannt;
+            Language.mehrPlunder = Language.unbekannt;
+            Language.angriffInMinuten = Language.unbekannt;
+            Language.attBoost = Language.unbekannt;
+            Language.collectBoost = Language.unbekannt;
+            Language.angelegt = "Kullanılan";
+            Language.effekt = "Etki: ";
+            Language.verbuendetMit = Language.unbekannt;
+            Language.erhoehtUm = [ Language.unbekannt, Language.unbekannt, Language.unbekannt ];
+            Language.schutzVorRegen = Language.unbekannt;
+            Language.erhoehtSauberkeit = Language.unbekannt;
+
+            Language.nextLevel = "Sonraki Aşama";
+            Language.skillAttack = "Saldırı";
+            Language.skillDefense = "Savunma";
+            Language.skillDexterity = "Beceri";
+            Language.skillDexterityPet = "Yetenek";
+            Language.skillDexterityPet2 = "Yetenek";
+            Language.skillSpeech = "Konuşma";
+            Language.skillEducation = "Eğiitim Seviyesi";
+            Language.skillMusic = "Müzik";
+            Language.skillNetworking = "Sosyal Bağlantı";
+            Language.skillConcentration = "Konsantrasyon";
+            Language.skillPickpocketing = "Kap Kaç";
+            Language.skillSurvivalTraining = Language.unbekannt;
+
+            Language.heute = Language.unbekannt;
+            Language.morgen = Language.unbekannt;
+
+            Language.activityConcentration = "Konsantre olma";
+            Language.activityCollect = Language.unbekannt;
+
+            Language.nebenbeschaeftigung = Language.unbekannt;
+            Language.nebenbeschaeftigungKeine = Language.unbekannt;
+            Language.nebenbeschaeftigungKaempfen = Language.unbekannt;
+            Language.nebenbeschaeftigungSammeln = Language.unbekannt;
+
+            Language.wutGestartet = Language.unbekannt;
+            Language.wutGestopptVonGegner = Language.unbekannt;
+            Language.wiwuGestartet = Language.unbekannt;
+            Language.duProfitierstNicht = Language.unbekannt;
+            Language.passwortFalsch = Language.unbekannt;
+
+            Language.Einziehen = "Taşın";
+            Language.Bewohnt = "Kullanımda";
+
+            Language.bandeHerrschtIn = Language.unbekannt;
+
+            Language.tagesaufgabe = Language.unbekannt;
+            Language.plunderEinzahlen = Language.unbekannt;
+            Language.kampfStarten = Language.unbekannt;
+            Language.sammelnStarten = Language.unbekannt;
+            Language.sauberWerden = Language.unbekannt;
+            Language.bierTrinken = Language.unbekannt;
+            Language.snackEssen = Language.unbekannt;
+            Language.inBandenkasseEinzahlen = Language.unbekannt;
+            Language.nachrichtSenden = Language.unbekannt;
+            Language.shoutboxSpam = Language.unbekannt;
+            Language.haustierkampfStarten = Language.unbekannt;
+            Language.verbrechenBegehen = Language.unbekannt;
+            Language.haustierWbStarten = Language.unbekannt;
+            Language.plunderBasteln = Language.unbekannt;
+            Language.loseKaufen = Language.unbekannt;
+            Language.flaschenVerkaufen = Language.unbekannt;
+            Language.plunderVerkaufen = Language.unbekannt;
+            Language.bierKaufen = Language.unbekannt;
+
+            Language.plunderZumEinzahlen = [ ];
+            Language.plunderZumVerkaufen = [ ];
+            Language.plunderZumBasteln = [ ];
+
+            Language.kostenloseKronkorken = Language.unbekannt;
+            Language.pennergameSupport = Language.unbekannt;
+            Language.duKannstLoseKaufen = Language.unbekannt;
+
+            // TODO: fill these out
+            Language.createDummyPets();
+            Language.createDummyHomes();
+            Language.createDummyWeapons(false);
+            Language.createDummyBegPlaces();
+            Language.createDummyInstruments();
+        }
+    };
+
+    Language.getPetDetailsByImg = function(img) {
+        for (var i = 0; i < Language.pets.length; i++) {
+            var p = Language.pets[i];
+            if (p.img == img) {
+                return p;
+            }
+        }
+        return null;
+    };
+
+    Language.getPetDetailsBySearchString = function(string) {
+        for (var i = 0; i < Language.pets.length; i++) {
+            var p = Language.pets[i];
+            var s = p.searchString ? p.searchString : p.name;
+            if (string.search(s) != -1) {
+                return p;
+            }
+        }
+        return null;
+    };
+
+    Language.replaceNumbers = function(s) {
+        for (var i = 0; i < Language.numbers.length; i++) {
+            if (!Language.numbers[i]) {
+                continue;
+            }
+            for (var j = 0; j < Language.numbers[i].length; j++) {
+                var l = Language.numbers[i][j];
+                if (!l || l == Language.unbekannt) {
+                    continue;
+                }
+                l = ' ' + l + ' ';
+                while (s.search(l) != -1) {
+                    s = s.replace(l, ' ' + (i+1) + ' ');
+                }
+            }
+        }
+        return s;
+    };
+
+    Language.onRunlevel = function(runlevel) {
+        if (runlevel == 5) {
+            Language.loadLanguage();
+        }
+    };
+
+};

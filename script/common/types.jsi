@@ -1,0 +1,640 @@
+/** 
+ * @filename types.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var Types = new Object();
+
+Registry.register("Types", Types);
+
+/* Const section */
+
+/*
+enum eConfigTypes {
+*/
+    const t_object = 'object';
+    const t_bool = 'bool';
+    const t_integer = '';
+    const t_string = '';
+    const t_intern = 'intern';
+    const t_date = '';
+    const t_botspeed = 'bot_speed';
+    const t_botenqueuecount = 'bot_enqueue_count';
+    const t_botcollecttime = 'bot_collect_time';
+    const t_version = 'version';
+    const t_password = 'password';
+    const t_sssort = 'ss_sort';
+    const t_ssdirection = 'ss_direction';
+    const t_plundersell = 'plundersell';
+    const t_plunderdeposit = 'plunderdeposit';
+    const t_plundercreate = 'plundercreate';
+    const t_points = 'points';
+/*
+};
+*/
+
+/*
+enum eSkillType {
+*/
+    const eUnknown = 0;
+    const eAtt = 1;
+    const eDef = 2;
+    const eDex = 3;
+    const eSpeech = 4;
+    const eEducation = 5;
+    const eMusic = 6;
+    const eNetworking = 7;
+    const eConcentration = 8;
+    const ePickpocketing = 9;
+    const eSurvivalTraining = 10;
+/*
+};
+*/
+
+/*
+enum eBotType {
+*/
+    const eBotTypeDisabled       =  0;
+    const eBotTypeBottle         =  1;
+    const eBotTypeFight          =  2;
+    const eBotTypeSkill          =  3;
+    const eBotTypePetSkill       =  4;
+/*
+};
+*/
+
+/*
+enum eBotState {
+*/
+    const eBotWannaStop          =  0;
+    const eBotIdle               = 19;
+    const eBotCheckType          = 24;
+    const eBotInit               =  1;
+    const eBotGotoActivities     =  2;
+    const eBotGotoFightOverview  =  3;
+    const eBotGotoSkillsPage     = 18;
+    const eBotWaitForSSJobs      =  4;
+    const eBotWaitForSSearch     =  5;
+    const eBotCheckPromille      = 20;
+    const eBotLoadCaptcha        =  6;
+    const eBotWaitForCaptcha     =  7;
+    const eBotStartGotYa         =  8;
+    const eBotWaitForGotYa       =  9;
+    const eBotSetFightStartPlunder = 14;
+    const eBotSetCollectStartPlunder = 16;
+    const eBotSetCollectEndPlunder = 17;
+    const eBotSetSkillStartPlunder = 21;
+    const eBotCheckSuccess       = 10;
+    const eBotWaitForEnd         = 11;
+    const eBotWaitSomeSeconds    = 12;
+    const eBotWaitForDB          = 13;
+    const eBotReSetPlunder       = 15;
+    const eBotResetPromille      = 22;
+    const eBotPauseSkillBot      = 23;
+    const eBotEmptyTrolley       = 25;
+    const eBotSellBottles        = 26;
+    const eBotFightEndCure       = 27;
+    const eBotStartAction        = 28;
+/*
+};
+*/
+
+/*
+enum eBotType {
+*/
+    const eBotFightDisabled       =  0;
+    const eBotFightUp             =  1;
+    const eBotFightDown           =  2;
+/*
+};
+*/
+
+/*
+enum eDistrictState {
+*/
+    const eDistrictOccupied     = 1;
+    const eDistrictPurchased    = 2;
+    const eDistrictNew          = 3;
+/*
+};
+*/
+
+/*
+enum eAdminState {
+*/
+    const eMember               = 1;
+    const eCoAdmin              = 2;
+    const eAdmin                = 3;
+/*
+};
+*/
+
+/*
+enum eFightResult {
+*/
+    const eWon                  = 1;
+    const eLost                 = 2;
+    const eRemis                = 3;
+/*
+};
+*/
+
+/*
+enum ePetFightAttitude {
+*/
+    const ePetFightAggressive   = 1;
+    const ePetFightDefensive    = 2;
+    const ePetFightNeutral      = 3;
+/*
+};
+*/
+
+Types.init = function() {
+
+    /*
+    struct Pet {
+        int id;
+        string img;
+        string name;
+        int att, def, mit;
+        int cost;   // in cent
+        string searchString;
+    };
+    */
+    Types.Pet = function(id, img, name, att, def, mit, cost, searchString) {
+        this.id = id;
+        this.img = img;
+        this.name = name;
+        this.att = att;
+        this.def = def;
+        this.mit = mit;
+        this.cost = cost;
+        this.searchString = searchString;
+
+        this.equals = function(that) {
+            return that &&
+                   ((this.id != -1 && this.id == that.id) ||
+                    (this.img == that.img) ||
+                    (this.att == that.att && this.def == that.def && this.mit == that.mit));
+        };
+    };
+
+
+    /*
+    struct Home {
+        int id;
+        string img;
+        string name;
+        int def;
+        int cost;
+    };
+    */
+    Types.Home = function(id, img, name, def, cost) {
+        this.id = id;
+        this.img = img;
+        this.name = name;
+        this.def = def;
+        this.cost = cost;
+
+        this.equals = function(that) {
+            return that &&
+                   ((this.id != -1 && this.id == that.id) ||
+                    (this.img == that.img) ||
+                    (this.def == that.def));
+        };
+    };
+
+    /*
+    struct Weapon {
+        int id;
+        string img;
+        string name;
+        int att;
+        int cost;
+    };
+    */
+    Types.Weapon = function(id, img, name, att, cost) {
+        this.id = id;
+        this.img = img;
+        this.name = name;
+        this.att = att;
+        this.cost = cost;
+
+        this.equals = function(that) {
+            return that &&
+                   ((this.id != -1 && this.id == that.id) ||
+                    (this.img == that.img) ||
+                    (this.att == that.att));
+        };
+    };
+
+    /*
+    struct Instrument {
+        int id;
+        string img;
+        string name;
+        int cost;
+    };
+    */
+    Types.Instrument = function(id, img, name, cost) {
+        this.id = id;
+        this.img = img;
+        this.name = name;
+        this.cost = cost;
+
+        this.equals = function(that) {
+            return that &&
+                   ((this.id != -1 && this.id == that.id) ||
+                    (this.img == that.img));
+        };
+    };
+
+    /*
+    struct BegPlace {
+        int id;
+        string img;
+        string name;
+        int income; // in cent
+        int cost;
+    };
+    */
+    Types.BegPlace = function(id, img, name, income, cost) {
+        this.id = id;
+        this.img = img;
+        this.name = name;
+        this.income = income;
+        this.cost = cost;
+
+        this.equals = function(that) {
+            return that &&
+                   ((this.id != -1 && this.id == that.id) ||
+                    (this.img == that.img) ||
+                    (this.income == that.income));
+        };
+    };
+
+    /*
+    class Skill {
+        eSkillType type;
+        int level;
+        int cost;   // in cent!
+        bool isPet;
+
+        string getType();
+        string getImage();
+    };
+    */
+    Types.Skill = function(type, level, cost, isPet) {
+        this.type = type;
+        this.level = level;
+        this.cost = cost;
+        this.isPet = isPet;
+
+        this.getType = function() {
+            switch (type) {
+                case eAtt:              return 'Angriff';
+                case eDef:              return 'Verteidigung';
+                case eDex:              return this.isPet ? 'Kunststücke' : 'Geschick';
+                case eSpeech:           return 'Sprechen';
+                case eEducation:        return 'Bildungsstufe';
+                case eMusic:            return 'Musik';
+                case eNetworking:       return 'Sozialkontakte';
+                case eConcentration:    return 'Konzentration';
+                case ePickpocketing:    return 'Taschendiebstahl';
+                case eSurvivalTraining: return 'Überlebenstraining';
+            }
+            return 'Unbekannt';
+        };
+
+        this.getImage = function() {
+            switch (type) {
+                case eAtt:              return UrlHandler.pgMediaUrl+'img/pv4/icons/attack.jpg';
+                case eDef:              return UrlHandler.pgMediaUrl+'img/pv4/icons/def.jpg';
+                case eDex:              return UrlHandler.pgMediaUrl+'img/pv4/icons/'+ (this.isPet ? 'petart' : 'geschick')+'.jpg';
+                case eSpeech:           return UrlHandler.pgMediaUrl+'img/pv4/icons/sprechen_31.jpg';
+                case eEducation:        return UrlHandler.pgMediaUrl+'img/pv4/icons/bildungsstufe.jpg';
+                case eMusic:            return UrlHandler.pgMediaUrl+'img/pv4/icons/musik_31.jpg';
+                case eNetworking:       return UrlHandler.pgMediaUrl+'img/pv4/icons/sozkontakte.jpg';
+                case eConcentration:    return UrlHandler.pgMediaUrl+'img/pv4/icons/konzentration.jpg';
+                case ePickpocketing:    return UrlHandler.pgMediaUrl+'img/pv4/icons/taschendieb.jpg';
+                case eSurvivalTraining: return UrlHandler.pgMediaUrl+'img/pv4/icons/survival.png';
+            }
+            return GM_getResourceURL("lampBig.png");
+        };
+    };
+
+    /*
+    struct Skills {
+        Skill[] queue;
+        Skill[] skills;
+
+        // when will the currently running skills end?
+        // there will be at least one entry for the active skill, more entries for queue
+        // endTimes[0] is 0 if there is no current skill
+        int[] endTimes;
+
+        // progress of current training, 0.0 if there is no current skill
+        double progress;
+
+        // shortcut to interesting skills ;)
+        Skill conc;
+        Skill att;
+        Skill def;
+        Skill dex;
+
+        int initialized;
+    };
+    */
+    Types.Skills = function(queue, skills, endTimes, progress, conc, att, def, dex) {
+        this.queue = queue;
+        this.skills = skills;
+        this.endTimes = endTimes;
+        this.progress = progress;
+        this.conc = conc;
+        this.att = att;
+        this.def = def;
+        this.dex = dex;
+        this.initialized = 1;
+    };
+
+    /*
+    struct Plunder {
+        int id;
+        string name;
+        string image;
+        string desc;
+        string extdesc;
+        int count;
+        bool usable;
+        bool equipable;
+        int att;
+        int def;
+        int dex;
+        int attPercent;
+        int defPercent;
+        int dexPercent;
+    };
+    */
+    Types.Plunder = function(id, name, image, description, extendeddesc, count, usable, equipable,
+                             att, def, dex, attPercent, defPercent, dexPercent) {
+        this.id = id;
+        this.name = name;
+        this.image = image;
+        this.desc = description;
+        this.extdesc = extendeddesc;
+        this.count = count;
+        this.usable = usable;
+        this.equipable = equipable;
+        this.att = att;
+        this.def = def;
+        this.dex = dex;
+        this.attPercent = attPercent;
+        this.defPercent = defPercent;
+        this.dexPercent = dexPercent;
+
+        this.equals = function(that) {
+            return that && this.id == that.id;
+        };
+    };
+
+    /*
+    struct BuildablePlunder extends Plunder {
+        int id;
+        string name;
+        string image;
+    };
+    */
+    Types.BuildablePlunder = function(id, name, image) {
+        this.id = id;
+        this.name = name;
+        this.image = image;
+    };
+
+    /*
+    struct District {
+        int id;
+        string city;
+        int cost;   // in cent
+        int people;
+        int bottles;
+        eDistrictState state;
+        int gangId;
+        string gangName;
+    };
+    */
+    Types.District = function(id, city, cost, people, bottles, state, gangId, gangName) {
+        this.id = id;
+        this.city = city;
+        this.cost = cost;
+        this.people = people;
+        this.bottles = bottles;
+        this.state = state;
+        this.gangId = gangId;
+        this.gangName = gangName;
+
+        this.equals = function(that) {
+            return that && this.id == that.id;
+        };
+    };
+
+    /*
+    struct GangMember {
+        int id;
+        string name;
+        eAdminState state;
+        int points;
+    };
+    */
+    Types.GangMember = function(id, name, state, points) {
+        this.id = id;
+        this.name = name;
+        this.state = state;
+        this.points = points;
+    };
+
+    /*
+    struct GangFightStats {
+        int possibleFights;
+        int nearFights;
+        int possibleMembers;
+        int nearMembers;
+    };
+    */
+    Types.GangFightStats = function(possibleFights, nearFights, possibleMembers, nearMembers) {
+        this.possibleFights = possibleFights;
+        this.nearFights = nearFights;
+        this.possibleMembers = possibleMembers;
+        this.nearMembers = nearMembers;
+    };
+
+    /*
+    struct GangFightResult {
+        string time;
+        eFightResult result;
+        int fromId;
+        string fromName;
+        int toId;
+        string toName;
+    };
+    */
+    Types.GangFightResult = function(time, result, fromId, fromName, toId, toName) {
+        this.time = time;
+        this.result = result;
+        this.fromId = fromId;
+        this.fromName = fromName;
+        this.toId = toId;
+        this.toName = toName;
+    };
+
+    /*
+    struct Message {
+        int id;
+        bool unread;
+        string subject;
+        string from;
+    };
+    */
+    Types.Message = function(id, unread, subject, from) {
+        this.id = id;
+        this.unread = unread;
+        this.subject = subject;
+        this.from = from;
+    };
+
+    /*
+    struct ShoutboxPost {
+        int id;
+        string from;
+        string content;
+    };
+    */
+    Types.ShoutboxPost = function(id, from, content) {
+        this.id = id;
+        this.from = from;
+        this.content = content;
+    };
+
+    /*
+    "class" BaseBotStateEntry {
+       ...
+    };
+    */
+
+    Types.BaseBotStateEntry = function() {
+
+        // internal used to determine original keys
+        this._keys = [];
+
+        this.init = function() {
+            for (key in this) {
+                // push function for the moment too...
+                this._keys.push(key);
+                if (this[key] == undefined) {
+                    this[key] = 0;
+                }
+            }
+        }
+
+        this.equals = function(that) {
+            if (!that) return false;
+            for (key in this) {
+                if (this[key] != that[key]) {
+                    return false;
+                }
+            }
+            return true;
+        };
+
+        this.toJson = function() {
+            var e = {};
+            for (key in this) {
+                if (typeof this[key] !== 'function' &&
+                    key != '_keys') {
+                    e[key] = this[key];
+                }
+            }
+            return JSON.stringify(e);
+        };
+
+        this.getOriginKeys = function() {
+            var e = {};
+            for (var i=0; i<this._keys.length; i++) {
+                var key = this._keys[i];
+                if (typeof this[key] !== 'function' &&
+                    key != '_keys') {
+                    e[key] = this[key];
+                }
+            }
+            return e;
+        };
+
+        this.getNonOriginKeys = function() {
+            var e = {};
+            for (key in this) {
+                var drin = false;
+                for (var i=0; i<this._keys.length; i++) {
+                    if (key == this._keys[i]) {
+                        drin = true;
+                        break;
+                    };
+                }
+                if (!drin || typeof this[key] === 'function') {
+                    e[key] = this[key];
+                }
+            }
+            return e;
+        };
+
+        this.overwrite = function(that) {
+            if (typeof that === 'object') {
+                for (key in that) {
+                    this[key] = that[key];
+                }
+            } else {
+                try {
+                    var o = JSON.parse(that);
+                    this.overwrite(o);
+                } catch (e) {
+                    Log.console('Types:' + e);
+                }
+            }
+        };
+    };
+
+    
+    Types.BotStateEntry = function(type, gang, startid, history, updown) {
+        this.type = type;
+        this.gang = gang;
+        this.updown = updown
+        this.startid = startid;
+        this.history = history;
+
+        // tmp overwrite fn
+        this.overwrite = function(that) {
+            for (key in that) {
+                this[key] = that[key];
+            }
+        };
+
+        this.overwrite(new Types.BaseBotStateEntry());
+        // store current keys as origin
+        this.init();
+    };
+
+    Types.SkillBotStateEntry = function(type) {
+        this.type = type;
+
+        // tmp overwrite fn
+        this.overwrite = function(that) {
+            for (key in that) {
+                this[key] = that[key];
+            }
+        };
+
+        this.overwrite(new Types.BaseBotStateEntry());
+        // store current keys as origin
+        this.init();
+    };
+};

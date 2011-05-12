@@ -1,0 +1,75 @@
+/** 
+ * @filename adblock.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var AdBlocker = new Object();
+
+Registry.register("AdBlocker", AdBlocker);
+
+// ########### Add Blocker ################
+
+AdBlocker.init = function() {
+    AdBlocker.counter = 0;
+
+    AdBlocker.block = function() {
+        var e;
+        var ids = [ 'betterplace', 'premium_layer', 'kk-button', 'google_js_2' ];
+        for (var i = 0; i < ids.length; i++) {
+            e = document.getElementById(ids[i]);
+            if (e) {
+                e.parentNode.removeChild(e);
+            }
+        }
+
+        e = document.getElementById('alert2');
+        if (e && (e.innerHTML.search("Ever thought about scrounging in English") != -1)) {
+            e.parentNode.removeChild(e);
+        }
+
+        var ifr = document.getElementsByTagName('iframe');
+        for (var i = 0; i < ifr.length; i++) {
+            var e = ifr[i];
+            e.parentNode.removeChild(e);
+        }
+
+
+        var divs = document.getElementsByTagName('div');
+        var s, id;
+        for (var i = 0; i < divs.length; i++) {
+            e = divs[i];
+            if (((id = e.getAttribute('id')) &&
+                 id.search('google') != -1) ||
+                ((s = e.getAttribute("style")) &&
+                 (s.search("z-index: 9000") != -1))) {
+                e.parentNode.removeChild(e);
+            }
+        }
+
+        var as = document.getElementsByTagName('a');
+        var s, id;
+        for (var i = 0; i < as.length; i++) {
+            e = as[i];
+            var img;
+            if (e.href == UrlHandler.wwwUrl + 'itemsale/surprise/' &&
+                (img = e.getElementsByTagName('img')[0])) {
+                e.parentNode.removeChild(e);
+            }
+        }
+
+        var b = document.body;
+        var s;
+        if (b && (s = b.getAttribute("style")) && s.search("background_kv.jpg") != -1) {
+            b.removeAttribute("style");
+        }
+    };
+
+    AdBlocker.onRunlevel = function(runlevel) {
+        if (runlevel == 30) {
+            AdBlocker.block();
+        }
+    };
+};
+

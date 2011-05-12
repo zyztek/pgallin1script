@@ -1,0 +1,3056 @@
+/** 
+ * @filename bot.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var BotManager = new Object();
+
+Registry.register("BotManager", BotManager);
+
+var Bot = new Object();
+var SkillBot = new Object();
+
+// ############ Bots #############
+
+BotManager.init = function() {
+
+    Bot.init();
+    SkillBot.init();
+    BotManager.lockCallback = [];
+
+    BotManager.lastKnownAction = 0;
+
+    BotManager.key_bot = function() { return Config.getConfigKey('state', 'bot'); };
+    BotManager.key_skillBot = function() { return Config.getConfigKey('skillState', 'bot'); };
+    BotManager.key_botStop = function() { return Config.getConfigKey('stop', 'bot'); };
+    BotManager.key_skillBotStop = function() { return Config.getConfigKey('skillStop', 'bot'); };
+
+    BotManager.initalRun = function() {
+        BotManager.insertButtons("", true);
+        LockManager.addLockCallback(true, BotManager.readdButtons);
+        LockManager.addLockCallback(false, BotManager.run);
+    };
+
+    BotManager.run = function() {
+        LockManager.run();
+        LockManager.addLockCallback(false, BotManager.execute);
+    };
+
+    BotManager.execute = function() {
+        var isColl = Bot.isCollecting();
+        var isFight = Bot.isFighting();
+
+        var info = Bot.readState();
+        var skillinfo = SkillBot.readState();
+        var action = SkillBot.neededAction(info, isColl, isFight);
+        var actionEnded = false;
+
+        if (isColl || isFight) {
+            BotManager.lastKnownAction = (new Date()).getTime();
+        } else if (BotManager.lastKnownAction &&
+                   (new Date()).getTime() - 30000 > BotManager.lastKnownAction) {
+            /* wait 30 seconds to give the db a chance to end this action,
+               but only in case another bot takes care of this */
+            actionEnded = true && info.type != eBotTypeDisabled;
+        }
+
+        if (skillinfo.type != eBotTypeDisabled &&
+            skillinfo.state != eBotWannaStop
+            && !SkillBot.infoCheck()) {
+            /* skill bot was disabled */
+            skillinfo.state = eBotWannaStop;
+            SkillBot.writeState(skillinfo);
+        } else if (info.type != eBotTypeDisabled &&
+                   info.state != eBotWannaStop &&
+                   !Bot.infoCheck()) {
+            /* bot was disabled */
+            info.state = eBotWannaStop;
+            Bot.writeState(info);
+        } else if (BotManager.lockCallback.length > 0) {
+            var job = BotManager.lockCallback.pop();
+            job.callback(job.args);
+        } else if (action &&
+                   !actionEnded &&
+                   skillinfo.state == eBotIdle) {
+            /* initialize skill bot*/
+            skillinfo.state = eBotInit;
+            skillinfo.type = action;
+            skillinfo.skillcount = Config.bot_skill_enqueue_count;
+            SkillBot.writeState(skillinfo);
+            SkillBot.localstepcnt = 0;
+            // save new Bot-type locally only, server doesn't care about the type
+            Config.saveConfigGM();
+        } else if (BotManager.runCheck(skillinfo, eBotTypeSkill)) {
+            /* run skill bot */
+            if (SkillBot.runSkillBot(skillinfo)) {
+                return;
+            }
+        } else if (BotManager.runCheck(skillinfo, eBotTypePetSkill)) {
+            /* run skill bot */
+            if (SkillBot.runSkillBot(skillinfo)) {
+                return;
+            }
+        } else if (Skills.mySkills.initialized &&
+                   Skills.petSkills.initialized &&
+                   skillinfo.type != eBotTypeDisabled &&
+                   (Bot.isWaitOrEndState(info) || info.type == eBotTypeDisabled) &&
+                   (new Date()).getTime() > Skills.mySkills.endTimes[0]) {
+            /* trigger skill update by reloading the page if skillbot is running and
+               all other bots are waiting or stopped */
+            UrlHandler.doReload(1000);
+            return;
+        } else if (BotManager.runCheck(info, eBotTypeFight) ||
+                   (Config.bot_attack_list.length && BotManager.runCheck(info, eBotTypeBottle))) {
+            // run fightbot although bottlebot is active if attack list is not empty
+            if (Bot.runFightBot(info)) {
+                return;
+            }
+        } else if (BotManager.runCheck(info, eBotTypeBottle)) {
+            if (Bot.runBottleBot(info)) {
+                return;
+            }
+        } else {
+            /* keep manager running to detect skill issues */
+            BaseLib.setTimeoutEx(function () { BotManager.run(); },  700);
+            return;
+        }
+
+        /* there is something to do... */
+        BaseLib.setTimeoutEx(function () { BotManager.run(); },  10);
+    };
+
+    BotManager.runCheck = function(info, type) {
+        return ((info.type != eBotTypeDisabled && info.state != eBotIdle) && info.type == type);
+    };
+
+    BotManager.addLockCallback = function(callback, args) {
+        var o = new Object();
+        o.callback = callback;
+        o.args = args;
+        BotManager.lockCallback.push(o);
+    };
+
+    BotManager.readdButtons = function() {
+        var sb = document.getElementById('bot_buttons');
+        var dd = document.getElementById('bot_dbg');
+        if (sb && dd) {
+            var t = dd.innerHTML;
+            sb.innerHTML = '';
+            BotManager.insertButtons(t);
+        }
+    };
+
+    BotManager.createButton = function(desc, img, imgDisabled, id, start, disabled) {
+        var inner = desc + '&nbsp;&nbsp;';
+        return UIHelpers.createSidebarImgButton(img, imgDisabled, inner, disabled, id, start);
+    };
+
+    BotManager.insertButtons = function(t, disableButtons) {
+        if (t == undefined) t = "";
+        if (disableButtons == undefined) disableButtons = false;
+
+        info = Bot.readState();
+        skillinfo = SkillBot.readState();
+
+        var div_style = 'max-width:140px; float:left; margin-right:3px; text-align:left;';
+
+        UIHelpers.createHelpersSidebarItem();
+        var bot_div = document.getElementById('bot_buttons');
+
+        var isCollect = info.type == eBotTypeBottle;
+        var isFight = info.type == eBotTypeFight;
+
+        var fightDesc = 'Kämpfen';
+        if (!isFight) {
+            if (UrlHandler.isProfileGangUrl()) {
+                fightDesc = 'Bandenkampf';
+            } else if (UrlHandler.isDownfightersAttackUrl()) {
+                fightDesc = 'Hochkampf';
+            } else if (UrlHandler.isUpfightersAttackUrl()) {
+                fightDesc = 'Runterkampf';
+            } else if (UrlHandler.isShowByIdUrl()) {
+                fightDesc = 'ID-Kampf';
+            } else if (UrlHandler.isFightLogUrl()) {
+                fightDesc = 'History';
+            }
+        } else {
+            if (info.gang) {
+                fightDesc = 'Bandenkampf';
+            } else if (info.updown == eBotFightUp) {
+                fightDesc = 'Hochkampf';
+            } else if (info.updown == eBotFightDown) {
+                fightDesc = 'Runterkampf';
+            } else if (info.startid) {
+                fightDesc = 'ID-Kampf';
+            } else if (info.history) {
+                fightDesc = 'History';
+            }
+        }
+
+        var gang = 0;
+        var startid = 0;
+        var history = 0;
+        var updown = 0;
+        if (UrlHandler.isProfileGangUrl()) {
+            gang = UrlHandler.getIdFromUrl();
+        } else if (UrlHandler.isShowByIdUrl()) {
+            startid = UrlHandler.urlGetParam("showbyid", 0);
+        } else if (UrlHandler.isFightLogUrl()) {
+            history = UrlHandler.urlGetParam("history", 1);
+        } else if (UrlHandler.isDownfightersAttackUrl()) {
+            updown = eBotFightUp;
+        } else if (UrlHandler.isUpfightersAttackUrl()) {
+            updown = eBotFightDown;
+        }
+
+        var l = function () {
+            if (!isCollect) {
+                Log.dbg("Flaschenbot gestartet");
+                var bs = new Types.BotStateEntry(eBotTypeBottle);
+                var cb = function(o) {
+                    Bot.start(o);
+                    Config.save();
+                }
+                BotManager.addLockCallback(cb, bs);
+            } else {
+                Log.dbg("Flaschenbot gestoppt");
+                Bot.stop();
+            }
+        }
+
+        var i = function () {
+            if (!isFight) {
+                Log.dbg("Kampfbot gestartet");
+                var bs = new Types.BotStateEntry(eBotTypeFight, gang, startid, history, updown);
+                var cb = function(o) {
+                    Bot.start(o);
+                    Config.save();
+                }
+                BotManager.addLockCallback(cb, bs);
+            } else {
+                if (Config.bot_attack_list.length && 
+                    (Config.bot_autodelete_attack_list ||
+                     confirm("Liste der nächsten Opfer löschen?"))) {
+                    PreferredFights.clear(true);
+                }
+                Log.dbg("Kampfbot gestoppt");
+                Bot.stop();
+            }
+
+        }
+
+        var fl_button = BotManager.createButton('Sammeln', GM_getResourceURL("collect.png"), GM_getResourceURL("collectDisabled.png"), 'Bot.runBottleBot', !isCollect, isFight);
+        var fi_button = BotManager.createButton(fightDesc, GM_getResourceURL("fight.png"), GM_getResourceURL("fightDisabled.png"), 'Bot.runFightBot', !isFight, isCollect);
+        
+        fl_button.addEventListener('click', function() {
+                                       UIHelpers.enableSidebarButton(fi_button, false);
+                                       UIHelpers.enableSidebarButton(fl_button, false);
+                                       l();
+                                   }, true);
+        fi_button.addEventListener('click', function() {
+                                       UIHelpers.enableSidebarButton(fi_button, false);
+                                       UIHelpers.enableSidebarButton(fl_button, false);
+                                       i();
+                                   }, true);
+
+        var isSkill = (skillinfo.type != eBotTypeDisabled);
+
+        var ec_low = GameType.skillCount - 1;
+        var ec_high = GameType.skillCount;
+        
+        var cond1 = isSkill && Config.bot_skill_enqueue_count == ec_low;
+        var cond2 = isSkill && Config.bot_skill_enqueue_count == ec_high;
+        var sk1_button = BotManager.createButton('x' + ec_low, GM_getResourceURL("skill.png"), GM_getResourceURL("skillDisabled.png"), 'Bot.runSkillBot', !cond1, cond2);
+        var sk2_button = BotManager.createButton('x' + ec_high, GM_getResourceURL("skill.png"), GM_getResourceURL("skillDisabled.png"), 'Bot.runSkillBot', !cond2, cond1);
+
+        var sk = function (wb_cnt) {
+            var bs, cb;
+            if (!isSkill) {
+                Log.dbg("Skillbot gestartet");
+                var bs = new Types.SkillBotStateEntry(eBotTypeSkill);
+                Config.bot_skill_enqueue_count = wb_cnt;
+                var cb = function(o) {
+                    SkillBot.start(o);
+                    Config.save();
+                }
+                BotManager.addLockCallback(cb, bs);
+            } else {
+                Log.dbg("Skillbot gestoppt");
+                SkillBot.stop();
+            }
+        };
+
+        sk1_button.addEventListener('click', function() {
+                                        UIHelpers.enableSidebarButton(sk1_button, false);
+                                        UIHelpers.enableSidebarButton(sk1_button, false);
+                                        sk(ec_low);
+                                    }, true);
+        sk2_button.addEventListener('click', function() {
+                                        UIHelpers.enableSidebarButton(sk1_button, false);
+                                        UIHelpers.enableSidebarButton(sk2_button, false);
+                                        sk(ec_high);
+                                    }, true);
+
+        var dbg_div_outer = document.createElement('div');
+        dbg_div_outer.setAttribute('id', 'bot_dbg_outer');
+
+        var dbg_div = document.createElement('div');
+        dbg_div_outer.appendChild(dbg_div);
+        dbg_div.setAttribute('id', 'bot_dbg');
+        dbg_div.setAttribute('style', div_style);
+        dbg_div.innerHTML = t;
+
+        var table = document.createElement('table');
+        table.setAttribute("style", "width:100%; border-collapse: collapse; border-spacing: 1px; "+
+                                    "margin-left: 0px; margin-right: 0px; margin-top: 1px; margin-bottom: 1px;");
+        bot_div.appendChild(table);
+
+        if (disableButtons) {
+            UIHelpers.enableSidebarButton(fl_button ,false);
+            UIHelpers.enableSidebarButton(fi_button ,false);
+            UIHelpers.enableSidebarButton(sk1_button ,false);
+            UIHelpers.enableSidebarButton(sk2_button ,false);
+        }
+
+        var tr, td;
+        if (Config.bot) {
+            tr = document.createElement("tr");
+            table.appendChild(tr);
+            td = document.createElement("td");
+            td.setAttribute("colspan", "2");
+            td.setAttribute("style", "width:100%; padding-top: 0px; padding-bottom: 2px;");
+            tr.appendChild(td);
+            td.appendChild(fl_button);
+
+            tr = document.createElement("tr");
+            table.appendChild(tr);
+            td = document.createElement("td");
+            td.setAttribute("colspan", "2");
+            td.setAttribute("style", "width:100%; padding-top: 0px; padding-bottom: 2px;");
+            tr.appendChild(td);
+            td.appendChild(fi_button);
+        }
+
+        if (Config.bot_skill) {
+            tr = document.createElement("tr");
+            table.appendChild(tr);
+            td = document.createElement("td");
+            td.setAttribute("style", "width:50%; padding-top: 0px; padding-bottom: 2px; padding-left: 0px; padding-right: 1px;");
+            tr.appendChild(td);
+            td.appendChild(sk1_button);
+            td = document.createElement("td");
+            td.setAttribute("style", "width:50%; padding-top: 0px; padding-bottom: 2px; padding-left: 1px; padding-right: 0px;");
+            tr.appendChild(td);
+            td.appendChild(sk2_button);
+        }
+
+        tr = document.createElement("tr");
+        table.appendChild(tr);
+        td = document.createElement("td");
+        td.setAttribute("colspan", "2");
+        tr.appendChild(td);
+        td.appendChild(dbg_div_outer);
+    };
+
+    BotManager.printState = function(m, color) {
+        BotManager.debugState(m, color, false, false);
+    };
+
+    BotManager.appendState = function(m, color) {
+        BotManager.debugState(m, color, false, true);
+    };
+
+    BotManager.debugState = function(m, color, debug, append) {
+        if (debug == undefined) debug = true;
+        if (append == undefined) append = false;
+        var e = document.getElementById('bot_dbg');
+        var s = '<span' + (color ? ' style="color:'+color+';"' : '') + '>' + m + '</span>';
+
+        if (e) {
+            if (append) {
+                e.innerHTML = e.innerHTML + '<br>' + s;
+            } else {
+                e.innerHTML = s;
+            }
+        }
+        if (debug) Log.dbg('Bots:' + m);
+    };
+
+    BotManager.dataUrl = null;
+    BotManager.clickSubmitButton = function(formAction) {
+
+        var fn = null;
+        var s = unsafeWindow.document.getElementsByTagName('script');
+
+        if (!s) {
+            Log.console("Bots: Err: unable to click submit button!");
+            return;
+        }
+
+        for (var k=0; k<s.length;k++) {
+            if (s[k].innerHTML.search('captcha_img') != -1) {
+                var f = s[k].textContent.replace('captcha_img', 'captcha_img2');
+                fn = '(' + Skills.getSetupForm(f) + ')';
+                break;
+            }
+        }
+
+        /* bypass all xxs issues by adding an onload handler that
+           passes the image data via dataUrl */
+        var c = document.getElementById('captcha_img');
+        var p = c.parentNode.parentNode;
+        var i = document.createElement('img');
+        i.setAttribute('id', 'captcha_img2');
+        i.setAttribute('style', 'display:none;');
+        p.appendChild(i);
+
+        var grep = function() {
+            var v = document.createElement('canvas');
+            var ctx = v.getContext('2d');
+            v.width = 205;
+            v.height = 200;
+            ctx.drawImage(i, 0, 0, v.width, v.height);
+            BotManager.dataUrl = v.toDataURL("image/png");
+            c.src = BotManager.dataUrl;
+        };
+
+        i.addEventListener("load", grep, true);
+
+        if (fn == null) return;
+
+        var setup = "try { " + fn + "('" + formAction + "'); } catch (e) { GM_log(e); }";
+        var e = eval;
+        e(setup);
+
+        // setupForm in unsafeWindow
+        var s = unsafeWindow.document.getElementsByTagName('form');
+        for (var k=0; k<s.length;k++) {
+            if (s[k].name == 'starten') {
+                s[k].action = formAction;
+                break;
+            }
+        }
+    };
+
+    BotManager.onRunlevel = function(runlevel) {
+        if (runlevel == 90) {
+            if (Config.bot) {
+                BotManager.initalRun();
+            }
+        }
+    };
+
+};
+
+SkillBot.init = function() {
+
+    SkillBot.info = new Object();
+
+    SkillBot.collectsuc = null;
+    SkillBot.startcollect = null;
+    SkillBot.localstepcnt = 0;
+
+    SkillBot.infoCheck = function() {
+        var ret = true;
+        if (GM_getValue(BotManager.key_skillBotStop()) == true) {
+            ret = false;
+        }
+        return ret;
+    };
+
+    SkillBot.start = function(o) {
+        var type = (o.type == undefined) ? eBotTypeSkill : o.type;
+
+        GM_setValue(BotManager.key_skillBotStop(), false);
+        var old_bot = SkillBot.readState();
+        SkillBot.info = SkillBot.createStateEntry(new Types.BotStateEntry(type));
+        SkillBot.info.state = eBotIdle; /* actions are triggered by BotManager*/
+        SkillBot.info.gotya_oasuc = old_bot.gotya_oasuc;
+        SkillBot.info.gotya_oaerr = old_bot.gotya_oaerr;
+        SkillBot.writeState(SkillBot.info);
+        BotManager.readdButtons();
+    };
+
+    SkillBot.stop = function() {
+        GM_setValue(BotManager.key_skillBotStop(), true);
+    };
+
+    SkillBot.dbMayHang = function() {
+        return (Skills.mySkills.initialized &&
+                Skills.mySkills.queue.length > 0 &&
+                Skills.mySkills.endTimes[0] <= 0);
+    };
+
+    SkillBot.neededAction = function(info, isColl, isFight) {
+
+        var ret = 0;
+        var t = GameType.hasCaptcha ? 5 * 60 : 30;
+        var bot_state_ok = (info.type == eBotTypeDisabled) || Bot.isWaitOrEndState(info) ;
+        var bottle_bot_ok = (info.type != eBotTypeBottle) || (isColl > t) || (isColl == 0);
+        var fight_bot_ok = (info.type != eBotTypeFight) || (isFight > t) || (isFight == 0);
+
+        if (bot_state_ok &&
+            (bottle_bot_ok &&
+             fight_bot_ok) ||
+            SkillBot.dbMayHang()) {
+            /* run only in case no other bot is running and no fight or
+               bottle collection will end within the next x minutes,
+               but pay attention to db hang situations */
+            if (Config.bot_skill &&
+                Skills.mySkills.initialized &&
+                (Skills.mySkills.queue.length < Config.bot_skill_enqueue_count ||
+                 SkillBot.dbMayHang())) {
+                ret = eBotTypeSkill;
+            } else if (Config.bot_skill_pet &&
+                Skills.petSkills.initialized &&
+                Skills.petSkills.queue.length < 1) {
+                ret = eBotTypePetSkill;
+            }
+        }
+        return ret;
+    };
+
+    SkillBot.runSkillBot = function() {
+        var rerunperiod = 500;
+        var reloadtime = 50;
+        var redirecttime = 2000;
+        var redirect = false;
+        var reload = false;
+        var rerun = true;
+        var readdbuttons = false;
+
+        SkillBot.info = SkillBot.readState();
+        SkillBot.info.oldstate = SkillBot.info.state;
+
+        if (PennerInfo.state.moneyInCent == null ||
+            (SkillBot.info.type != eBotTypeSkill && SkillBot.info.type != eBotTypePetSkill) ||
+            !Skills.mySkills.initialized ||
+            !Skills.petSkills.initialized) {
+            // some things might be uninitialized
+            BaseLib.setTimeoutEx(function () { BotManager.run(); }, 500);
+            return true;
+        }
+
+        var skill = SkillBot.getFittingSkill();
+
+        var alreadyMySkilling = function() {
+            var s = !Config.bot_skill ||
+                    (Skills.mySkills.initialized &&
+                     Skills.mySkills.queue.length >= SkillBot.info.skillcount);
+            return s;
+        }
+
+        var alreadyPetSkilling = function() {
+            var p = !Config.bot_skill_pet ||
+                    (Skills.petSkills.initialized && Skills.petSkills.queue.length >= 1);
+            return p;
+        }
+
+        var alreadySkilling = function() {
+            if (SkillBot.info.type == eBotTypeSkill) {
+                return alreadyMySkilling();
+            } else {
+                return alreadyPetSkilling();
+            }
+        }
+
+        var isSkillsUrl = function() {
+            if (SkillBot.info.type == eBotTypeSkill) {
+                return UrlHandler.isSkillsUrl();
+            } else {
+                return UrlHandler.isPetSkillsUrl();
+            }
+        }
+
+        var zeitimstep = function() {
+            var r = 0;
+            if (SkillBot.info.steptime != 0) {
+                r = new Date().valueOf() - Number(SkillBot.info.steptime);
+            } else {
+                SkillBot.info.steptime = new Date().valueOf().toString();
+            }
+            return r;
+        }
+
+        var formAction = (SkillBot.info.type == eBotTypeSkill) ?
+                         '/skill/upgrade/'+skill+'/' :
+                         '/skill/pet/upgrade/'+skill+'/';
+
+        switch (SkillBot.info.state) {
+          case eBotWannaStop: // stop
+              if (!SkillBot.localstepcnt && !SkillBot.info.criticalerr) BotManager.debugState('SkillBot gestoppt');
+              rerun = false;
+              readdbuttons = true;
+              SkillBot.info.type = eBotTypeDisabled;
+              SkillBot.info.state = eBotInit;
+              break;
+          case eBotCheckType:
+              var s = null;
+              if (!alreadyMySkilling()) {
+                  s = eBotTypeSkill;
+              } else if (!alreadyPetSkilling()) {
+                  s = eBotTypePetSkill;
+              }
+              if (s != null) {
+                  SkillBot.info.type = s;
+                  readdbuttons = true; // save! otherwise the type switch will not be recognized after the next page reload!
+              }
+              SkillBot.info.state = eBotInit;
+              break;
+          case eBotInit: // initialize state and do error checking
+              if (!SkillBot.localstepcnt) {
+                  BotManager.debugState('SkillBot gestartet (' + skill + ')');
+                  SkillBot.info.cycle++;
+                  if (SkillBot.info.type == eBotTypeSkill &&
+                      SkillBot.dbMayHang()) {
+                      SkillBot.info.retrycnt = 0;
+                      SkillBot.info.state = eBotWaitForDB;
+                      break;
+                  } else if (alreadySkilling()) {
+                      SkillBot.info.state = eBotPauseSkillBot;
+                      break;
+                  }
+              }
+              var stop = false;
+              if (SkillBot.info.gotya_cerr >= (Config.bot_max_cerr - 1)) {
+                  SkillBot.info.state = eBotWannaStop;
+                  SkillBot.info.criticalerr = 1;
+                  BotManager.debugState('Notstopp wegen cErr!');
+                  stop = true;
+              }
+              var r = Math.round(100/(SkillBot.info.gotya_err+SkillBot.info.gotya_suc) * SkillBot.info.gotya_suc);
+              if ((SkillBot.info.gotya_err+SkillBot.info.gotya_suc) > 10 &&
+                  r < Config.bot_min_suc_to_err_ratio) {
+                  SkillBot.info.state = eBotWannaStop;
+                  SkillBot.info.criticalerr = 2;
+                  BotManager.debugState('Notstopp wegen Ratio von ' + r + '%!');
+                  stop = true;
+              }
+              if (!SkillBot.localstepcnt) {
+                  /* reset plunder in case bot is started  */
+                  if ((SkillBot.info.cycle == 1 || stop) &&
+                      SkillBot.info.plunder != '') {
+                      SkillBot.info.state = eBotReSetPlunder;
+                      break;
+                  }
+              }
+              if (!stop) {
+                  reload = true;
+                  SkillBot.info.retrycnt = 0;
+                  SkillBot.info.state = eBotGotoSkillsPage;
+              }
+              break;
+          case eBotGotoSkillsPage: // nothing started yet... -> goto activities page and load picture
+              if (alreadySkilling()) {
+                  SkillBot.info.state = eBotCheckType;
+              } else {
+                  if (!isSkillsUrl()) {
+                      BotManager.debugState('Gehe zu Weiterbildungs-URL');
+                      if (SkillBot.info.type == eBotTypeSkill) {
+                          redirect = UrlHandler.skillsUrl;
+                      } else {
+                          redirect = UrlHandler.petSkillsUrl;
+                      }
+                  } else {
+                      SkillBot.info.state = eBotSellBottles;
+                  }
+              }
+              break;
+          case eBotSellBottles:
+              if (PennerInfo.state.moneyInCent == null ||
+                  PennerInfo.state.musicmoney == null ||
+                  !Skills.mySkills.initialized ||
+                  !Skills.petSkills.initialized) {
+                  BotManager.debugState('Warte auf vollständige Initialisierung!');
+              } else {
+                  var callb = function(suc) {
+                      if (suc == null) {
+                          Log.console('Bots:' + "Keine Flaschen zum Verkauf :(");
+                          SkillBot.stop(); // BotManager is waiting for us... There is no need to use addLockCallack
+                      } else {
+                          UrlHandler.doReload(100);
+                      }
+                  };
+                  var m = SkillBot.getMoneyBySkill(skill);
+                  if (m == 0) {
+                      SkillBot.info.criticalerr = 11;
+                      Log.console('Bots:' + "Fehler beim Bestimmen der WB-Kosten für Skill '" + skill + "'!");
+                      callb(null);
+                      rerun = false;
+                  } else if (m <= PennerInfo.state.moneyInCent) {
+                      BotManager.debugState('Geld vorhanden!');
+                      SkillBot.info.state = eBotCheckPromille;
+                  } else if (Config.bot_skill_sell_bottles ||
+                             Config.bot_skill_use_music_money) {
+                      if (Config.bot_skill_use_beer) m += 1000; // + 10€ for beer
+                      if (Config.bot_skill_use_music_money &&
+                          PennerInfo.state.musicmoney > 0 &&
+                          (Config.bot_skill_use_music_money_factor == 0 ||
+                           PennerInfo.state.bottles == 0 ||
+                           (Config.bot_skill_use_music_money_factor * m > PennerInfo.state.musicmoney))) {
+                          BotManager.debugState('Hole Musikgeld!');
+                          Actions.getMusicMoney();
+                      } else if (Config.bot_skill_sell_bottles &&
+                                 PennerInfo.state.bottles > 0) {
+                          BotManager.debugState('Verkaufe Flaschen!');
+                          BottleTools.sellBottlesByMoney(Math.ceil(m / 100), callb, null, false);
+                      } else {
+                          SkillBot.info.criticalerr = 12;
+                          BotManager.debugState('Notstopp: weder Flaschen noch Musikgeld vorhanden/nutzbar :(!');
+                          SkillBot.info.state = eBotWannaStop;
+                      }
+                      reload = true;
+                      reloadtime = 60000;
+                  } else {
+                      SkillBot.info.criticalerr = 10;
+                      BotManager.debugState('Notstopp: darf weder Flaschen verkaufen noch Musikgeld nutzen!');
+                      SkillBot.info.state = eBotWannaStop;
+                  }
+              }
+              if (zeitimstep() > 60000 || !isSkillsUrl()) {
+                  SkillBot.info.state = eBotInit;
+                  reload = true;
+              }
+              break;
+          case eBotCheckPromille:
+              if (PennerInfo.state.promille == null || zeitimstep() < 500) {
+                  if (!SkillBot.localstepcnt) BotManager.debugState('Warte auf PennerInfo init...');
+                  break;
+              }
+              var button = SkillBot.getSubmitButton(formAction);
+              if (!button || button.disabled) {
+                  SkillBot.info.state = eBotWannaStop;
+                  SkillBot.info.criticalerr = 3;
+                  BotManager.debugState('Hmmm...?!?!');
+                  rerun = false;
+                  break;
+              }
+              if (zeitimstep() > 60000 || SkillBot.info.retrycnt > 5) {
+                  SkillBot.info.state = eBotWannaStop;
+                  SkillBot.info.criticalerr = 7;
+                  BotManager.debugState('Notstopp: kein Bier!');
+                  break;
+              }
+              var p = !Config.bot_skill_use_beer ? 2.5 : BaseLib.extractNumber(PennerInfo.state.promille) / 100;
+              if (p > 3.5) {
+                  BotManager.debugState('Esse Brot...');
+                  var e = document.getElementById('drink_Brot');
+                  if (!e) {
+                      if (zeitimstep() > 50000) {
+                          /* buttons did not appear? */
+                          SkillBot.info.state = eBotGotoSkillsPage;
+                          reload = true;
+                      }
+                      break;
+                  }
+                  if (e.disabled == false) {
+                      SkillBot.info.retrycnt++;
+                      e.click();
+                      reloadtime = 9000;
+                      reload = true;
+                  }
+                  break;
+              } else if (p < 2.5) {
+                  BotManager.debugState('Trinke Bier...');
+                  var e = document.getElementById('drink_Bier');
+                  if (!e) {
+                      if (zeitimstep() > 50000) {
+                          /* buttons did not appear? */
+                          SkillBot.info.state = eBotGotoSkillsPage;
+                          reload = true;
+                      }
+                      break;
+                  }
+                  if (e.disabled == false) {
+                      SkillBot.info.retrycnt++;
+                      e.click();
+                      reloadtime = 9000;
+                      reload = true;
+                  }
+                  break;
+              }
+              if (!Plunder.initialized) {
+                  if (zeitimstep() > 55000) {
+                      SkillBot.info.state = eBotGotoSkillsPage;
+                      reload = true;
+                  } else {
+                      BotManager.debugState('Warte auf Plunder init...');
+                  }
+              } else {
+                  SkillBot.info.retrycnt = 0;
+                  SkillBot.info.state = eBotSetSkillStartPlunder;
+              }
+              break;
+          case eBotSetSkillStartPlunder:
+              if (!isSkillsUrl()) {
+                  SkillBot.info.state = eBotInit;
+                  break;
+              }
+              if (!SkillBot.localstepcnt) {
+                  var pls = (SkillBot.info.type == eBotTypeSkill) ? Plunder.getBestSkillPlunder(skill == UrlHandler.actionDex) : null;
+                  if (SkillBot.info.plunder == '' && pls && pls.id &&
+                                                     pls.id != Plunder.getCurrent()) {
+                      BotManager.debugState('Lege ' + Plunder.getName(pls.id) + ' an...');
+                      /* store currently set plunder */
+                      var oldplimg = Plunder.getImage(Plunder.getCurrent());
+                      if (oldplimg) SkillBot.info.plunder = oldplimg;
+                      /* switch plunder in foreground... we need to be sure that plunder is attached */
+                      Plunder.change(pls.id, UrlHandler.doReload);
+                      reloadtime = 60000;
+                      reload = true;
+                      /* go back, to verify plunder.initialized, furthermore
+                         checking our own permills is never a fault ;)*/
+                      SkillBot.info.state = eBotCheckPromille;
+                      break;
+                  } else {
+                      var plimg = pls ? Plunder.getImage(pls.id) : null;
+                      if (plimg && Plunder.getImage(Plunder.getCurrent()) != plimg) {
+                          BotManager.debugState('Autsch. Plunder-Switch ok aber falscher Plunder?!');
+                          SkillBot.info.state = eBotReSetPlunder;
+                      } else {
+                          SkillBot.info.state = eBotLoadCaptcha;
+                          break;
+                      }
+                  }
+              }
+              if (zeitimstep() > 45000) {
+                  SkillBot.info.state = eBotWannaStop;
+                  SkillBot.info.criticalerr = 9;
+                  BotManager.debugState('Notstopp: Plunderproblem!');
+                  break;
+              }
+              break;
+          case eBotLoadCaptcha: // nothing started yet... -> load captcha
+              if (alreadySkilling()) {
+                  SkillBot.info.state = eBotCheckType;
+              } else {
+                  if (!isSkillsUrl()) {
+                      SkillBot.info.state = eBotInit;
+                  } else {
+                      if (!GameType.hasCaptcha) {
+                          SkillBot.info.state = eBotStartGotYa;
+                          break;
+                      }
+                      if (zeitimstep() < 2000) break;
+                      var button = SkillBot.getSubmitButton(formAction);
+                      if (button && !button.disabled) {
+                          BotManager.debugState('Lade Captcha.');
+                          BotManager.clickSubmitButton(formAction);
+                          BotManager.debugState('Lade Captcha..');
+                          SkillBot.info.state = eBotWaitForCaptcha;
+                      }
+                  }
+              }
+              if (zeitimstep() > 15000) {
+                  // page is broken, 'setupForm' cannot be found
+                  SkillBot.info.state = eBotInit;
+              }
+              break;
+          case eBotWaitForCaptcha: // wait till captcha loaded
+              if (alreadySkilling()) {
+                  SkillBot.info.state = eBotCheckType;
+                  break;
+              } else if (!isSkillsUrl()) {
+                  SkillBot.info.state = eBotInit;
+                  break;
+              }
+              if (!SkillBot.localstepcnt) {
+                  BotManager.debugState('Lade Captcha...');
+              }
+              if (BotManager.dataUrl)  {
+                  SkillBot.info.state = eBotStartGotYa;
+              }
+              if (zeitimstep() > 15000) {
+                  // hu, nothing happened after 15 sec...? retry Captcha loading...
+                  SkillBot.info.state = eBotGotoSkillsPage;
+                  // count how often we're retrying...
+                  if (SkillBot.info.retrycnt++ > 3) {
+                      // something is wrong...
+                      SkillBot.info.state = eBotInit;
+                      reload = true;
+                  }
+              }
+              break;
+          case eBotStartGotYa: // start gotya but wait until the GotYa debug div is present
+              if (alreadySkilling()) {
+                  SkillBot.info.state = eBotCheckType;
+                  break;
+              } else if (!isSkillsUrl()) {
+                  SkillBot.info.state = eBotInit;
+                  break;
+              }
+              if (!GameType.hasCaptcha) {
+                  SkillBot.info.state = eBotStartAction;
+                  break;
+              }
+              if (!SkillBot.localstepcnt) {
+                  BotManager.debugState('Starte GotYa...');
+              }
+              if (document.getElementById('myCaptchaDbg')) {
+                  GotYaFramework.injectGotyaThrFn();
+                  unsafeWindow.click = null;
+                  unsafeWindow.setTimeout('crackit("' +  BotManager.dataUrl + '");', 10);
+                  SkillBot.info.state = eBotWaitForGotYa;
+              }
+              if (zeitimstep() > (120000)) {
+                  // hu, nothing happened after 2 minutes? restart bot...
+                  SkillBot.info.state = eBotInit;
+              }
+              break;
+          case eBotWaitForGotYa: // wait till gotya is done
+              if (alreadySkilling()) {
+                  SkillBot.info.state = eBotCheckType;
+                  break;
+              } else if (!isSkillsUrl()) {
+                  SkillBot.info.state = eBotInit;
+                  break;
+              }
+              if (!SkillBot.localstepcnt) {
+                  if (!BotManager.dataUrl)  {
+                      SkillBot.info.state = eBotLoadCaptcha;
+                  }
+                  BotManager.debugState('Breche Captcha... <img src="'+UrlHandler.smilies_wink+'" />');
+              }
+              if (unsafeWindow.click) {
+                  BotManager.debugState('Click to x=' + unsafeWindow.click.x + " y=" + unsafeWindow.click.y);
+                  SkillBot.info.state = eBotStartAction;
+              }
+              if (zeitimstep() > (120000)) {
+                  // hu, nothing happend after 2 minutes? restart gotya
+                  reload = true;
+                  SkillBot.info.state = eBotLoadCaptcha;
+              }
+              break;
+          case eBotStartAction: // check whether action succeeded
+              if (GameType.hasCaptcha && unsafeWindow.click == undefined) {
+                  SkillBot.info.state = eBotInit;
+                  break;
+              }
+              SkillBot.startcollect = true;
+              SkillBot.collectsuc = null;
+              var x = GameType.hasCaptcha ? unsafeWindow.click.x : 0;
+              var y = GameType.hasCaptcha ? unsafeWindow.click.y : 0;
+              SkillBot.startSkilling(x, y, formAction);
+              SkillBot.info.state = eBotCheckSuccess;
+              break;
+          case eBotCheckSuccess: // check whether action succeeded
+              if (!SkillBot.localstepcnt) {
+                  BotManager.debugState('Erfolg?');
+                  if (alreadySkilling()) {
+                      SkillBot.info.state = eBotCheckType;
+                  }
+              }
+              if (SkillBot.collectsuc == null &&
+                  SkillBot.startcollect == null) {
+                  BotManager.debugState('Fremdklickeralarm! =)');
+                  /* there was a fremdklicker am werk ;) */
+                  SkillBot.info.gotya_cerr = 0;
+                  rerunperiod = 1000;
+                  SkillBot.info.state = eBotCheckType;
+                  break;
+              }
+              if (SkillBot.collectsuc != null) {
+                  if (SkillBot.collectsuc == "captcha") {
+                      BotManager.debugState('Mist...!');
+                      SkillBot.info.gotya_err++;
+                      SkillBot.info.gotya_oaerr++;
+                      SkillBot.info.gotya_cerr++;
+                      if (SkillBot.info.gotya_cerr >= (Config.bot_max_cerr / 2)) {
+                          // asyncdb now results in an error!
+                          SkillBot.info.state = eBotWaitSomeSeconds;
+                      } else {
+                          SkillBot.info.state = eBotInit;
+                      }
+                  } else {
+                      if (SkillBot.collectsuc == "success") {
+                          BotManager.debugState('Erfolg!');
+                          SkillBot.info.gotya_suc++;
+                          SkillBot.info.gotya_oasuc++;
+                          SkillBot.info.gotya_cerr=0;
+                          SkillBot.info.state = eBotCheckType; /* checkType && rerun bot in case Config.bot_skill_enqueue_count skills should be startet */
+                          reloadtime = 2000;
+                      } else if (SkillBot.collectsuc == "asyncdb") {
+                          BotManager.debugState('Spacken am Werk!');
+                          SkillBot.info.gotya_suc++;
+                          SkillBot.info.gotya_oasuc++;
+                          SkillBot.info.gotya_cerr=0;
+                          reloadtime = 20000;
+                          SkillBot.info.state = eBotInit;
+                      } else {
+                          BotManager.debugState('Fehler! Status=' + SkillBot.collectsuc);
+                          reloadtime = 5000;
+                          SkillBot.info.state = eBotInit;
+                      }
+                  }
+                  reload = true;
+              }
+              if (zeitimstep() > 30000) {
+                  // hu, nothing happened after 30 sec...? retry clicking...
+                  SkillBot.info.state = eBotWaitForGotYa;
+              }
+              break;
+          case eBotPauseSkillBot: // be silent till end of collecting...
+              if (!SkillBot.localstepcnt) BotManager.debugState('Beende Skill-Bot...');
+              if (SkillBot.info.plunder != '') {
+                  SkillBot.info.state = eBotReSetPlunder;
+              } else {
+                  SkillBot.info.state = eBotResetPromille;
+              }
+              break;
+          case eBotWaitSomeSeconds: // we may should wait some seconds?
+              if (zeitimstep() > (Config.bot_plchange_time * 1000) &&
+                  SkillBot.info.plunder != '') {
+                  /* reset plunder after some seconds (the db isn't
+                     that fast... ;) if we're not waiting that time
+                     the init step will reset the plunder */
+                  SkillBot.info.state = eBotReSetPlunder;
+                  break;
+              }
+              var ct = Number(new Date().valueOf());
+              if (SkillBot.info.time == 0) {
+                  var min = (SkillBot.info.plunder != '' ? Config.bot_plchange_time : 0);
+                  var w = (BaseLib.rand(Config.bot_wait_time - min) + min) * 1000;
+                  SkillBot.info.time = (ct + w).toString() ;
+              } else if (SkillBot.info.time < ct) {
+                  SkillBot.info.time = 0;
+                  SkillBot.info.state = eBotInit;
+                  /* reload page, cause although we're able to load the captcha
+                     there is no "collect" button... so, do it a little bit more
+                     human like ;) */
+                  reload = true;
+              }
+              if (!SkillBot.localstepcnt) BotManager.debugState('Warte ' + Math.round((Number(SkillBot.info.time) - ct)/1000) + 's...');
+              break;
+          case eBotReSetPlunder:
+              if (!Plunder.initialized) {
+                  if (!SkillBot.localstepcnt) BotManager.debugState('Warte auf Plunder init...');
+                  break;
+              }
+              if (SkillBot.info.plunder == '' ||
+                  SkillBot.info.plunder == Plunder.getImage(Plunder.getCurrent())) {
+                  SkillBot.info.plunder = '';
+                  SkillBot.info.state = eBotPauseSkillBot;
+              } else {
+                  var pl = Plunder.getPlunderByImage(SkillBot.info.plunder);
+                  if (pl) {
+                      var plid = pl.id;
+                      BotManager.debugState('Lege ' + Plunder.getName(plid) + ' wieder an.');
+                      /* set rerunperiod to 10 seconds.... Plunder.switch will reload the page earlier if its work is done... */
+                      rerunperiod = 10000;
+                      Plunder.change(plid, UrlHandler.doReload);
+                  } else {
+                      // hu... old plunder should be set, but we don't find it...
+                      var s = SkillBot.info.plunder.split('/');
+                      BotManager.debugState('Kann Plunder ' + (s.length ? s[s.length-1] : '') + ' nicht finden!');
+                      rerunperiod = 5000;
+                      SkillBot.info.plunder = '';
+                  }
+              }
+              if (zeitimstep() > 60000) {
+                  // hu, nothing happened after 60 sec...? retry clicking...
+                  reload = true;
+              }
+              break;
+          case eBotResetPromille:
+              if (PennerInfo.state.promille == null) {
+                  if (!SkillBot.localstepcnt) BotManager.debugState('Warte auf PennerInfo init...');
+                  break;
+              }
+              var p = !Config.bot_skill_use_bread ? 0 : BaseLib.extractNumber(PennerInfo.state.promille) / 100;
+              if (p > 0.35) {
+                  BotManager.debugState('Esse Brot...');
+                  if (zeitimstep() > 30000) {
+                      SkillBot.info.state = eBotWannaStop;
+                      SkillBot.info.criticalerr = 8;
+                      BotManager.debugState('Notstopp: kein Brot!');
+                      break;
+                  }
+                  var e = document.getElementById('drink_Brot');
+                  if (!e) break;
+                  if (e.disabled == false) {
+                      e.click();
+                      reloadtime = 9000;
+                      reload = true;
+                  }
+                  break;
+              }
+              /* we're done..*/
+              SkillBot.info.state = eBotIdle;
+              break;
+          case eBotWaitForDB:
+              if (!SkillBot.localstepcnt) BotManager.debugState('Untersuche auf DB-Hänger...');
+              if (Skills.mySkills.initialized &&
+                  !SkillBot.dbMayHang()) {
+                  SkillBot.info.state = eBotInit;
+                  break;
+              }
+              rerunperiod = 500;
+              SkillBot.info.retrycnt++;
+              var sec = Math.round(SkillBot.info.retrycnt * rerunperiod/1000);
+              if ((sec % 30 /* refresh skillinfo every 30 seconds */) == 0) {
+                  BotManager.debugState('Untersuche auf DB-Hänger seit ' + sec + 's');
+                  Skills.getSkills();
+              }
+              if (sec > 600) {
+                  /* DB really hangs since 10 minutes, start more skills to avoid time loss */
+                  SkillBot.info.skillcount = GameType.skillCount;
+                  SkillBot.info.state = eBotInit;
+              }
+              break;
+          case eBotIdle:
+              BotManager.debugState('Warte auf Reaktivierung...');
+              break;
+          default:
+              BotManager.debugState('Fertig...');
+              SkillBot.info.state = eBotWannaStop;
+        }
+
+        SkillBot.localstepcnt++;
+
+        if (SkillBot.info.state != SkillBot.info.oldstate) {
+            SkillBot.info.steptime=0;
+            SkillBot.localstepcnt=0;
+        }
+
+        SkillBot.writeState(SkillBot.info);
+
+        if (readdbuttons) {
+            Config.save();
+            BotManager.readdButtons();
+        }
+
+        var btb = BotManager.run;
+        if (redirect) {
+            BaseLib.setTimeoutEx(function () { if (SkillBot.infoCheck()) { UrlHandler.doRedirect(redirect); } else { btb(); } }, redirecttime);
+            return true;
+        }
+        if (reload) {
+            BaseLib.setTimeoutEx(function () { if (SkillBot.infoCheck()) { UrlHandler.doReload(); } else { btb(); } }, reloadtime);
+            return true;
+        }
+        if (rerun) {
+            BaseLib.setTimeoutEx(function () { btb(); }, rerunperiod);
+            return true;
+        }
+
+        return false;
+    };
+
+    SkillBot.getSubmitButton = function(action) {
+        var ret = null;
+        var bs = unsafeWindow.document.getElementsByTagName("input");
+        
+        var arr = action.split('/');
+        if (!arr.length || arr.length < 2) return ret;
+       
+        var searchstr = arr[arr.length - 2];
+
+        for (var i=0; i < bs.length; i++) {
+            var va = bs[i].id;
+            var oc = bs[i].getAttribute('onclick');
+            if ((oc && oc.search(searchstr) != -1) ||
+                (va && va.search(searchstr) != -1)) {
+                ret = bs[i];
+                break;
+            }
+        }
+
+        return ret;
+    };
+    
+    SkillBot.getMoneyBySkill = function(skill) {
+        var a = new Array();
+
+        a[UrlHandler.actionMitleid] = Skills.petSkills.dex.cost;
+        a[UrlHandler.actionDex] = Skills.mySkills.dex.cost;
+        a[UrlHandler.actionAtt] = Skills.mySkills.att.cost;
+        a[UrlHandler.actionDef] = Skills.mySkills.def.cost;
+
+        return a[skill];
+    };
+
+    SkillBot.getFittingSkill = function() {
+        var skill = SkillBot.determineSkill();
+        // var skillc = SkillBot.getMoneyBySkill(skill);
+        var mskill = SkillBot.determineSkill(true);
+        var mskillc = SkillBot.getMoneyBySkill(mskill)
+
+        if (Config.bot_skill_prefer_primary &&
+            (PennerInfo.state.moneyInCent >= mskillc ||
+             (PennerInfo.state.bottles > 0 && Config.bot_skill_sell_bottles))) {
+            return mskill;
+        } else if (skill == '' && (PennerInfo.state.bottles > 0 && Config.bot_skill_sell_bottles)) {
+            return mskill;
+        } else {
+            return skill;
+        }
+    };
+
+    SkillBot.determineSkill = function(ignoreMoney, ignoreRatio) {
+
+        var ret = '';
+
+        if (!Skills.mySkills.initialized || !Skills.petSkills.initialized) return ret;
+
+        if (SkillBot.info.type == eBotTypePetSkill) {
+            var w = UrlHandler.actionMitleid;
+            return (ignoreMoney || PennerInfo.state.moneyInCent >= SkillBot.getMoneyBySkill(w)) ? w : '';
+        }
+
+        var level = [];
+        level[eAtt] = Skills.mySkills.att.level;
+        level[eDef] = Skills.mySkills.def.level;
+        level[eDex] = Skills.mySkills.dex.level;
+
+        // add queued educations
+        for (key in level) {
+            for (var i=0; i<Skills.mySkills.queue.length; i++) {
+                if (Skills.mySkills.queue[i].type == key) {
+                    level[key]++;
+                }
+            }
+        }
+
+        var pendingSkill = function(t) {
+            if (Skills.mySkills.queue.length == 0) return false;
+            // check the last skill only in case option same skill _2times_ is not set
+            var s = Skills.mySkills.queue.length-1;
+            return Skills.mySkills.queue[s].type == t;
+        };
+        
+        var p = (Number(Config.bot_skill_def_to)) / 100;
+        var sameskill2times = (GameType.sameskill2times || Skills.mySkills.queue.length >= 2) && Config.bot_skill_sameskill2times;
+
+        var dexpossible = (sameskill2times || pendingSkill(eDex) == false);
+        var dexbelowlimit = level[eDex] < Config.bot_skill_dex_to;
+
+        if (dexpossible &&
+            dexbelowlimit) {
+            var w = UrlHandler.actionDex;
+            if (ignoreMoney || (PennerInfo.state.moneyInCent >= SkillBot.getMoneyBySkill(w))) {
+                return w;
+            }
+        }
+
+        var attpossible = (sameskill2times || pendingSkill(eAtt) == false);
+        var attratiook = (level[eAtt] * p) <= level[eDef];
+        var attcausedefpending = (!sameskill2times && pendingSkill(eDef) == true);
+        var attcausedeflimit = (Config.bot_skill_def_to_max > 0) && (level[eDef] >= Config.bot_skill_def_to_max);
+        
+        if (attpossible && ((ignoreRatio || attratiook) || attcausedefpending || attcausedeflimit)) {
+            var w = UrlHandler.actionAtt;
+            if (ignoreMoney || (PennerInfo.state.moneyInCent >= SkillBot.getMoneyBySkill(w))) {
+                return w;
+            }
+        }
+
+        var w = UrlHandler.actionDef;
+        if (ignoreMoney || (PennerInfo.state.moneyInCent >= SkillBot.getMoneyBySkill(w))) {
+            return w;
+        }
+
+        if (ignoreRatio == undefined) return SkillBot.determineSkill(ignoreMoney, true);
+
+        return ret;
+    };
+
+    SkillBot.startSkilling = function(x, y, formAction) {
+
+        var param = [];
+        var o = unsafeWindow.document.getElementsByName('starten');
+
+        if (!o.length) {
+            return;
+        }
+
+        var os = o[0].getElementsByTagName('input');
+
+        for (var i=0; i<os.length; i++) {
+            var n = os[i].name;
+            var v = os[i].value;
+            var t = os[i].type;
+            if (t == 'hidden'  || t == 'text') {
+                param.push(BaseLib.postParam(n, v));
+            } else if (t == 'image') {
+                param.push(BaseLib.postParam(n+'.x', x));
+                param.push(BaseLib.postParam(n+'.y', y));
+            }
+        }
+
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                // parse page for pg_v4 notification messages
+                var r1 = 'PgFunction.showMsg';
+                var r2 = '</script>';
+                var r = BaseLib.getStringBetweenTags(req.responseText, r1, r2).replace('\n', '').replace('\r', '').trim();
+                if (r.search(Language.weiterbildungErfolgreich) != -1) {
+                    SkillBot.collectsuc = "success";
+                } else if (r.search(Language.wirdBeendet) != -1) {
+                    SkillBot.collectsuc = "asyncdb";
+                } else if (r.search(Language.weiterbildung2mal) != -1) {
+                    SkillBot.collectsuc = "stupid";
+                } else if (r.search(Language.klickeDigit) != -1) {
+                    SkillBot.collectsuc = "captcha";
+                } else {
+                    SkillBot.collectsuc = "unknown";
+                }
+            } else {
+                // do nothing bot state timeout will enforce reclick...
+            }
+        };
+
+        var url = UrlHandler.wwwUrl + formAction;
+        BaseLib.xmlhttpPostRequest(url, f, param);
+    };
+
+    SkillBot.createStateEntry = function(e) {
+        // create std state object
+        if (e == undefined) e = new Types.SkillBotStateEntry(eBotTypeSkill);
+        // and extend it by bot specific keys
+        e.state = 0;
+        e.cycle = 0;
+        e.startid = 0;
+        e.skillcount = 0;
+        e.last_action_suc = 0;
+        e.gotya_suc = 0;
+        e.gotya_err = 0;
+        e.gotya_oasuc = 0;
+        e.gotya_oaerr = 0;
+        e.gotya_cerr = 0;
+        e.time = 0;
+        e.retrycnt = 0;
+        e.steptime = 0;
+        e.criticalerr = 0;
+        e.plunder = '';
+        return e;
+    };
+
+    SkillBot.writeState = function(bs) {
+        var json = bs.getNonOriginKeys().toJson();
+        GM_setValue(BotManager.key_skillBot(), json);
+        Config.bot_skill_running = bs.getOriginKeys();
+        // is saved by bots start/stop button 
+        return true;
+    };
+
+    SkillBot.readState = function() {
+        var saved = GM_getValue(BotManager.key_skillBot());
+        var r = SkillBot.createStateEntry();
+        if (saved) {
+            var c = JSON.parse(saved);
+            r.overwrite(c);
+        }
+        r.overwrite(Config.bot_skill_running);
+        return r;
+    };
+};
+
+Bot.init = function() {
+
+    Bot.info = new Object();
+
+    Bot.collectsuc = null;
+    Bot.startcollect = null;
+    Bot.localstepcnt = 0;
+    Bot.figthsuc = null;
+    Bot.startfight = null;
+    Bot.fightchecktime = 0;
+
+    Bot.infoCheck = function() {
+        var ret = true;
+        if (GM_getValue(BotManager.key_botStop()) == true) {
+            ret = false;
+        }
+        return ret;
+    };
+
+    Bot.start = function(o) {
+        var type = (o.type == undefined) ? eBotTypeBottle : o.type;
+        var gang = (o.gang == undefined) ? 0 : o.gang;
+        var updown = (o.updown == undefined) ? 0 : o.updown;
+        var startid = (o.startid == undefined) ? 0 : o.startid;
+        var history = (o.history == undefined) ? 0 : o.history;
+
+        GM_setValue(BotManager.key_botStop(), false);
+        var old_bot = Bot.readState();
+        Bot.info = Bot.createStateEntry(new Types.BotStateEntry(type, gang, startid, history, updown));
+        Bot.info.state = eBotInit;
+        Bot.info.gotya_oasuc = old_bot.gotya_oasuc;
+        Bot.info.gotya_oaerr = old_bot.gotya_oaerr;
+        Bot.info.speed = (type == eBotTypeFight ? Config.bot_fight_speed : 100);
+        Bot.writeState(Bot.info);
+        BotManager.readdButtons();
+    };
+
+    Bot.stop = function() {
+        GM_setValue(BotManager.key_botStop(), true);
+    };
+
+    Bot.isWaitOrEndState = function(info) {
+        return (info.state == eBotWaitForEnd ||
+                info.state == eBotWaitSomeSeconds);
+    };
+
+    Bot.runBottleBot = function(info) {
+        var rerunperiod = 500;
+        var reloadtime = 50;
+        var redirecttime = 2000;
+        var redirect = false;
+        var reload = false;
+        var rerun = true;
+        var readdbuttons = false;
+        const endplundertime = 45;
+
+        Bot.info = info;
+        Bot.info.oldstate = Bot.info.state;
+
+        var zeitimstep = function() {
+            var r = 0;
+            if (Bot.info.steptime != 0) {
+                r = Number(new Date().valueOf()) - Number(Bot.info.steptime);
+            } else {
+                Bot.info.steptime = new Date().valueOf().toString();
+            }
+            return r;
+        }
+
+        var formAction = '/'+UrlHandler.activities+'/'+UrlHandler.bottle+'/';
+
+        switch (Bot.info.state) {
+          case eBotWannaStop: // stop
+              if (!Bot.localstepcnt && !Bot.info.criticalerr) BotManager.debugState('Bot gestoppt');
+              readdbuttons = true;
+              rerun = false;
+              Bot.info.type = eBotTypeDisabled;
+              Bot.info.state = eBotInit;
+              break;
+          case eBotInit: // initialize state and do error checking
+              if (!Bot.localstepcnt) {
+                  BotManager.debugState('Bot gestartet');
+                  Bot.info.cycle++;
+                  if (Bot.isRunningAction()) {
+                      Bot.info.state = eBotWaitForEnd;
+                      break;
+                  }
+              }
+              var stop = false;
+              if (Bot.info.gotya_cerr >= (Config.bot_max_cerr - 1)) {
+                  Bot.info.state = eBotWannaStop;
+                  Bot.info.criticalerr = 1;
+                  BotManager.debugState('Notstopp wegen cErr!');
+                  stop = true;
+              }
+              var r = Math.round(100/(Bot.info.gotya_err+Bot.info.gotya_suc) * Bot.info.gotya_suc);
+              if ((Bot.info.gotya_err+Bot.info.gotya_suc) > 10 &&
+                  r < Config.bot_min_suc_to_err_ratio) {
+                  Bot.info.state = eBotWannaStop;
+                  Bot.info.criticalerr = 2;
+                  BotManager.debugState('Notstopp wegen Ratio von ' + r + '%!');
+                  stop = true;
+              }
+              if (!Bot.localstepcnt) {
+                  /* reset plunder in case bot is started  */
+                  if ((Bot.info.cycle == 1 || stop) &&
+                      Bot.info.plunder != '') {
+                      Bot.info.state = eBotReSetPlunder;
+                      break;
+                  }
+              }
+              if (false && !stop &&
+                  Bot.retrieveWeather() == 'thunder') {
+                  /* dunno why, but it doesn't seem to be good to
+                   *  collect bottles/junk at thunderstorms :-/
+                   * so, just wait 1 min + some seconds and try again... */
+                  BotManager.debugState('Böser Sturm... <img src="'+UrlHandler.smilies_wink+'" />');
+                  rerunperiod = 60000;
+                  Bot.info.time = 0;
+                  Bot.info.state = eBotWaitSomeSeconds;
+                  break;
+              }
+              if (!stop) {
+                  Bot.info.endplunder = '';
+                  Bot.info.retrycnt = 0;
+                  Bot.info.state = eBotGotoActivities;
+              }
+              break;
+          case eBotGotoActivities: // nothing started yet... -> goto activities page and load picture
+              if (Bot.isRunningAction()) {
+                  Bot.info.state = eBotWaitForEnd;
+              } else {
+                  if (!UrlHandler.isActivitiesUrl()) {
+                      BotManager.debugState('Gehe zu Aktivitäten URL');
+                      redirect = UrlHandler.activitiesUrl;
+                  } else {
+                      Bot.info.state = eBotEmptyTrolley;
+                  }
+              }
+              break;
+          case eBotEmptyTrolley:
+              if (!UrlHandler.isActivitiesUrl()) {
+                  Bot.info.state = eBotGotoActivities;
+              } else if (GameType.emptyTrolley) {
+                  if (!Bot.localstepcnt) {
+                      if (Bot.emptyTrolley(false)) {
+                          var ple = Plunder.getBestCollectEndPlunder();
+                          if (ple &&
+                              ple.id != Plunder.getCurrent() &&
+                              Bot.info.plunder == '') {
+                              Bot.info.endplunder = Plunder.getImage(ple.id);
+                              Bot.info.nextstate = eBotEmptyTrolley;
+                              Bot.info.state = eBotSetCollectEndPlunder;
+                              break;
+                          } else {
+                              // page will be reloaded by emptyTrolley()
+                              BotManager.debugState('Leere Wagen...');
+                              Bot.emptyTrolley(true);
+                              reload = true;
+                              reloadtime = 50000;
+                          }
+                   /* } else if (Bot.info.plunder != '') {
+                          Bot.info.nextstate = eBotEmptyTrolley;
+                          Bot.info.state = eBotReSetPlunder; */
+                      } else {
+                          // check whether action succeeded
+                          Bot.info.state = eBotLoadCaptcha;
+                      }
+                  }
+              } else {
+                  Bot.info.state = eBotLoadCaptcha;
+              }
+              if (zeitimstep() > 60000) {
+                  // hu, nothing happened after 60 sec...? reload...
+                  reload = true;
+              }
+              break;
+          case eBotLoadCaptcha: // nothing started yet... -> load captcha
+              if (Bot.isRunningAction()) {
+                  Bot.info.state = eBotWaitForEnd;
+              } else {
+                  if (!UrlHandler.isActivitiesUrl()) {
+                      Bot.info.state = eBotInit;
+                  } else {
+                      if (zeitimstep() < 2000) break;
+                      if (!GameType.hasCaptcha) {
+                          Bot.info.state = eBotSetCollectStartPlunder;
+                          break;
+                      }
+                      var button = Bot.getSubmitButton(formAction);
+                      if (button) {
+                          if (button.disabled) {
+                              var crt = Bot.isDoingACrime();
+                              if (crt) {
+                                  var ct = Number(new Date().valueOf());
+                                  Bot.info.state = eBotWaitSomeSeconds;
+                                  Bot.info.time = (ct + crt*1000).toString();
+                                  break;
+                              } else {
+                                  Bot.info.state = eBotWannaStop;
+                                  Bot.info.criticalerr = 3;
+                                  BotManager.debugState('Konzentration?!?!');
+                                  break;
+                              }
+                          }
+                          BotManager.debugState('Lade Captcha.');
+                          BotManager.clickSubmitButton(formAction);
+                          BotManager.debugState('Lade Captcha..');
+                          Bot.info.state = eBotWaitForCaptcha;
+                      }
+                  }
+              }
+              if (zeitimstep() > 15000) {
+                  // page is broken, 'setupForm' cannot be found
+                  Bot.info.state = eBotInit;
+              }
+              break;
+          case eBotWaitForCaptcha: // wait till captcha loaded
+              if (Bot.isRunningAction()) {
+                  Bot.info.state = eBotWaitForEnd;
+                  break;
+              } else if (!UrlHandler.isActivitiesUrl()) {
+                  Bot.info.state = eBotInit;
+                  break;
+              }
+              if (!Bot.localstepcnt) {
+                  BotManager.debugState('Lade Captcha...');
+              }
+              if (BotManager.dataUrl)  {
+                  Bot.info.state = eBotSetCollectStartPlunder;
+              }
+              if (zeitimstep() > 15000) {
+                  // hu, nothing happened after 15 sec...? retry Captcha loading...
+                  Bot.info.state = eBotGotoActivities;
+                  // count how often we're retrying...
+                  if (Bot.info.retrycnt++ > 3) {
+                      // something is wrong...
+                      Bot.info.state = eBotInit;
+                      redirect = UrlHandler.activitiesUrl;
+                  }
+              }
+              break;
+          case eBotSetCollectStartPlunder:
+              if (!UrlHandler.isActivitiesUrl()) {
+                  Bot.info.state = eBotInit;
+                  break;
+              }
+              if (!Plunder.initialized) {
+                  if (!Bot.localstepcnt) BotManager.debugState('Warte auf Plunder init...');
+                  break;
+              } else {
+                  if (Config.bot_use_collect_plunder) {
+                      var m = Bot.determineCollectTime();
+                      var pls = Plunder.getBestCollectStartPlunder();
+                      var ple = Plunder.getBestCollectEndPlunder();
+                      if ((m != 60 && pls && pls.id != 0) ||                        /* speed up all collections if possible */
+                          (m == 60 && pls && pls.id != 0 && ple && ple.id != 0) ||  /* speed up 60 min collections if we have dose dr.penner  */
+                          ( m < 60 && ple && ple.id != 0)) {                        /* find more plunder if we're collection less than 60 min */
+                          if (ple && ple.id && m <= 60) {
+                              Bot.info.endplunder = Plunder.getImage(ple.id);
+                          }
+                          if (pls && pls.id &&
+                              pls.id != Plunder.getCurrent()) {
+                              BotManager.debugState('Lege ' + Plunder.getName(pls.id) + ' an...');
+                              /* store currently set plunder in case it wasn't done in emptytrolley step */
+                              var oldplimg = Plunder.getImage(Plunder.getCurrent());
+                              if (oldplimg && Bot.info.plunder == '') Bot.info.plunder = oldplimg;
+                              /* switch plunder in background... this should be done since we got the captcha */
+                              Plunder.change(pls.id, UrlHandler.doNothing);
+                          }
+                      }
+                  }
+                  Bot.info.state = eBotStartGotYa;
+              }
+              if (zeitimstep() > 60000) {
+                  Bot.info.state = eBotGotoActivities;
+                  reload = true;
+              }
+              break;
+          case eBotStartGotYa: // start gotya but wait until the GotYa debug div is present
+              if (Bot.isRunningAction()) {
+                  Bot.info.state = eBotWaitForEnd;
+                  break;
+              } else if (!UrlHandler.isActivitiesUrl()) {
+                  Bot.info.state = eBotInit;
+                  break;
+              }
+              if (!GameType.hasCaptcha) {
+                  Bot.info.state = eBotStartAction;
+                  break;
+              }
+              if (!Bot.localstepcnt) {
+                  BotManager.debugState('Starte GotYa...');
+              }
+              if (document.getElementById('myCaptchaDbg')) {
+                  GotYaFramework.injectGotyaThrFn();
+                  unsafeWindow.click = null;
+                  unsafeWindow.setTimeout('crackit("' +  BotManager.dataUrl + '");', 10);
+                  Bot.info.state = eBotWaitForGotYa;
+              }
+              if (zeitimstep() > (120000)) {
+                  // hu, nothing happened after 2 minutes? restart bot...
+                  Bot.info.state = eBotInit;
+              }
+              break;
+          case eBotWaitForGotYa: // wait till gotya is done
+              if (Bot.isRunningAction()) {
+                  Bot.info.state = eBotWaitForEnd;
+                  break;
+              } else if (!UrlHandler.isActivitiesUrl()) {
+                  Bot.info.state = eBotInit;
+                  break;
+              }
+              if (!Bot.localstepcnt) {
+                  if (!BotManager.dataUrl)  {
+                      Bot.info.state = eBotLoadCaptcha;
+                  }
+                  BotManager.debugState('Breche Captcha... <img src="'+UrlHandler.smilies_wink+'" />');
+              }
+              if (unsafeWindow.click) {
+                  BotManager.debugState('Click to x=' + unsafeWindow.click.x + " y=" + unsafeWindow.click.y);
+                  Bot.info.state = eBotStartAction;
+              }
+              if (zeitimstep() > (120000)) {
+                  // hu, nothing happend after 2 minutes? restart gotya
+                  reload = true;
+                  Bot.info.state = eBotLoadCaptcha;
+              }
+              break;
+          case eBotStartAction: // check whether action succeeded
+              if (GameType.hasCaptcha && unsafeWindow.click == undefined) {
+                  Bot.info.state = eBotInit;
+                  break;
+              }
+              Bot.startcollect = true;
+              Bot.collectsuc = null;
+              var x = GameType.hasCaptcha ? unsafeWindow.click.x : 0;
+              var y = GameType.hasCaptcha ? unsafeWindow.click.y : 0;
+              Bot.startCollecting(x, y, Config.bot_collect_time);
+              Bot.info.state = eBotCheckSuccess;
+              break;
+          case eBotCheckSuccess: // check whether action succeeded
+              if (!Bot.localstepcnt) {
+                  BotManager.debugState('Erfolg?');
+                  if (Bot.isRunningAction()) {
+                      Bot.info.state = eBotWaitForEnd;
+                  }
+              }
+              if (Bot.collectsuc == null &&
+                  Bot.startcollect == null) {
+                  BotManager.debugState('Fremdklickeralarm! =)');
+                  /* there was a fremdklicker am werk ;) */
+                  Bot.info.gotya_cerr = 0;
+                  rerunperiod = 1000;
+                  if (Bot.isRunningAction()) {
+                      Bot.info.state = eBotWaitForEnd;
+                  } else {
+                      Bot.info.state = eBotInit;
+                  }
+                  break;
+              }
+              if (Bot.collectsuc != null) {
+                  if (Bot.collectsuc == "captcha") {
+                      BotManager.debugState('Mist...!');
+                      Bot.info.gotya_err++;
+                      Bot.info.gotya_oaerr++;
+                      Bot.info.gotya_cerr++;
+                      if (Bot.info.gotya_cerr >= (Config.bot_max_cerr / 2)) {
+                          // asyncdb now results in an error!
+                          Bot.info.state = eBotWaitSomeSeconds;
+                      } else {
+                          Bot.info.state = eBotInit;
+                      }
+                  } else {
+                      if (Bot.collectsuc == "success") {
+                          BotManager.debugState('Erfolg!');
+                          Bot.info.gotya_suc++;
+                          Bot.info.gotya_oasuc++;
+                          Bot.info.gotya_cerr=0;
+                          Bot.info.state = eBotWaitForEnd;
+                          reloadtime = 2000;
+                      } else if (Bot.collectsuc == "asyncdb") {
+                          BotManager.debugState('Spacken am Werk!');
+                          Bot.info.gotya_suc++;
+                          Bot.info.gotya_oasuc++;
+                          Bot.info.gotya_cerr=0;
+                          reloadtime = 20000;
+                          Bot.info.state = eBotWaitForEnd;
+                      } else {
+                          BotManager.debugState('Fehler! Status=' + Bot.collectsuc);
+                          reloadtime = 5000;
+                          Bot.info.state = eBotInit;
+                      }
+                  }
+                  reload = true;
+              }
+              if (zeitimstep() > 30000) {
+                  // hu, nothing happened after 30 sec...? retry clicking...
+                  Bot.info.state = eBotWaitForGotYa;
+              }
+              break;
+          case eBotWaitForEnd: // be silent till end of collecting...
+              var ct = Number(new Date().valueOf());
+              if (Bot.info.plunder != '' &&
+                  Bot.isCollecting() > (3 * endplundertime)) { /* 3* -> use hysteresis because of random jumping end times */
+                  Bot.info.state = eBotReSetPlunder;
+                  break;
+              }
+              if (Bot.info.time < ct ||
+                  Bot.collectsuc == null) {
+                  Bot.collectsuc = "success";
+                  Bot.info.time = (ct + 5000).toString() ;
+                  var as = Bot.isCollecting();
+                  var ag = Bot.isRunningAction();
+                  if (as != 0 &&
+                      as < endplundertime &&
+                      Bot.info.endplunder != '' &&
+                      !GameType.emptyTrolley) {
+                      reload = true;
+                      Bot.info.state = eBotSetCollectEndPlunder;
+                  } else if (ag) {
+                      var r =  (Bot.info.gotya_suc)
+                          ? Math.round((100/(Bot.info.gotya_err+Bot.info.gotya_suc) * Bot.info.gotya_suc))
+                          : '???';
+                      var oar =  (Bot.info.gotya_oasuc)
+                          ? Math.round((100/(Bot.info.gotya_oaerr+Bot.info.gotya_oasuc) * Bot.info.gotya_oasuc))
+                          : '???';
+                      ag += Bot.isFighting() ? 's kämpfen' : 's sammeln';
+                      var out = 'Noch ca. ' + ag;
+                      var out2 = '<b>Akt. Captcha Stats</b>' + '<br>' +
+                                 'Erfolgreich: ' + Bot.info.gotya_suc + '<br>' +
+                                 'Fehlgeschlagen: ' + Bot.info.gotya_err + '<br>' +
+                                 'Ratio: ' + r +'%' + '<br>' +
+                                 '<b>Insgesamt</b>' + '<br>' +
+                                 'Erfolgreich: ' + Bot.info.gotya_oasuc + '<br>' +
+                                 'Fehlgeschlagen: ' + Bot.info.gotya_oaerr + '<br>' +
+                                 'Ratio: ' + oar +'%';
+                      if (!Bot.localstepcnt) {
+                          BotManager.debugState(out);
+                      } else {
+                          BotManager.printState(out);
+                      }
+                      BotManager.appendState(out2);
+                  } else {
+                      Bot.info.time = 0;
+                      Bot.info.state = eBotWaitSomeSeconds;
+                  }
+              }
+              break;
+          case eBotWaitSomeSeconds: // we may should wait some seconds?
+              if (zeitimstep() > (Config.bot_plchange_time * 1000) &&
+                  Bot.info.plunder != '') {
+                  /* reset plunder after some seconds (the db isn't
+                     that fast... ;) if we're not waiting that time
+                     the init step will reset the plunder */
+                  Bot.info.state = eBotReSetPlunder;
+                  break;
+              }
+              var ct = Number(new Date().valueOf());
+              if (Bot.info.time == 0) {
+                  var w = (BaseLib.rand(Config.bot_wait_time - Config.bot_plchange_time) + Config.bot_plchange_time) * 1000;
+                  Bot.info.time = (ct + w).toString() ;
+              } else if (Bot.info.time < ct) {
+                  Bot.info.time = 0;
+                  Bot.info.state = eBotInit; // start new collection...
+                  /* reload page, cause although we're able to load the captcha
+                     there is no "collect" button... so, do it a little bit more
+                     human like ;) */
+                  reload = true;
+              }
+              if (!Bot.localstepcnt) BotManager.debugState('Warte ' + Math.round((Number(Bot.info.time) - ct)/1000) + 's...');
+              break;
+          case eBotSetCollectEndPlunder:
+              if (!Plunder.initialized) {
+                  if (!Bot.localstepcnt) BotManager.debugState('Warte auf Plunder init...');
+                  break;
+              }
+              if (Bot.info.endplunder == '' ||
+                  Bot.info.endplunder == Plunder.getImage(Plunder.getCurrent())) {
+                  Bot.info.endplunder = '';
+                  Bot.info.state = Bot.info.nextstate ? Bot.info.nextstate : eBotWaitForEnd;
+                  Bot.info.nextstate = '';
+              } else {
+                  var pl = Plunder.getPlunderByImage(Bot.info.endplunder);
+                  if (pl) {
+                      var plid = pl.id;
+                      BotManager.debugState('Lege ' + Plunder.getName(plid) + ' an...');
+                      /* store currently set plunder */
+                      var oldplimg = Plunder.getImage(Plunder.getCurrent());
+                      if (oldplimg) Bot.info.plunder = oldplimg;
+                      /* set rerunperiod to 20 seconds.... Plunder.switch will reload the page earlier if its work is done... */
+                      rerunperiod = 20000;
+                      Plunder.change(plid, UrlHandler.doReload);
+                  } else {
+                      // hu... end plunder should be set, but we don't find it...
+                      var s = Bot.info.endplunder.split('/');
+                      BotManager.debugState('Kann Plunder ' + (s.length ? s[s.length-1] : '') + ' nicht finden!');
+                      rerunperiod = 5000;
+                      Bot.info.endplunder = '';
+                  }
+              }
+              if (zeitimstep() > 60000) {
+                  // hu, nothing happened after 60 sec...? reload...
+                  reload = true;
+              }
+              break;
+          case eBotReSetPlunder:
+              if (!Plunder.initialized) {
+                  if (!Bot.localstepcnt) BotManager.debugState('Warte auf Plunder init...');
+                  break;
+              }
+              if (Bot.info.plunder == '' ||
+                  Bot.info.plunder == Plunder.getImage(Plunder.getCurrent())) {
+                  Bot.info.plunder = '';
+                  Bot.info.state = Bot.info.nextstate ? Bot.info.nextstate : eBotWaitForEnd;
+                  Bot.info.nextstate = '';
+              } else {
+                  var pl = Plunder.getPlunderByImage(Bot.info.plunder);
+                  if (pl) {
+                      var plid = pl.id;
+                      BotManager.debugState('Lege ' + Plunder.getName(plid) + ' wieder an.');
+                      /* set rerunperiod to 10 seconds.... Plunder.switch will reload the page earlier if its work is done... */
+                      rerunperiod = 10000;
+                      Plunder.change(plid, UrlHandler.doReload);
+                  } else {
+                      // hu... old plunder should be set, but we don't find it...
+                      var s = Bot.info.plunder.split('/');
+                      BotManager.debugState('Kann Plunder ' + (s.length ? s[s.length-1] : '') + ' nicht finden!');
+                      rerunperiod = 5000;
+                      Bot.info.plunder = '';
+                  }
+              }
+              if (zeitimstep() > 60000) {
+                  // hu, nothing happened after 60 sec...? reload...
+                  reload = true;
+              }
+              break;
+          default:
+              BotManager.debugState('Fertig...');
+              Bot.info.state = eBotWannaStop;
+        }
+
+        Bot.localstepcnt++;
+
+        if (Bot.info.state != Bot.info.oldstate) {
+            Bot.info.steptime=0;
+            Bot.localstepcnt=0;
+        }
+
+        Bot.writeState(Bot.info);
+
+        if (readdbuttons) {
+            Config.save();
+            BotManager.readdButtons();
+        }
+
+        var btb = BotManager.run;
+        if (redirect) {
+            BaseLib.setTimeoutEx(function () { if (Bot.infoCheck()) { UrlHandler.doRedirect(redirect); } else { btb(); } }, redirecttime);
+            return true;
+        }
+        if (reload) {
+            BaseLib.setTimeoutEx(function () { if (Bot.infoCheck()) { UrlHandler.doReload(); } else { btb(); } }, reloadtime);
+            return true;
+        }
+        if (rerun) {
+            BaseLib.setTimeoutEx(function () { btb(); }, rerunperiod);
+            return true;
+        }
+
+        return false;
+    };
+
+    Bot.retrieveWeather = function() {
+        /*
+         * returns either 'sun', 'cloud', 'rain', 'thunder' or 'snow'
+         */
+        var ret = '';
+        var c = ''
+        if (document.body) {
+            c = document.body.getAttribute("class")+'"'; /* " == end-of-str marker */
+        }
+        var day = "day-";
+        var night = "night-";
+        var mode = day;
+
+        if (c.search(day) == -1 &&
+            c.search(night) == -1) {
+            return ret;
+        }
+
+        var pos = c.search(mode);
+        if (pos == -1)
+            mode = night;
+
+        ret = BaseLib.getStringBetweenTags(c, mode, ' ');
+
+        if (ret == '') {
+            ret = BaseLib.getStringBetweenTags(c, mode, '"');
+        }
+
+        return ret;
+    };
+
+    Bot.retrieveCollectStartPlunder = function() {
+        var bestpercent = 0;
+        var plid = 0;
+
+        if (Language.verringertSammelzeit == Language.unbekannt) return plid;
+
+        for (var i=0; i < Plunder.items.length; i++) {
+            var d = Plunder.items[i].extdesc;
+            if (d != '') {
+                var t1 = Language.verringertSammelzeit;
+                var t2 = '%';
+                var t = BaseLib.getStringBetweenTags(d, t1, t2);
+                var p = Number(t);
+                if (t != '' &&
+                    p > bestpercent) {
+                    bestpercent = p;
+                    plid = Plunder.items[i].id;
+                }
+            }
+        }
+        return plid;
+    }
+
+    Bot.retrieveCollectEndPlunder = function() {
+        var best = 0;
+        var plid = 0;
+
+        if (Language.mehrPlunder == Language.unbekannt ||
+            Language.mehrPlunder2 == Language.unbekannt) return plid;
+
+        for (var i=0; i < Plunder.items.length; i++) {
+            var d = Plunder.items[i].extdesc;
+            if (d != '') {
+                var t1 = Language.mehrPlunder;
+                var t2 = Language.mehrPlunder2;
+                var t = BaseLib.getStringBetweenTags(d, t1, t2);
+                var p = Number(t);
+                if (t != '' &&
+                    p > best) {
+                    best = p;
+                    plid = Plunder.items[i].id;
+                }
+            }
+        }
+        return plid;
+    };
+
+    Bot.determineCollectTime = function() {
+        var ret = 0;
+        var o = unsafeWindow.document.getElementsByName('starten');
+
+        if (o.length) {
+
+            var os = o[0].getElementsByTagName('input');
+
+            for (var i=0; i<os.length; i++) {
+                var n = os[i].name;
+                var v = os[i].value;
+                var t = os[i].type;
+                if (t == 'hidden') {
+                    if (n == 'sammeln') {
+                        ret = v;
+                        break;
+                    }
+                }
+            }
+        }
+
+        return ret;
+    };
+
+    Bot.emptyTrolley = function(doit, cnt) {
+        if (doit == undefined) doit = false;
+        if (cnt == undefined) cnt = 0;
+        var forms = unsafeWindow.document.getElementsByName('xycoords');
+
+        if (forms && forms.length > 0) {
+            var form = forms[0];
+            var cancel = false;
+            var cancels = BaseLib.getChildsByTagName('input', form);
+            for (var i=0; i<cancels.length; i++) {
+                // double check if form will not cancel our collection
+                if (cancels[i].name == 'cancel') {
+                    cancel = true;
+                    break;
+                }
+            }
+            if (!cancel) {
+                var button = unsafeWindow.document.getElementsByName('   Submit2'); // *narf* Spacken !!!!
+                if (!button || button.length == 0) button = unsafeWindow.document.getElementsByName('Submit2');
+                if (button && button.length > 0) {
+                    var oc = button[0].getAttribute('onclick');
+                    if (!oc) oc = '';
+                    if (oc.search('setupForm') == -1) {
+                        if (doit) {
+                            if (!button[0].disabled) {
+                                form.submit();
+                            } else if (cnt++ < 5) {
+                                BaseLib.setTimeoutEx(function() {Bot.emptyTrolley(doit, cnt); }, 1000);
+                            } else {
+                                UrlHandler.doReload();
+                            }
+                        }
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    };
+
+    Bot.startCollecting = function(x, y, minutes) {
+
+        var param = [];
+        var o = unsafeWindow.document.getElementsByName('starten');
+
+        if (!o.length) {
+            return;
+        }
+
+        var os = o[0].getElementsByTagName('input');
+
+        for (var i=0; i<os.length; i++) {
+            var n = os[i].name;
+            var v = os[i].value;
+            var t = os[i].type;
+            if (t == 'hidden' || t == 'text') {
+                if (n == 'sammeln' && (minutes != undefined) && (minutes >= v)) {
+                    param.push(BaseLib.postParam(n, minutes));
+                } else {
+                    param.push(BaseLib.postParam(n, v));
+                }
+            } else if (t == 'image') {
+                param.push(BaseLib.postParam(n+'.x', x));
+                param.push(BaseLib.postParam(n+'.y', y));
+            }
+        }
+
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                // parse page for pg_v4 notification messages
+                var r1 = 'PgFunction.showMsg';
+                var r2 = '</script>';
+                var r = BaseLib.getStringBetweenTags(req.responseText, r1, r2).replace('\n', '').replace('\r', '').trim();
+                if (r.search(Language.aufSucheGegangen) != -1) {
+                    Bot.collectsuc = "success";
+                } else if (r.search(Language.wirdBeendet) != -1) {
+                    Bot.collectsuc = "asyncdb";
+                } else if (r.search(Language.klickeDigit) != -1) {
+                    Bot.collectsuc = "captcha";
+                } else {
+                    Bot.collectsuc = "unknown";
+                }
+            } else {
+                // do nothing bot state timeout will enforce reclick...
+            }
+        };
+
+        var url = UrlHandler.activitiesUrl+UrlHandler.bottle+'/';
+        BaseLib.xmlhttpPostRequest(url, f, param);
+    };
+
+    Bot.runFightBot = function(info) {
+        var rerunperiod = 500;
+        var reloadtime = 50;
+        var redirecttime = 2000;
+        var redirect = false;
+        var reload = false;
+        var rerun = true;
+        var readdbuttons = false;
+        const endcuretime = 30;
+
+        Bot.info = info;
+        Bot.info.oldstate = Bot.info.state;
+
+        if (Bot.fightchecktime == 0) {
+            var ct = Number(new Date().valueOf());
+            Bot.fightchecktime = (ct + (Config.bot_fight_recheck_time * 1000) + (BaseLib.rand(Config.bot_wait_time) * 1000)).toString();
+        }
+
+        var checkSsUrl = function() {
+            var reinit = false;
+            if (Bot.info.gang) {
+                if (!UrlHandler.isProfileGangUrl()) reinit = true;
+            } else if (Bot.info.startid) {
+                if (!UrlHandler.isHighscoreUrl()) reinit = true;
+            } else if (Bot.info.history) {
+                if (!UrlHandler.isFightLogUrl()) reinit = true;
+            } else if (Bot.info.updown) {
+                if (Bot.info.updown == eBotFightUp && !UrlHandler.isDownfightersAttackUrl) reinit = true;
+                if (Bot.info.updown == eBotFightDown && !UrlHandler.isUpfightersAttackUrl) reinit = true;
+            } else {
+                if (!UrlHandler.isHighscoreUrl()) reinit = true;
+            }
+            return (!reinit);
+        }
+
+        var zeitimstep = function() {
+            var r = 0;
+            if (Bot.info.steptime != 0) {
+                r = new Date().valueOf() - (Number(Bot.info.steptime));
+            } else {
+                Bot.info.steptime = new Date().valueOf().toString();
+            }
+            return r;
+        }
+
+        var formAction = '/'+UrlHandler.fight+'/'+UrlHandler.attack+'/';
+
+        switch (Bot.info.state) {
+          case eBotWannaStop: // stop
+              if (!Bot.localstepcnt && !Bot.info.criticalerr) BotManager.debugState('Bot gestoppt');
+              readdbuttons = true;
+              rerun = false;
+              Bot.info.type = eBotTypeDisabled;
+              Bot.info.state = eBotInit;
+              break;
+          case eBotInit: // initialize state and do error checking
+              if (!Bot.localstepcnt) {
+                  BotManager.debugState('Bot gestartet');
+                  Bot.info.cycle++;
+                  if (Bot.isRunningAction()) {
+                      Bot.info.state = eBotWaitForEnd;
+                      break;
+                  }
+                  if (Bot.info.plunder != '') {
+                      Bot.info.state = eBotReSetPlunder;
+                      break;
+                  }
+              }
+              if (Bot.info.gotya_cerr >= (Config.bot_max_cerr - 1)) {
+                  Bot.info.state = eBotWannaStop;
+                  Bot.info.criticalerr = 1;
+                  BotManager.debugState('Notstopp wegen cErr!');
+                  break;
+              }
+              var r = Math.round(100/(Bot.info.gotya_err+Bot.info.gotya_suc) * Bot.info.gotya_suc);
+              if ((Bot.info.gotya_err+Bot.info.gotya_suc) > 10 &&
+                  r < Config.bot_min_suc_to_err_ratio) {
+                  Bot.info.state = eBotWannaStop;
+                  Bot.info.criticalerr = 2;
+                  BotManager.debugState('Notstopp wegen Ratio von ' + r + '%!');
+                  break;
+              }
+              if (1) {
+                  Bot.info.fightto = new Array();
+                  Bot.info.fightto_current = 0;
+                  Bot.info.retrycnt=0;
+                  Bot.info.state = eBotGotoFightOverview;
+              } else {
+                  unsafeWindow.click = new Object();
+                  unsafeWindow.click.x = 3;
+                  unsafeWindow.click.y = 4;
+                  Bot.info.state = eBotWaitForEnd;
+              }
+              break;
+          case eBotGotoFightOverview: // nothing started yet... -> goto figth overview page and get super search link
+              if (!Bot.localstepcnt && Bot.isRunningAction()) {
+                  Bot.info.state = eBotWaitForEnd;
+              } else {
+                  if (!UrlHandler.isFightOverviewUrl()) {
+                      BotManager.debugState('Gehe zu Kampfüberblick URL');
+                      redirect = UrlHandler.fightOverviewUrl;
+                  } else if (FightStats.collected) { // wait for fightstats
+                      if (Config.bot_attack_list.length) {
+                          BotManager.debugState('Attackiere bevorzugte' + (Config.bot_attack_list.length > 1) ? '' : 's' + ' Opfer');
+                          redirect = UrlHandler.createPreferredAttackUrl();
+                          Bot.info.state = eBotWaitForSSJobs;
+                          Bot.info.goodones = 0;
+                      } else if (Bot.info.gang) {
+                          BotManager.debugState('Gehe zu Bandenprofil');
+                          redirect = UrlHandler.createProfilUrlGang(Bot.info.gang);
+                          Bot.info.state = eBotWaitForSSJobs;
+                          Bot.info.goodones = 0;
+                      } else if (Bot.info.startid) {
+                          /* wait for this link to by sure, min an max points are initialized! */
+                          var l = document.getElementById('supersearchlinkonoverviewpage');
+                          if (l) {
+                              BotManager.debugState('Gehe zu Highscore-Seite');
+                              redirect = UrlHandler.createShowByIdURL(Bot.info.startid, UserInfo.minPoints, UserInfo.maxPoints);
+                              Bot.info.state = eBotWaitForSSJobs;
+                              Bot.info.goodones = 0;
+                          }
+                      } else if (Bot.info.history) {
+                          BotManager.debugState('Gehe zu History');
+                          redirect = UrlHandler.createFightLogUrl(Bot.info.history);
+                          Bot.info.state = eBotWaitForSSJobs;
+                          Bot.info.goodones = 0;
+                      } else if (Bot.info.updown) {
+                          if (Bot.info.updown == eBotFightUp) {
+                              redirect = UrlHandler.createDownfightersAttackUrl();
+                          } else if (Bot.info.updown == eBotFightDown) {
+                              redirect = UrlHandler.createUpfightersAttackUrl();
+                          }
+                          Bot.info.state = eBotWaitForSSJobs;
+                          Bot.info.goodones = 0;
+                      } else {
+                          var l = document.getElementById('supersearchlinkonoverviewpage');
+                          if (l) {
+                              BotManager.debugState('Starte SuperSearch');
+                              redirect = l.getAttribute('href');
+                              var mi1 = UrlHandler.highscoreMin + '=';
+                              var mi2 = '&';
+                              var mi = Number(BaseLib.getStringBetweenTags(redirect, mi1, mi2));
+                              redirect = redirect.replace(mi1+mi, mi1+(Math.round(mi*Bot.info.speed/100)));
+                              Bot.info.state = eBotWaitForSSJobs;
+                              Bot.info.goodones = 0;
+                          }
+                      }
+                  }
+              }
+              if (zeitimstep() > 30000) {
+                  if (Bot.isRunningAction()) {
+                      Bot.info.state = eBotWaitForEnd;
+                  } else {
+                      // hu, nothing happened after 30 sec...?
+                      Bot.info.retrycnt++;
+                      // reset timeimstep
+                      Bot.info.steptime = 1;
+                      if (Bot.info.retrycnt > 3) {
+                          Bot.info.state = eBotWannaStop;
+                          Bot.info.criticalerr = 6;
+                          BotManager.debugState('Kein Supersearch-Link');
+                      } else {
+                          redirect = UrlHandler.fightOverviewUrl;
+                          Bot.info.state = eBotInit;
+                      }
+                  }
+              }
+              break;
+          case eBotWaitForSSJobs: /* wait till super search or profile page loading ended and search a dosser
+                                     note: this step may run on highscore page, do not use Bot.isFighting()!!! */
+
+              if (!Bot.localstepcnt) {
+                  if (Bot.info.gang) {
+                      BotManager.debugState('Warte auf Profil');
+                  } else if (Bot.info.updown) {
+                      BotManager.debugState('Warte auf downfight.de');
+                  } else {
+                      BotManager.debugState('Warte auf SuperSearch');
+                  }
+              }
+
+              if (!checkSsUrl()) {
+                  Bot.info.state = eBotInit;
+                  break;
+              }
+
+              var jobs = -1;
+
+              if (TableManager.isRendering()) {
+                  jobs = TableManager.getJobCnt();
+                  BotManager.debugState('Warte auf Tabelle... ' + jobs + ' Jobs');
+              }
+
+              if (TableManager.getAllFinished()) {
+                  /* wait two additional seconds */
+                  rerunperiod = 2000;
+                  Bot.info.state = eBotWaitForSSearch;
+                  break;
+              }
+
+              if (zeitimstep() > 60000) {
+                  // hu, nothing happened after 60 sec...? -> check status
+                  if (UIHelpers.statusTimestamp &&
+                      (new Date().valueOf() - (Number(UIHelpers.statusTimestamp))) > 40000) {
+                      /* just try it... */
+                      Bot.info.state = eBotWaitForSSearch;
+                  }
+              }
+              break;
+          case eBotWaitForSSearch: /* wait till super search ended and search a dosser || profil page
+                                      note: this step may run on highscore page, do not use Bot.isFighting()!!! */
+              if (!Bot.localstepcnt) BotManager.debugState('Warte auf Tabellen-Rendering...');
+
+              if (!checkSsUrl()) {
+                  Bot.info.state = eBotInit;
+                  break;
+              }
+
+              var p = TableManager.getFirstPrefix();
+              var us = document.getElementsByName(p+'fight_to_link');
+
+              if (zeitimstep() > 2000 && PennerInfo.state.gangcap != null) {
+                  var fightto = new Array();
+                  for (var i=0; i< us.length; i++) {
+                      try {
+                          var u = us[i];
+                          var id = Number(u.getAttribute('id').replace(p+'fight_to_', ''));
+                          var ntd = document.getElementById(p+'name_of_'+id);
+                          var name = ntd.getElementsByTagName('a')[0].innerHTML;
+                          var f = FightStats.read(id, true);
+                          var manyfightslost = FightStats.WonLostRatioByDays(f, Config.bot_fight_recent_days) < 1;
+                          var lastfightlost = !FightStats.WonLastFight(f);
+                          var israge = (PennerInfo.state.gangcap != null) && PennerInfo.state.gangcap == Language.wutGestartet;
+                          var fightable = (document.getElementById(p+'nofight_to_'+id) == undefined);
+                          var blfightable = (!Blacklist.isRageBlacklisted(id) || israge) && !Blacklist.isBlacklisted(id);
+                          var runfight = blfightable && fightable && !manyfightslost && (!Bot.info.history || !lastfightlost);
+
+                          if (runfight) {
+                              Bot.info.goodones++;
+                              if (Bot.info.goodones > Bot.info.toskip) {
+                                  var ft = new Object();
+                                  ft.name = name;
+                                  ft.id = id;
+                                  fightto.push(ft);
+                                  // do not break; but collect all getable dossers
+                              }
+                          }
+                      } catch (e) {
+                          Log.console('Bots:' + e);
+                      }
+                  }
+                  if (fightto.length > 0) {
+                      redirect = UrlHandler.fightOverviewUrl + '?to=' + fightto[0].name;
+                      Bot.info.fightto_current = 0;
+                      Bot.info.fightto = fightto;
+                      Bot.info.state = eBotLoadCaptcha;
+                  } else {
+                      if (Bot.info.gang || Bot.info.updown) {
+                          Bot.info.state = eBotWannaStop;
+                          Bot.info.criticalerr = 4;
+                          BotManager.debugState('Kein Spieler für Angriff');
+                      } else if (Bot.info.history) {
+                          if (!us.length) {
+                              Bot.info.state = eBotWannaStop;
+                              Bot.info.criticalerr = 4;
+                              BotManager.debugState('Kein Spieler für Angriff');
+                          } else {
+                              Bot.info.history++;
+                              Bot.info.state = eBotWaitForSSJobs;
+                              BotManager.debugState('Blättere in History');
+                              redirect = UrlHandler.createFightLogUrl(Bot.info.history);
+                          }
+                      } else if (Config.bot_attack_list.length) {
+                          BotManager.debugState('Lösche die Liste der bevorzugten Opfer.');
+                          PreferredFights.clear();
+                          Bot.info.state = eBotInit;
+                          break;
+                      } else {
+                          var l = document.getElementById('supersearchlinkweiter');
+                          if (l) {
+                              Bot.info.state = eBotWaitForSSJobs;
+                              BotManager.debugState('Restarte SuperSearch');
+                              redirect = l.getAttribute('href');
+                          } else if (document.getElementById('supersearchlinknormal') || zeitimstep() > 40000) {
+                              // check if normal search link exists to verify dom rendering is ready
+                              if (Bot.info.speed > 100) {
+                                  /* retry without speed mode */
+                                  Bot.info.speed = 100;
+                                  Bot.info.state = eBotInit;
+                                  break;
+                              } else {
+                                  Bot.info.state = eBotWannaStop;
+                                  Bot.info.criticalerr = 4;
+                                  BotManager.debugState('Kein Spieler für Angriff :(');
+                              }
+                          }
+                      }
+                  }
+              }
+              if (zeitimstep() > 60000) {
+                  // hu, nothing happened after 60 sec...? -> check status
+                  if (UIHelpers.statusTimestamp &&
+                      (new Date().valueOf() - (Number(UIHelpers.statusTimestamp))) > 60000) {
+                      Bot.info.state = eBotWannaStop;
+                      Bot.info.criticalerr = 6;
+                      BotManager.debugState('Keine Supersearch-Ergebisse (Search)');
+                  }
+              }
+              break;
+          case eBotLoadCaptcha: // nothing started yet... -> load captcha
+              if (!Bot.localstepcnt && Bot.isRunningAction()) {
+                  Bot.info.state = eBotWaitForEnd;
+              } else {
+                  if (!UrlHandler.isFightToUrl()) {
+                      /* go one step back, we may have some profile pages cached ;) */
+                      Bot.info.state = eBotWaitForSSearch;
+                      break;
+                  } else {
+                      if (zeitimstep() < 2000) break;
+                      if (!GameType.hasCaptcha) {
+                          Bot.info.state = eBotSetFightStartPlunder;
+                          break;
+                      }
+                      var button = Bot.getSubmitButton(formAction);
+                      if (button) {
+                          if (button.disabled) {
+                              Bot.info.state = eBotWannaStop;
+                              Bot.info.criticalerr = 3;
+                              BotManager.debugState('Andere Aktion?!?!');
+                              break;
+                          }
+                          BotManager.debugState('Lade Captcha.');
+                          BotManager.clickSubmitButton(formAction);
+                          BotManager.debugState('Lade Captcha..');
+                          Bot.info.state = eBotWaitForCaptcha;
+                      }
+                  }
+              }
+              break;
+          case eBotWaitForCaptcha: // wait till captcha loaded
+              if (!Bot.localstepcnt) BotManager.debugState('Lade Captcha...');
+              if (!UrlHandler.isFightToUrl()) {
+                  Bot.info.state = eBotInit;
+                  break;
+              }
+              BotManager.debugState('Lade Captcha.....');
+              if (BotManager.dataUrl)  {
+                  Bot.info.state = eBotSetFightStartPlunder;
+              }
+              if (zeitimstep() > 15000) {
+                  // hu, nothing happened after 15 sec...? retry Captcha loading...
+                  Bot.info.state = eBotLoadCaptcha;
+                  // count how often we're retrying...
+                  Bot.info.retrycnt++;
+                  // reset timeimstep
+                  Bot.info.steptime = 1;
+                  if (Bot.info.retrycnt > 3) {
+                      // something is wrong...
+                      Bot.info.state = eBotInit;
+                      reload = true;
+                  }
+              }
+              break;
+          case eBotSetFightStartPlunder:
+              if (!UrlHandler.isFightToUrl()) {
+                  Bot.info.state = eBotInit;
+                  break;
+              }
+              if (!Plunder.initialized) {
+                  if (!Bot.localstepcnt) BotManager.debugState('Warte auf Plunder init...');
+                  break;
+              } else if (PennerInfo.state.gangcap == null) {
+                  BotManager.debugState('Warte auf Bandenfähigkeit...');
+              } else if (PennerInfo.state.weather == null) {
+                  BotManager.debugState('Warte auf Wetter...');
+              } else {
+                  var israge = (PennerInfo.state.gangcap != null) && PennerInfo.state.gangcap == Language.wutGestartet;
+                  if (Bot.info.plunder == '' &&
+                      Config.bot_use_fightstart_plunder) {
+                      var plf = null;
+                      if (israge) {
+                          plf = Plunder.getWeatherPlunder();
+                      } else {
+                          plf =  Plunder.getBestFightStartPlunder();
+                      }
+                      if (plf && plf.id != 0 &&
+                          plf.id != Plunder.getCurrent()) {
+                          BotManager.debugState('Lege ' + Plunder.getName(plf.id) + ' an...');
+                          /* store currently set plunder */
+                          var oldplimg = Plunder.getImage(Plunder.getCurrent());
+                          if (oldplimg) {
+                              Bot.info.plunder = oldplimg;
+                          }
+                          /* switch plunder in background... this should be done since we got the captcha */
+                          Plunder.change(plf.id, UrlHandler.doNothing);
+                      }
+                  }
+                  Bot.info.state = eBotStartGotYa;
+              }
+              if (zeitimstep() > 60000) {
+                  // hu, nothing happened after 60 sec...? retry Captcha loading...
+                  Bot.info.state = eBotInit;
+                  reload = true;
+              }
+              break;
+          case eBotStartGotYa: // start gotya but wait until the GotYa debug div is present
+              if (!Bot.localstepcnt) BotManager.debugState('Starte GotYa...');
+              if (!UrlHandler.isFightToUrl()) {
+                  Bot.info.state = eBotInit;
+                  break;
+              }
+              if (!GameType.hasCaptcha) {
+                  Bot.info.state = eBotStartAction;
+                  break;
+              }
+              if (document.getElementById('myCaptchaDbg')) {
+                  GotYaFramework.injectGotyaThrFn();
+                  unsafeWindow.click = null;
+                  unsafeWindow.setTimeout('crackit("' +  BotManager.dataUrl + '");', 10);
+                  Bot.info.state = eBotWaitForGotYa;
+              }
+              if (zeitimstep() > (120000)) {
+                  // hu, nothing happened after 2 minutes? restart bot...
+                  Bot.info.state = eBotInit;
+              }
+              break;
+          case eBotWaitForGotYa: // wait till gotya is done
+              if (!UrlHandler.isFightToUrl()) {
+                  Bot.info.state = eBotInit;
+                  break;
+              }
+              if (!Bot.localstepcnt) {
+                  if (!BotManager.dataUrl)  {
+                      Bot.info.state = eBotLoadCaptcha;
+                  }
+                  BotManager.debugState('Breche Captcha... <img src="'+UrlHandler.smilies_wink+'" />');
+              }
+              if (unsafeWindow.click) {
+                  BotManager.debugState('Click to x=' + unsafeWindow.click.x + " y=" + unsafeWindow.click.y);
+                  Bot.info.state = eBotStartAction;
+              }
+              if (zeitimstep() > (120000)) {
+                  // hu, nothing happend after 2 minutes? restart gotya
+                  reload = true;
+                  Bot.info.state = eBotLoadCaptcha;
+              }
+              break;
+          case eBotStartAction:
+              if (GameType.hasCaptcha && unsafeWindow.click == undefined) {
+                  Bot.info.state = eBotInit;
+                  break;
+              }
+              BotManager.debugState('Click to x=' + unsafeWindow.click.x + " y=" + unsafeWindow.click.y);
+              Bot.info.time = 0;
+              Bot.info.retrycnt = 0;
+              Bot.startfight = true;
+              Bot.fightsuc = null;
+              var x = GameType.hasCaptcha ? unsafeWindow.click.x : 0;
+              var y = GameType.hasCaptcha ? unsafeWindow.click.y : 0;
+              Bot.startFight(x, y);
+              Bot.info.state = eBotCheckSuccess;
+              break;
+          case eBotCheckSuccess: // check whether action succeeded
+              if (!Bot.localstepcnt) BotManager.debugState('Erfolg?');
+              if (!UrlHandler.isFightToUrl()) {
+                  Bot.info.state = eBotInit;
+                  break;
+              }
+              if (Bot.fightsuc == null &&
+                  Bot.startfight == null) {
+                  BotManager.debugState('Fremdklickeralarm! =)');
+                  Bot.info.gotya_cerr = 0;
+                  /* there was a fremdklicker am werk ;) */
+                  if (Bot.isRunningAction()) {
+                      Bot.info.state = eBotWaitForEnd;
+                  } else {
+                      Bot.info.state = eBotInit;
+                  }
+                  break;
+              }
+              if (Bot.fightsuc != null) {
+                  if (Bot.fightsuc == "captcha") {
+                      BotManager.debugState('Mist...!');
+                      Bot.info.gotya_err++;
+                      Bot.info.gotya_oaerr++;
+                      Bot.info.gotya_cerr++;
+                      //  reload fight to page and restart gootya
+                      Bot.info.state = eBotLoadCaptcha;
+                      reload = true;
+                  } else {
+                      Bot.info.gotya_suc++;
+                      Bot.info.gotya_oasuc++;
+                      Bot.info.gotya_cerr=0;
+                      if (Bot.fightsuc == "success") {
+                          BotManager.debugState('Erfolg!');
+                          // reset toskip, cause lateron we'll search at new pages
+                          Bot.info.toskip = 0;
+                          Bot.info.state = eBotWaitForEnd;
+                          reload = true;
+                          /* pennergame db seems to need some seconds to store the
+                             new activity -> wait 2 sec before reloading */
+                          reloadtime = 2000;
+                      } else if (Bot.fightsuc == "erroractivity") {
+                          if (GameType.emptyTrolley) {
+                              if (!UrlHandler.isActivitiesUrl()) {
+                                  BotManager.debugState('Gehe zu Aktivitäten URL');
+                                  redirect = UrlHandler.activitiesUrl;
+                              }
+                              Bot.info.state = eBotEmptyTrolley;
+                          } else {
+                              Bot.info.time = 0;
+                              Bot.info.state = eBotWaitForDB;
+                              reload = true;
+                          }
+                      } else {
+                          BotManager.debugState('Fehler! Status=' + Bot.fightsuc);
+                          // if ( Bot.fightsuc == "notfound" ||
+                          //      Bot.fightsuc == "holiday" ||
+                          //      Bot.fightsuc == "points" ||
+                          //      Bot.fightsuc == "36h") {}
+                          // TODO: store this in a better way than just skipping?!
+                          if ((Bot.info.fightto_current + 1) < Bot.info.fightto.length) {
+                              Bot.info.fightto_current++;
+                              Bot.info.state = eBotLoadCaptcha;
+                              redirect = UrlHandler.fightOverviewUrl + '?to=' + Bot.info.fightto[Bot.info.fightto_current].name;
+                          } else {
+                              reloadtime = 5000;
+                              Bot.info.toskip += Bot.info.fightto.length;
+                              // reset plunder and start an new search with some dosser to skip...
+                              Bot.info.state = eBotInit;
+                              reload = true;
+                          }
+                      }
+                      if (Bot.info.startid) {
+                          /* we're finished... start next search at this dosser and skip no one... */
+                          Bot.info.startid = Bot.info.fightto[Bot.info.fightto_current].id + 1;
+                          Bot.info.toskip = 0;
+                      }
+                  }
+              } else if (zeitimstep() > 30000) {
+                  if (Bot.isRunningAction()) {
+                      Bot.info.state = eBotWaitForEnd;
+                  } else {
+                      Bot.info.retrycnt++;
+                      // reset timeimstep
+                      Bot.info.steptime = 1;
+                      if (Bot.info.retrycnt > 3) {
+                          Bot.info.steptime = 1;
+                          // hu, nothing happened after 30 sec...? reload fight to page
+                          Bot.info.state = eBotLoadCaptcha;
+                          reload = true;
+                      }
+                  }
+              }
+              break;
+          case eBotEmptyTrolley:
+              if (!UrlHandler.isActivitiesUrl()) {
+                  Bot.info.state = eBotInit;
+              } else if (!Bot.localstepcnt &&
+                         GameType.emptyTrolley) {
+                  if (Bot.emptyTrolley(false)) {
+                      // page will be reloaded by emptyTrolley()
+                      BotManager.debugState('Leere Wagen...');
+                      Bot.emptyTrolley(true);
+                      Bot.info.state = eBotInit;
+                      rerunperiod = 50000;
+                  } else {
+                      Bot.info.time = 0;
+                      Bot.info.state = eBotWaitForDB;
+                      reload = true;
+                  }
+              } else {
+                  Bot.info.time = 0;
+                  Bot.info.state = eBotInit;
+                  reload = true;
+              }
+              if (zeitimstep() > 60000) {
+                  // hu, nothing happened after 60 sec...? reload...
+                  reload = true;
+              }
+              break;
+          case eBotWaitForEnd: // be silent till end of collecting...
+              var ct = Number(new Date().valueOf());
+              if (!Bot.localstepcnt &&
+                  Bot.info.plunder != '') {
+                  Bot.info.state = eBotReSetPlunder;
+                  break;
+              }
+              if (Bot.info.time < ct ||
+                  Bot.fightsuc == null) {
+                  Bot.fightsuc = "success";
+                  Bot.info.time = (ct + 5000).toString() ;
+                  var as = Bot.isRunningAction();
+                  if (as != 0 &&
+                      as < endcuretime &&
+                      GameType.hasHealth &&
+                      PennerInfo.state.healthState != null && 
+                      PennerInfo.state.healthState < Config.bot_cure_level) {
+                      Bot.info.state = eBotFightEndCure;
+                      reload = true;
+                  } else if (as) {
+                      as += Bot.isFighting() ? 's kämpfen' : 's sammeln';
+                      var r =  (Bot.info.gotya_suc)
+                          ? Math.round((100/(Bot.info.gotya_err+Bot.info.gotya_suc) * Bot.info.gotya_suc))
+                          : '???';
+                      var oar =  (Bot.info.gotya_oasuc)
+                          ? Math.round((100/(Bot.info.gotya_oaerr+Bot.info.gotya_oasuc) * Bot.info.gotya_oasuc))
+                          : '???';
+                      var out = 'Noch ca. ' + as;
+                      var out2 = '<b>Akt. Captcha Stats</b>' + '<br>' +
+                                 'Erfolgreich: ' + Bot.info.gotya_suc + '<br>' +
+                                 'Fehlgeschlagen: ' + Bot.info.gotya_err + '<br>' +
+                                 'Ratio: ' + r +'%' + '<br>' +
+                                 '<b>Insgesamt</b>' + '<br>' +
+                                 'Erfolgreich: ' + Bot.info.gotya_oasuc + '<br>' +
+                                 'Fehlgeschlagen: ' + Bot.info.gotya_oaerr + '<br>' +
+                                 'Ratio: ' + oar +'%';
+                      if (!Bot.localstepcnt) {
+                          BotManager.debugState(out);
+                      } else {
+                          BotManager.printState(out);
+                      }
+                      BotManager.appendState(out2);
+                  } else {
+                      Bot.info.time = 0;
+                      Bot.info.state = eBotWaitSomeSeconds;
+                  }
+              }
+              if ((Config.bot_fight_recheck_time > 0) &&
+                  (Bot.fightchecktime < ct)) {
+                  reload = true;
+              }
+              break;
+          case eBotFightEndCure:
+              var as = Bot.isRunningAction();
+              if (!as) {
+                  Bot.info.time = 0;
+                  Bot.info.state = eBotWaitSomeSeconds;
+              } else if (PennerInfo.state.healthState == null) {
+                  BotManager.debugState('Warte auf Lebenspunkte...');
+              } else if (as < endcuretime) {
+                  if (zeitimstep() > (endcuretime/2)) {
+                      /* buttons did not appear? */
+                      Bot.info.state = eBotInit;
+                      reload = true;
+                      break;
+                  }
+                  var e = document.getElementById('drink_Health');
+                  if (!e) break;
+                  if (e.disabled == false) {
+                      e.click();
+                      reloadtime = 9000;
+                      reload = true;
+                      BotManager.debugState('Heilung...');
+                  }
+                  Bot.info.state = eBotWaitForEnd;
+              } else if (as > endcuretime) {
+                  Bot.info.state = eBotWaitForEnd;
+              } else if (zeitimstep() > endcuretime) {
+                  // hu, nothing happened after some sec...? reload page!
+                  Bot.info.state = eBotInit;
+                  reload = true;
+              }
+              break;
+          case eBotWaitSomeSeconds: // we may should wait some seconds?
+              var ct = Number(new Date().valueOf());
+              if (Bot.info.time == 0) {
+                  var w = (BaseLib.rand(Config.bot_wait_time - Config.bot_plchange_time) + Config.bot_plchange_time) * 1000;
+                  Bot.info.time = (ct + w).toString() ;
+              } else if (Bot.info.time < ct) {
+                  Bot.info.time = 0;
+                  Bot.info.state = eBotInit; // start new collection...
+                  /* reload page, cause although we're able to load the captcha
+                     there is no "collect" button... so, do it a little bit more
+                     human like ;) */
+                  reload = true;
+              }
+              if (!Bot.localstepcnt) BotManager.debugState('Warte ' + Math.round((Number(Bot.info.time) - ct)/1000) + 's...');
+              break;
+          case eBotWaitForDB: // wait step if server is unable to finish last fight
+              if (zeitimstep() > 300000) {
+                  // wait 5 minutes and reload fight to page
+                  redirect = UrlHandler.fightOverviewUrl + '?to=' + Bot.info.fightto[Bot.info.fightto_current].name;
+                  Bot.info.state = eBotLoadCaptcha;
+                  rerun = false;
+              }
+              var ct = Number(new Date().valueOf());
+              if (Bot.info.time < ct) {
+                  Bot.info.time = (ct + 5000).toString();
+                  BotManager.debugState('Nebenaktivität?! Warte ' + Math.round((300000 - zeitimstep())/1000) + 's');
+              }
+              break;
+          case eBotReSetPlunder:
+              if (!Plunder.initialized) {
+                  if (!Bot.localstepcnt) BotManager.debugState('Warte auf Plunder init...');
+                  break;
+              }
+              if (Bot.info.plunder == '' ||
+                  Bot.info.plunder == Plunder.getImage(Plunder.getCurrent())) {
+                  Bot.info.plunder = '';
+                  if (Bot.isRunningAction()) {
+                      Bot.info.state = eBotWaitForEnd;
+                  } else {
+                      Bot.info.state = eBotInit;
+                  }
+              } else {
+                  var pl = Plunder.getPlunderByImage(Bot.info.plunder);
+                  if (pl) {
+                      var plid = pl.id;
+                      BotManager.debugState('Lege ' + Plunder.getName(plid) + ' wieder an.');
+                      /* set rerunperiod to 10 seconds.... Plunder.switch will reload the page earlier if its work is done... */
+                      rerunperiod = 10000;
+                      Plunder.change(plid, UrlHandler.doReload);
+                  } else {
+                      // hu... old plunder should be set, but we don't find it...
+                      var s = Bot.info.plunder.split('/');
+                      BotManager.debugState('Kann Plunder ' + (s.length ? s[s.length-1] : '') + ' nicht finden!');
+                      /* set rerunperiod to 5 seconds.... Plunder.switch will reload the page earlier if its work is done... */
+                      rerunperiod = 5000;
+                      Bot.info.plunder = '';
+                  }
+              }
+              break;
+              if (zeitimstep() > 60000) {
+                  // hu, nothing happened after 60 sec...? retry clicking...
+                  reload = true;
+              }
+          default:
+              BotManager.debugState('Fertig...');
+              Bot.info.state = eBotWannaStop;
+        }
+
+        Bot.localstepcnt++;
+
+        if (Bot.info.state != Bot.info.oldstate) {
+            Bot.info.steptime=0;
+            Bot.localstepcnt=0;
+        }
+
+        Bot.writeState(Bot.info);
+
+        if (readdbuttons) {
+            Config.save();
+            BotManager.readdButtons();
+        }
+
+        var btb = BotManager.run;
+        if (redirect) {
+            BaseLib.setTimeoutEx(function () { if (Bot.infoCheck()) { UrlHandler.doRedirect(redirect); } else { btb(); } }, redirecttime);
+            return true;
+        }
+        if (reload) {
+            BaseLib.setTimeoutEx(function () { if (Bot.infoCheck()) { UrlHandler.doReload(); } else { btb(); } }, reloadtime);
+            return true;
+        }
+        if (rerun) {
+            BaseLib.setTimeoutEx(function () { btb(); }, rerunperiod);
+            return true;
+        }
+
+        return false;
+    };
+
+    Bot.getSubmitButton = function(action) {
+        var ret = null;
+        var bs = unsafeWindow.document.getElementsByTagName("input");
+
+        for (var i=0; i < bs.length; i++) {
+            var oc = bs[i].getAttribute('onclick');
+            if (oc && oc.search(action) != -1) {
+                ret = bs[i];
+                break;
+            }
+        }
+        return ret;
+    };
+
+    Bot.startFight = function(x, y) {
+        var param = [];
+        var o = unsafeWindow.document.getElementsByTagName("form");
+
+        var formAction = '/'+UrlHandler.fight+'/'+UrlHandler.attack+'/';
+
+        if (!o.length) {
+            return;
+        }
+
+        var f=-1;
+        for (var i=0; i<o.length; i++) {
+            if (o[i].getAttribute('action') == formAction) {
+                f = i;
+                break;
+            }
+        }
+
+        if (f == -1) {
+            return;
+        }
+
+        var os = o[f].getElementsByTagName('input');
+
+        for (var i=0; i<os.length; i++) {
+            var n = os[i].name;
+            var v = os[i].value;
+            var t = os[i].type;
+            if (t == 'hidden' || t == 'text') {
+                param.push(BaseLib.postParam(n, v));
+            } else if (t == 'image') {
+                param.push(BaseLib.postParam(n+'.x', x));
+                param.push(BaseLib.postParam(n+'.y', y));
+            }
+        }
+
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                var d = false;
+                if (req.finalUrl == undefined) {
+                    // parse page for pg_v4 notification messages
+                    var t1 = 'PgFunction.showMsg';
+                    var t2 = '</script>';
+                    var t = BaseLib.getStringBetweenTags(req.responseText, t1, t2).replace('\n', '').replace('\r', '').trim();
+                    if (t.search(Language.angriffErfolgreich) != -1) {
+                        Bot.fightsuc = "success";
+                    } else if (t.search(Language.istImUrlaubsmodus) != -1) {
+                        Bot.fightsuc = "holiday";
+                    } else if (t.search(Language.nebensaechlicheAktivitaet) != -1) {
+                        Bot.fightsuc = "erroractivity";
+                    } else if (t.search(Language.spielerNichtGefunden) != -1) {
+                        Bot.fightsuc = "notfound";
+                    } else if (t.search(Language.falschePunktzahl) != -1) {
+                        Bot.fightsuc = "points";
+                    } else if (t.search(Language.angriffInnerhalb36h) != -1) {
+                        Bot.fightsuc = "36h";
+                    } else if (t.search(Language.klickeDigit) != -1) {
+                        Bot.fightsuc = "captcha";
+                    } else {
+                        if (d) alert(t);
+                        Bot.fightsuc = "unknown";
+                    }
+                } else {
+                    var s = new Array();
+                    s = req.finalUrl.split('=');
+                    if (s.length)
+                        Bot.fightsuc = s[s.length-1];
+                }
+            } else {
+                // do nothing bot state timeout will enforce reclick...
+            }
+        };
+
+        var url = UrlHandler.wwwUrl+UrlHandler.fight+'/'+UrlHandler.attack+'/';
+        BaseLib.xmlhttpPostRequest(url, f, param);
+    };
+
+    Bot.getCounterTimeByClass = function(c) {
+        var l = unsafeWindow.document.getElementsByClassName(c);
+        if (l.length < 1 || l[0].getElementsByTagName('span').length < 1)
+            return 0;
+
+        var os = l[0].getElementsByTagName('span');
+        var t = 0;
+
+        for (var i=0; i<os.length; i++) {
+            var id = os[i].id;
+            var v = os[i].innerHTML;
+            if (v && id.search('counter') != -1) {
+                var s = v.split(':');
+                if (s.length == 2) {
+                    t = (Number(s[0])*60)+Number(s[1]);
+                    break;
+                } else if (s.length == 3) {
+                    t = (Number(s[0])*60*60)+(Number(s[1])*60)+Number(s[2]);
+                    break;
+                }
+            }
+        }
+        return t;
+    };
+
+    Bot.isCollecting = function() {
+        return Bot.getCounterTimeByClass('icon rank');
+    };
+
+    Bot.isFighting = function() {
+        return Bot.getCounterTimeByClass('icon fight');
+    };
+
+    Bot.isDoingACrime = function() {
+        if (Bot.isCollecting()) return 0;
+        return UrlHandler.isActivitiesUrl() ? Bot.getCounterTimeByClass('processbar') : null;
+    };
+
+    Bot.isRunningAction = function() {
+        return Bot.isFighting() + Bot.isCollecting();
+    }
+
+    Bot.createStateEntry = function(e) {
+        // create std state object
+        if (e == undefined) e = new Types.BotStateEntry(eBotTypeBottle);
+        // and extend by it bot specific keys
+        e.state = 0;
+        e.cycle = 0;
+        e.last_action_suc = 0;
+        e.gotya_suc = 0;
+        e.gotya_err = 0;
+        e.gotya_oasuc = 0;
+        e.gotya_oaerr = 0;
+        e.gotya_cerr = 0;
+        e.time = 0;
+        e.retrycnt = 0;
+        e.steptime = 0;
+        e.criticalerr = 0;
+        e.toskip = 0;
+        e.goodones = 0; /* stores the nr of attackable dossers in one supersearch */
+        e.fightto = new Array();
+        e.fightto_current = 0;
+        e.speed = 100;
+        e.plunder = '';
+        e.endplunder = '';
+        return e;
+    };
+    
+    Bot.writeState = function(bs) {
+        var json = bs.getNonOriginKeys().toJson();
+        GM_setValue(BotManager.key_bot(), json);
+        Config.bot_running = bs.getOriginKeys();
+        // is saved by bots start/stop button 
+	return true;
+    };
+
+    Bot.readState = function() {
+        var saved = GM_getValue(BotManager.key_bot());
+        var r = Bot.createStateEntry();
+        if (saved) {
+            var c = JSON.parse(saved);
+            r.overwrite(c);
+        }
+        r.overwrite(Config.bot_running);
+        return r;
+    };
+}

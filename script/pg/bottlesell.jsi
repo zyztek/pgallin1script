@@ -1,0 +1,105 @@
+/** 
+ * @filename bottlesell.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var BottleSell = new Object();
+
+Registry.register("BottleSell", BottleSell);
+
+BottleSell.init = function() {
+
+    BottleSell.createAutoSellButton = function() {
+        UIHelpers.createHelpersSidebarItem();
+
+        if (!document.getElementById("bottle_button")) {
+            BaseLib.setTimeoutEx(function() { BottleSell.createAutoSellButton(); }, 100);
+            return;
+        }
+
+        var btn = UIHelpers.createSidebarImgButton(GM_getResourceURL("bottlesToCash.png"), GM_getResourceURL("bottlesToCashDisabled.png"), Config.markiere_pfand + 'ct', true, 'bottle_button', true);
+        var td = UIHelpers.addButtonsToStatusBar("bottle_button", btn);
+
+        var txt = document.createElement("span");
+        txt.setAttribute("id", "bottle_sell_message");
+        td.appendChild(txt);
+
+        var printMsg = function(msg, clear) {
+            var m = msg;
+            var elem = document.getElementById("bottle_sell_message");
+            if (!elem) return;
+            elem.innerHTML = msg;
+            if (clear) BaseLib.setTimeoutEx(function () { if (elem.innerHTML == msg) elem.innerHTML = ''; }, clear);
+            Log.dbg(msg);
+        };
+        
+        var refresh = function() {
+            UIHelpers.enableSidebarButton(btn, Config.bot_sell);
+            UIHelpers.startstopSidebarButton(btn, !Config.bot_sell_running);
+        };
+
+        var main = function() {
+            if (!PennerInfo.state.pfand) {
+                BaseLib.setTimeoutEx(function () { main(); }, 1000);
+            } else {
+                if (Config.bot_sell &&
+                    Config.bot_sell_running &&
+                    PennerInfo.state.pfand >= Config.markiere_pfand &&
+                    (Config.bot_sell_max_money > (PennerInfo.state.moneyInCent / 100) || (Config.bot_sell_max_money == 0))) {
+                    printMsg("Alles passt! Verkaufe...");
+                    BottleTools.sellBottlesByMoney(Config.bot_sell_max_money, function (done) { if (done) UrlHandler.doReload(); }, null, false);
+                } else {
+                    printMsg("Bin n Checker ;)<br>Kurs ist zu tief oder <br>zuviel Kohle auf dem Konto!", 15000);
+                }
+            }
+        };
+
+        var trigger = function() {
+            if (Config.bot_sell &&
+                Config.bot_sell_running) {
+                if (Registry.hasObject("BotManager")) {
+                    BotManager.addLockCallback(true, main);
+                    if (Config.bot_sell_refresh_time > 0) {
+                        BaseLib.setTimeoutEx(function () { printMsg("BotManager benachrichtigt (" + Config.bot_sell_refresh_time + "s)", 10000); }, 2000);
+                        BaseLib.setTimeoutEx(function () { PennerInfo.updateBasic(trigger); }, Config.bot_sell_refresh_time * 1000);
+                    } else {
+                        printMsg("BotManager benachrichtigt", 10000);
+                    }
+                } else {
+                    main();
+                    if (Config.bot_sell_refresh_time > 0) {
+                        printMsg("Aktualisierung in " + Config.bot_sell_refresh_time + "s", 10000);
+                        BaseLib.setTimeoutEx(function () { PennerInfo.updateBasic(trigger); }, Config.bot_sell_refresh_time * 1000);
+                    }
+                }
+            }
+        };
+
+        var clickh = function(btn) {
+            Config.bot_sell_running = !Config.bot_sell_running;
+            printMsg("BottleSell ist " + (Config.bot_sell_running ? "an" : "aus :("), 5000);
+            Config.save();
+            refresh();
+            if (Config.bot_sell_running) trigger();
+        };
+
+        btn.addEventListener('click', function() { clickh(btn); }, true);
+
+        var runBottleSellUpd = function() {
+            refresh();
+            trigger(); // trigger once
+        };
+        LockManager.addLockCallback(true, runBottleSellUpd);
+    };
+
+    BottleSell.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isWwwUrl()) {
+                if (Config.bot_sell) BottleSell.createAutoSellButton();
+            }
+        }
+    };
+
+};

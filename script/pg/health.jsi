@@ -1,0 +1,101 @@
+/** 
+ * @filename health.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var HealthTools = new Object();
+
+Registry.register("HealthTools", HealthTools);
+
+// ############ Health Tools #############
+
+HealthTools.init = function() {
+    
+    HealthTools.createAutoCureButton = function() {
+        UIHelpers.createHelpersSidebarItem();
+        
+        var btn = UIHelpers.createSidebarImgButton(GM_getResourceURL("healthAuto.png"), GM_getResourceURL("healthAutoDisabled.png"),
+                                                   ' (' + Config.bot_cure_level + '%)', true, 'autohealth_button', true);
+        var td = UIHelpers.addButtonsToStatusBar("autohealth_button", btn);
+
+        var txt = document.createElement("span");
+        txt.setAttribute("id", "cure_message");
+        td.appendChild(txt);
+
+        var printMsg = function(msg, clear) {
+            var m = msg;
+            var elem = document.getElementById("cure_message");
+            if (!elem) return;
+            elem.innerHTML = msg;
+            if (clear) BaseLib.setTimeoutEx(function () { if (elem.innerHTML == msg) elem.innerHTML = ''; }, clear);
+            Log.dbg(msg);
+        };
+        
+        var refresh = function() {
+            UIHelpers.enableSidebarButton(btn, Config.bot_cure);
+            UIHelpers.startstopSidebarButton(btn, !Config.bot_cure_running);
+        };
+
+        var main = function() {
+            var healthButton = document.getElementById('drink_Health');
+            if (PennerInfo.state.healthState == null ||
+                !healthButton ||
+                healthButton.disabled) {
+                BaseLib.setTimeoutEx(function () { main(); }, 1000);
+            } else {
+                if (Config.bot_cure &&
+                    Config.bot_cure_running &&
+                    PennerInfo.state.healthState < Config.bot_cure_level) {
+                    printMsg("Alles passt! Heile...");
+                    healthButton.click();
+                } else {
+                    printMsg("Bin n Checker ;)<br>Bist gesund!", 15000);
+                }
+            }
+        };
+
+        var trigger = function() {
+            if (Config.bot_cure &&
+                Config.bot_cure_running) {
+                if (Registry.hasObject("BotManager")) {
+                    BotManager.addLockCallback(main);
+                    if (Config.bot_cure_refresh_time > 0) {
+                        BaseLib.setTimeoutEx(function () { printMsg("BotManager benachrichtigt (" + Config.bot_cure_refresh_time + "s)", 10000); }, 2000);
+                        BaseLib.setTimeoutEx(function () { PennerInfo.updateBasic(trigger); }, Config.bot_cure_refresh_time * 1000);
+                    } else {
+                        printMsg("BotManager benachrichtigt", 10000);
+                    }
+                } else {
+                    main();
+                    if (Config.bot_cure_refresh_time > 0) {
+                        printMsg("Aktualisierung in " + Config.bot_cure_refresh_time + "s", 10000);
+                        BaseLib.setTimeoutEx(function () { PennerInfo.updateBasic(trigger); }, Config.bot_cure_refresh_time * 1000);
+                    }
+                }
+            }
+        };
+
+        var clickh = function(btn) {
+            Config.bot_cure_running = !Config.bot_cure_running;
+            printMsg("AutoCure ist " + (Config.bot_cure_running ? "an" : "aus :("), 5000);
+            Config.save();
+            refresh();
+            if (Config.bot_cure_running) trigger();
+        };
+
+        btn.addEventListener('click', function() { clickh(btn); }, true);
+
+        refresh();
+        trigger(); // trigger once
+    };
+
+    HealthTools.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isWwwUrl()) {
+                if (Config.bot_cure && GameType.hasHealth) HealthTools.createAutoCureButton();
+            }
+        }
+    };
+};

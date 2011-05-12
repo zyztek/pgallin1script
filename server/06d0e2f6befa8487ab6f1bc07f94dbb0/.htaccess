@@ -1,0 +1,4 @@
+AuthUserFile /home/strato/www/bi/www.biniok.net/htdocs/.htpasswd
+AuthGroupFile /dev/null
+AuthName "User: allin1script Pw: jan's automodell (nicht marke,alles klein) + letzte 4 zahlen meiner handy-nr "
+AuthType Basic

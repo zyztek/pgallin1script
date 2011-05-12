@@ -1,0 +1,1787 @@
+/** 
+ * @filename utils.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var District = new Object();
+var BeerButtons = new Object();
+var PullDownMenu = new Object();
+var BuddyList = new Object();
+var PayAllButton = new Object();
+var ErrorChecker = new Object();
+var HighscoreParser = new Object();
+var ClearFightsButton = new Object();
+var ProfileCutter = new Object();
+var Login = new Object();
+var Actions = new Object();
+var RedirectRemover = new Object();
+var Games = new Object();
+
+Registry.register("District", District);
+Registry.register("BeerButtons", BeerButtons);
+Registry.register("PullDownMenu", PullDownMenu);
+Registry.register("BuddyList", BuddyList);
+Registry.register("PayAllButton", PayAllButton);
+Registry.register("ErrorChecker", ErrorChecker);
+Registry.register("HighscoreParser", HighscoreParser);
+Registry.register("ClearFightsButton", ClearFightsButton);
+Registry.register("ProfileCutter", ProfileCutter);
+Registry.register("Login", Login);
+Registry.register("Actions", Actions);
+Registry.register("RedirectRemover", RedirectRemover);
+Registry.register("Games", Games);
+
+// ########### Districts ##############
+
+District.init = function () {
+    District.initialized = false;
+    District.districts = new Array();
+    District.myDistrict = null;
+
+    District.load = function () {
+        var districtInfo = '';
+
+        var f2 = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                var t1 = '<div class="listshop">';
+                var t2 = '</div';
+                var t = BaseLib.getStringBetweenTags(req.responseText, t1, t2);
+                if (t) {
+                    while (true) {
+                        t1 = '<input type="hidden" name="id"';
+                        t2 = '/tr>';
+                        var dist = BaseLib.getStringBetweenTags(t, t1, t2);
+                        if (!dist) {
+                            break;
+                        }
+                        t = t.substr(t.search(t1) + t1.length);
+
+                        var id = BaseLib.getStringBetweenTags(dist, 'value="', '">');
+                        var city = BaseLib.getStringBetweenTags(dist, '<span class="city_name">', '<');
+                        var cost = BaseLib.extractNumber(BaseLib.getStringBetweenTags(dist, 'cash.png', '</td>'));
+                        var people = BaseLib.extractNumber(BaseLib.getStringBetweenTags(dist, 'einwohner.gif', '</td>'));
+                        var bottles = BaseLib.extractNumber(BaseLib.getStringBetweenTags(dist, 'Pfandflasche.png', '</td>'));
+                        var state = eDistrictNew;
+                        var btn = BaseLib.getStringBetweenTags(BaseLib.getStringBetweenTags(dist, '<input class="button_skill"', '></td>'), 'value="', '"').trim();
+                        if (btn == Language.Einziehen) {
+                            state = eDistrictPurchased;
+                        } else if (btn == Language.Bewohnt) {
+                            state = eDistrictOccupied;
+                        }
+
+                        var gangId = BaseLib.getStringBetweenTags(districtInfo, '&city_bande'+id+'=', '&');
+                        if (gangId == '' || gangId == '0') {
+                            gangId = null;
+                        }
+                        var gangName = BaseLib.getStringBetweenTags(districtInfo, '&city_bandenname'+id+'=', '&');
+                        if (gangName == '') {
+                            gangName = null;
+                        }
+
+                        var d = new Types.District(id, city, cost, people, bottles, state, gangId, gangName);
+                        District.districts.push(d);
+                        if (state == eDistrictOccupied) {
+                            District.myDistrict = d;
+                        }
+                        //if (id < 4) alert(id + " - " + city + " - " + cost + " - " + people + " - " + bottles + " - " + state);
+                    }
+                }
+                District.initialized = true;
+            }
+        };
+
+        var f1 = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                districtInfo = req.responseText;
+                BaseLib.xmlhttpRequest(UrlHandler.districtUrl, f2, true, 24*60);
+            }
+        };
+
+        BaseLib.xmlhttpRequest(UrlHandler.cityListUrl, f1, true, 30);
+    };
+
+    District.getDistrictName = function (d) {
+        for (var i = 0; i < District.districts.length; i++) {
+            if (District.districts[i].id == d) {
+                return District.districts[i].city;
+            }
+        }
+        return d;
+    };
+
+    District.getDistrictById = function (id) {
+        for (var i = 0; i < District.districts.length; i++) {
+            if (District.districts[i].id == id) {
+                return District.districts[i];
+            }
+        }
+        return null;
+    };
+
+    // scan "ruling gang"
+    District.scanRulingGangs = function() {
+        if (!District.initialized || PennerInfo.state.moneyInCent == null) {
+            BaseLib.setTimeoutEx(function () { District.scanRulingGangs(); }, 500);
+            return;
+        }
+
+        var div = BaseLib.getElementsByClassNameForElements('div', 'listshop')[0];
+        if (!div) return;
+        var table = div.getElementsByTagName('table')[0];
+        if (!table) return;
+
+        var order = UrlHandler.urlGetParam('orderby', 'name');
+        var orderDir = UrlHandler.urlGetParam('style', 'auf');
+
+        // sort the districts
+        var ds = District.districts.slice(0);
+        var cmp = function(a, b) {
+            if (order == 'name') {
+                return ((a.city == b.city) ? 0 : ((a.city > b.city) ? 1 : -1));
+            } else if (order == 'kosten') {
+                if (a.cost == b.cost) {
+                    return a.id - b.id;
+                }
+                return a.cost - b.cost;
+            } else if (order == 'einwohner') {
+                if (a.people == b.people) {
+                    return a.id - b.id;
+                }
+                return a.people - b.people;
+            } else if (order == 'flaschen') {
+                if (a.bottles == b.bottles) {
+                    return a.id - b.id;
+                }
+                return a.bottles - b.bottles;
+            }
+            return 0;
+        };
+        ds.sort(cmp);
+        if (orderDir == 'ab') {
+            ds.reverse();
+        }
+
+        // create new table
+        var newTable = document.createElement('table');
+        newTable.setAttribute("style", "width:800px");
+        var ti = 'tieritemB';
+
+        // heading
+        var tr = document.createElement('tr');
+        tr.setAttribute('class', ti);
+        tr.setAttribute('style', 'border-spacing: 0px; width: 800px;');
+        ti = BaseLib.toggleTieritem(ti);
+
+        var td = document.createElement('td');
+        td.setAttribute('style', 'width: 200px;');
+        td.innerHTML = '<span class="city_name">Stadtteil</span>';
+        tr.appendChild(td);
+
+        td = document.createElement('td');
+        td.setAttribute('style', 'width: 120px;');
+        td.innerHTML = '<span class="city_name">Preis</span>';
+        tr.appendChild(td);
+
+        td = document.createElement('td');
+        td.setAttribute('style', 'width: 70px;');
+        td.innerHTML = '<span class="city_name">Einwohner</span>';
+        tr.appendChild(td);
+
+        td = document.createElement('td');
+        td.setAttribute('style', 'width: 150px;');
+        td.setAttribute('colspan', '2');
+        td.innerHTML = '<span class="city_name">Pfandflaschenfaktor</span>';
+        tr.appendChild(td);
+
+        td = document.createElement('td');
+        td.setAttribute('style', 'width: 260px;');
+        td.innerHTML = '<span class="city_name">Vorherrschende Bande</span>';
+        tr.appendChild(td);
+
+        newTable.appendChild(tr);
+
+        // districts
+        for (var i = 0; i < ds.length; i++) {
+            var d = ds[i];
+
+            tr = document.createElement('tr');
+            tr.setAttribute('class', ti);
+            tr.setAttribute('style', 'border-spacing: 0px; width: 800px;');
+            ti = BaseLib.toggleTieritem(ti);
+
+            newTable.appendChild(tr);
+
+            td = document.createElement('td');
+            td.setAttribute('style', 'width: 200px;');
+            td.innerHTML = '<span class="city_name">'+d.city+'</span>';
+            tr.appendChild(td);
+
+            td = document.createElement('td');
+            td.setAttribute('style', 'width: 120px;');
+            td.innerHTML = '<img title="Preis" src="http://static.pennergame.de/img/pv4/icons/cash.png" alt="Preis" class="icons">' + Language.formatMoney(d.cost/100);
+            tr.appendChild(td);
+
+            td = document.createElement('td');
+            td.setAttribute('style', 'width: 70px;');
+            td.innerHTML = '<img title="Einwohner" src="http://static.pennergame.de/img/pv4/icons/einwohner.gif" alt="Einwohner" class="icons">' + d.people;
+            tr.appendChild(td);
+
+            td = document.createElement('td');
+            td.setAttribute('style', 'width: 70px;');
+            td.innerHTML = '<img title="Flaschen" src="http://static.pennergame.de/img/pv4/shop/de_DE/inventar/Pfandflasche.png" alt="Flaschen" class="icons">' + d.bottles;
+            tr.appendChild(td);
+
+            td = document.createElement('td');
+            td.setAttribute('style', 'text-align: right; width: 80px;');
+            tr.appendChild(td);
+
+            var form = document.createElement('form');
+            form.setAttribute('action', '/city/district/buy/');
+            form.setAttribute('method', 'post');
+            td.appendChild(form);
+
+            var idElem = document.createElement('input');
+            idElem.setAttribute('type', 'hidden');
+            idElem.setAttribute('name', 'id');
+            idElem.setAttribute('value', d.id);
+            form.appendChild(idElem);
+
+            var moveElem = document.createElement('input');
+            moveElem.setAttribute('type', 'submit');
+            moveElem.setAttribute('class', 'button_skill');
+            moveElem.setAttribute('name', 'submitForm');
+            if (d.state == eDistrictOccupied) {
+                moveElem.setAttribute('value', 'Bewohnt');
+                moveElem.setAttribute('disabled', 'disabled');
+            } else if (d.state == eDistrictPurchased) {
+                moveElem.setAttribute('value', 'Einziehen');
+            } else {
+                moveElem.setAttribute('value', 'Kaufen');
+            }
+            form.appendChild(moveElem);
+
+            td = document.createElement('td');
+            td.setAttribute('style', 'width: 260px;');
+            tr.appendChild(td);
+            District.showRulingGang(td, d);
+        }
+
+        var table = div.getElementsByTagName('table')[0];
+        if (table) {
+            table.parentNode.removeChild(table);
+        }
+        div.insertBefore(newTable, div.childNodes[0]);
+    };
+
+    District.showRulingGang = function(column, district) {
+        if (!UserInfo.ext.gangMembers) {
+            BaseLib.setTimeoutEx(function () { District.showRulingGang(column, district); }, 100);
+            return;
+        }
+        if (!district.gangId) return;
+
+        column.innerHTML = '<div id="district_' + district.id + '"><a href="' + UrlHandler.createProfilUrlGang(district.gangId) + '">' + district.gangName + '</a></div>';
+
+        var f2 = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                var t1 = '<table width="100%"  border="0" cellspacing="0" cellpadding="0" style="margin:1px;">';
+                var t2 = '</table>';
+                var members = BaseLib.getStringBetweenTags(req.responseText, t1, t2);
+                var theirMembers = GangParser.parseMembers(members);
+                var fights = GangFights.getPossibleFights(theirMembers);
+
+                var elem = document.getElementById('district_'+district.id);
+                if (!elem) return;
+                var s;
+                s  = '<br>';
+                s += '<span style="font-size:'+Config.schriftgroesse+'px;">';
+                s += fights.possibleFights+' Kämpfe (+'+fights.nearFights+') durch '+fights.possibleMembers+' (+'+fights.nearMembers+') Leute möglich';
+                elem.innerHTML += s;
+            }
+        };
+
+        var f1 = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                var members = BaseLib.getXMLTag(req.responseText,"<member_count>");
+                var points = BaseLib.getXMLTag(req.responseText,"<points>");
+                if (points != '' && members != '' && points != 0 && members != 0) {
+                    var elem = document.getElementById('district_'+district.id);
+                    if (!elem) return;
+                    var s;
+                    s  = '<br>';
+                    s += '<span style="font-size:'+Config.schriftgroesse+'px;">';
+                    s += members+'Mitgl. &#216;'+Math.round(points/members);
+                    s += '</span>';
+                    elem.innerHTML += s;
+                } else {
+                    Log.console('Kann Gang '+district.gangId+' nicht parsen!');
+                }
+                BaseLib.xmlhttpRequest(UrlHandler.createProfilUrlGang(district.gangId), f2, true);
+            }
+        };
+
+        BaseLib.xmlhttpRequest(UrlHandler.createApiUrlGang(district.gangId), f1, true);
+    };
+
+    District.moveIn = function(did, cb) {
+        var url = UrlHandler.districtBuyUrl;
+        params = [ BaseLib.postParam('id', did) ];
+        if (!cb) cb = UrlHandler.doNothing;
+        BaseLib.xmlhttpPostRequest(url, cb, params);
+    };
+
+    District.onRunlevel = function(runlevel) {
+        if (runlevel == 30) {
+            District.load();
+        } else if (runlevel == 60) {
+            if (UrlHandler.isDistrictUrl()) {
+                District.scanRulingGangs();
+            }
+        }
+    };
+
+};
+
+// ############ Trink und Wasch Buttons #############
+
+BeerButtons.init = function () {
+
+    BeerButtons.createBeerAndBread = function(neededBeer, neededBread) {
+        var btn1 = UIHelpers.createSidebarImgButton(GM_getResourceURL("beer.png"), GM_getResourceURL("beerDisabled.png"), '(' + neededBeer + ')', neededBeer == 0, 'drink_Bier');
+        btn1.addEventListener('click', function() { UIHelpers.enableSidebarButton(btn1, false); Actions.buyAndDrinkBeer(neededBeer); }, true);
+
+        var btn2 = UIHelpers.createSidebarImgButton(GM_getResourceURL("bread.png"), GM_getResourceURL("breadDisabled.png"), '(' + neededBread + ')', neededBread == 0, 'drink_Brot');
+        btn2.addEventListener('click', function() { UIHelpers.enableSidebarButton(btn2, false); Actions.buyAndEatBread(neededBread); }, true);
+
+        UIHelpers.addButtonsToStatusBar("eat_drink_buttons", btn1, btn2);
+    };
+
+    BeerButtons.createWash = function() {
+        var btn = UIHelpers.createSidebarImgButton(GM_getResourceURL("soap.png"), GM_getResourceURL("soapDisabled.png"), 'Warten ...', true, 'drink_Wash');
+        BeerButtons.updateWash(btn);
+        btn.addEventListener('click', function() { UIHelpers.enableSidebarButton(btn, false); Actions.wash(); }, true);
+
+        UIHelpers.addButtonsToStatusBar("wash_button", btn);
+    };
+
+    BeerButtons.createHealth = function() {
+        var btn = UIHelpers.createSidebarImgButton(GM_getResourceURL("health.png"), GM_getResourceURL("healthDisabled.png"), 'Warten ...', true, 'drink_Health');
+        BeerButtons.updateHealth(btn);
+        btn.addEventListener('click', function() { UIHelpers.enableSidebarButton(btn, false); Actions.heal(); }, true);
+
+        UIHelpers.addButtonsToStatusBar("health_button", btn);
+    };
+
+    BeerButtons.createDebug = function() {
+        if (!Config.debug) return;
+
+        var btn = UIHelpers.createSidebarImgButton(GM_getResourceURL("debug.png"), GM_getResourceURL("debug.png"), 'Tagebuch', false, 'show_Debug');
+        
+        var f = function() {
+            var dou = UIHelpers.createOverlay('logFile');
+            Log.createMgmtButtons(dou.buttonPanel, dou);
+            dou.innerPanel.innerHTML = Log.printHTML();
+        };
+        btn.addEventListener('click', f, true);
+
+        UIHelpers.addButtonsToStatusBar("script_debug_button", btn);
+    };
+    
+    BeerButtons.createBottles = function() {
+        var btn = UIHelpers.createSidebarImgButton(GM_getResourceURL("bottle.png"), GM_getResourceURL("bottleDisabled.png"), 'Warten ...', true, 'drink_Bottles');
+        BeerButtons.updateBottles(btn);
+        btn.addEventListener('click', function() { UIHelpers.enableSidebarButton(btn, false); BeerButtons.sellBottles(); }, true);
+
+        UIHelpers.addButtonsToStatusBar("bottlesell_button", btn);
+    };
+
+    BeerButtons.updateWash = function(btn) {
+        if (PennerInfo.state.cleanness == null) {
+            BaseLib.setTimeoutEx(function () { BeerButtons.updateWash(btn); }, 100);
+            return;
+        }
+
+        var cpc = PennerInfo.state.cleanness;
+        UIHelpers.setSidebarButtonInner(btn, ' (' + cpc + '%)');
+        UIHelpers.enableSidebarButton(btn, cpc != 100);
+    };
+
+    BeerButtons.updateHealth = function(btn) {
+        if (PennerInfo.state.healthState == null) {
+            BaseLib.setTimeoutEx(function () { BeerButtons.updateHealth(btn); }, 100);
+            return;
+        }
+
+        var cpc = PennerInfo.state.healthState;
+        UIHelpers.setSidebarButtonInner(btn, ' (' + cpc + '%)');
+        UIHelpers.enableSidebarButton(btn, cpc != 100);
+    };
+
+    BeerButtons.updateBottles = function(btn) {
+        if (PennerInfo.state.bottles == null) {
+            BaseLib.setTimeoutEx(function () { BeerButtons.updateBottles(btn); }, 100);
+            return;
+        }
+
+        var bottles = PennerInfo.state.bottles;
+        UIHelpers.setSidebarButtonInner(btn, ' (' + bottles + ')');
+        UIHelpers.enableSidebarButton(btn, bottles != 0);
+    };
+
+    BeerButtons.create = function() {
+        var c = BaseLib.getElementsByClassNameForElements('li' ,'icon beer')[0].getElementsByTagName("a")[0];
+        var Alk = BaseLib.extractNumber(c.innerHTML);
+
+        Benoetigtprozent = 284 - Alk;
+
+        var neededBeer = Math.max(0, Math.floor(Benoetigtprozent/35));
+        var neededBread = Math.max(0, Math.ceil(Alk/35) - 1);
+
+        UIHelpers.createActionsSidebarItem();
+        BeerButtons.createBeerAndBread(neededBeer, neededBread);
+        BeerButtons.createWash();
+        if (GameType.hasHealth) BeerButtons.createHealth();
+        if (Config.debug) BeerButtons.createDebug();
+        BeerButtons.createBottles();
+    };
+
+    BeerButtons.sellBottles = function() {
+        var c = confirm("Wirklich alle Flaschen verkaufen?");
+        if (!c) return;
+        BottleTools.sellAllBottles(UrlHandler.doReload);
+    };
+
+    BeerButtons.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isWwwUrl()) {
+                BeerButtons.create();
+            }
+        }
+    };
+};
+
+// ############ Pull Down Menues #############
+
+PullDownMenu.init = function() {
+    PullDownMenu.addPulldown = function(pos, menu) {
+        var topmenu = document.getElementById("topmenu");
+        if (!topmenu) return false;
+        var item = topmenu.getElementsByTagName("ul")[0].getElementsByTagName("li")[pos];
+        item.innerHTML = '<div class="pdmenu">' + item.innerHTML + '<span>' + menu + '</span></div>';
+        return true;
+    };
+
+    PullDownMenu.setup = function() {
+        var menueNews = '<ul id="PullDownMenuNews">' +
+          '  <li><div class="pdsubmenu"><a style="width: 100px;" href="'+UrlHandler.wwwUrl+'news/">News</a></div></li>' +
+          '  <li><div class="pdsubmenu"><a style="width: 100px;" href="'+UrlHandler.wwwUrl+'downloads/">Downloads</a></div></li>' +
+          '  <li><div class="pdsubmenu"><a style="width: 100px;" href="'+UrlHandler.forumUrl+'" target="_blank">Forum</a></div></li>' +
+          '  <li><div class="pdsubmenu"><a style="width: 100px;" href="'+UrlHandler.twitterUrl+'" target="_blank">Twitter</a></div></li>' +
+          '</ul>';
+        var menueStadt = '<ul id="PullDownMenuCity">' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'city/map/">Stadtkarte</a></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'city/district/">Stadtteile</a></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'city/home/">Eigenheim</a></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'city/scrounge/">Schnorrplatz</a></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'city/games/">Glücksspiele</a></div></li> ' +
+          '  <li><div class="pdsubmenu">' +
+          '    <a href="'+UrlHandler.wwwUrl+'city/weapon_store/">Waffenladen...</a>' +
+          '    <span style="top: 112px;"><ul>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'city/weapon_store/">Angriff</a></li>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'city/weapon_store/def/">Verteidigung</a></li>' +
+          '  </ul></span></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'city/pet_store/">Tierhandlung</a></div></li>' +
+          '  <li><div class="pdsubmenu">' +
+          '    <a href="'+UrlHandler.wwwUrl+'city/supermarket/">Supermarkt...</a>' +
+          '    <span style="top: 154px;"><ul>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'city/supermarket/drinks/">Getränke</a></li>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'city/supermarket/food/">Nahrung</a></li>' +
+          '  </ul></span></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'city/music_store/">Musikladen</a></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'city/stuff/">Zubehör</a></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'city/medicine/">Medizin</a></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'city/washhouse/">Waschhaus</a></div></li>' +
+          '</ul>';
+        var menueBande = '<ul id="PullDownMenuGang">' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'gang/">Übersicht</a></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'gang/credit/">Bandenkasse</a></div></li>' +
+          '  <li><div class="pdsubmenu">' +
+          '    <a href="'+UrlHandler.wwwUrl+'gang/upgrades/">Bandeneigentum...</a>' +
+          '    <span style="top: 49px;"><ul>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'gang/upgrades/">Bandeneigentum</a></li>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'gang/stuff/">Plunderbank</a></li>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'gang/stuff/upgrades/">Eigentumupgrades</a></li>' +
+          (GameType.hasAtomReactor ?
+          '      <li><a href="'+UrlHandler.wwwUrl+'gang/stuff/nuclear_reactor/">Atomreaktor</a></li>' : '') +
+          '  </ul></span></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'gang/memberlist/">Mitglieder</a></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'gang/forum/">Bandenforum</a></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'gang/pact/">Bündnisse</a></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.nop+'" class="disabled" id="PullDownMenuGangProfil">Profil</a></div></li>' +
+          '  <li><div class="pdsubmenu">' +
+          '    <a href="'+UrlHandler.wwwUrl+'gang/fight/">Bandenkampf...</a>' +
+          '    <span style="top: 154px;"><ul>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'gang/fight/">Bandenkampf</a></li>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'gang/fight/fightlog/">Log</a></li>' +
+          '  </ul></span></div></li>' +
+          (GameType.hasGangLeague ?
+          '  <li><div class="pdsubmenu">' +
+          '    <a href="'+UrlHandler.wwwUrl+'league/">Bandenliga...</a>' +
+          '    <span style="top: 175px;"><ul>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'league/">Übersicht</a></li>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'league/calender/">Kalender</a></li>' +
+          '  </ul></span></div></li>' : '') +
+          '  <li><div class="pdsubmenu" id="PullDownMenuAdmin"><a href="'+UrlHandler.wwwUrl+'gang/admin/">Adminbereich</a></div></li>' +
+          '  <li><div class="pdsubmenu" id="PullDownMenuAdminLog"><a href="'+UrlHandler.wwwUrl+'gang/admin/log/">Adminlog</a></div></li>' +
+          '</ul>';
+        var menuCommunication = '<ul id="PullDownMenuCommunication">' +
+          '  <li><div class="pdsubmenu">' +
+          '    <a href="'+UrlHandler.wwwUrl+'messages/">Nachrichten...</a>' +
+          '    <span style="top: 7px;"><ul>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'messages/">Eingang</a></li>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'messages/out/">Ausgang</a></li>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'messages/write/">Verfassen</a></li>' +
+          '  </ul></span></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'friendlist/">Freunde und Blockierte</a></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'itemsale/">Kronkorken</a></div></li>' +
+          '</ul>';
+        var menuPenner = '<ul id="PullDownMenuPenner">' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'overview/">Übersicht</a></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'activities/">Aktionen</a></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'settings/">Einstellungen</a></div></li>' +
+          '  <li><div class="pdsubmenu">' +
+          '    <a href="'+UrlHandler.wwwUrl+'skills/">Weiterbildung...</a>' +
+          '    <span style="top: 70px;"><ul>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'skills/">Penner</a></li>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'skills/pet/">Haustier</a></li>' +
+          '  </ul></span></div></li>' +
+          '  <li><div class="pdsubmenu">' +
+          '    <a href="'+UrlHandler.wwwUrl+'fight/overview/">Kampf...</a>' +
+          '    <span style="top: 91px;"><ul>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'fight/overview/">Penner</a></li>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'fight/fightlog/">Log</a></li>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'fight/pet/">Haustierkämpfe</a></li>' +
+          '  </ul></span></div></li>' +
+          '  <li><div class="pdsubmenu">' +
+          '    <a href="'+UrlHandler.createHighscorePage(1)+'">Highscore...</a>' +
+          '    <span style="top: 112px;"><ul>' +
+          '      <li><a href="'+UrlHandler.createHighscorePage(1)+'">Spieler</a></li>' +
+          '      <li><a href="'+UrlHandler.highscoreGangUrl+'1/">Banden</a></li>' +
+          '      <li><a href="'+UrlHandler.highscoreJoindateUrl+'1/">Mein Datum</a></li>' +
+          (Registry.hasObject("AioSuperSearch") ?
+          '      <li><a href="'+UrlHandler.nop+'" class="disabled" id="PullDownMenuPennerHighscoreId">Meine ID</a></li>' : '') + 
+          '      <li><a href="'+UrlHandler.highscoreRankUrl+'1/">Rank</a></li>' +
+          (Registry.hasObject("BotManager") ?
+          '      <li><a href="'+UrlHandler.createPreferredAttackUrl()+'">Bevorzugte Gegner</a></li>' : '') + 
+          (GameType.hasDownfight ?
+          '      <li><a href="'+UrlHandler.createDownfightersAttackUrl()+'">Runterkämpfer</a></li>' : '') + 
+          (GameType.hasDownfight ?
+          '      <li><a href="'+UrlHandler.createUpfightersAttackUrl()+'">Hochkämpfer</a></li>' : '') + 
+          '  </ul></span></div></li>' +
+          '  <li><div class="pdsubmenu">' +
+          '    <a href="'+UrlHandler.wwwUrl+'stock/">Inventar...</a>' +
+          '    <span style="top: 133px;"><ul>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'stock/bottle/">Pfandflaschen</a></li>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'stock/foodstuffs/drinks/">Trinken</a></li>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'stock/foodstuffs/food/">Essen</a></li>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'stock/plunder/">Plunder</a></li>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'stock/plunder/craft/">Plunder Basteln</a></li>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'stock/instruments/">Instrumente</a></li>' +
+          '      <li><a href="'+UrlHandler.wwwUrl+'stock/armoury/">Waffenkammer</a></li>' +
+          '  </ul></span></div></li>' +
+          (GameType.hasRewards ? (
+          '  <li><div class="pdsubmenu">' +
+          '    <a href="'+UrlHandler.dailyTaskUrl+'">Tagesaufgabe...</a>' +
+          '    <span style="top: 154px;"><ul>' +
+          '      <li><a href="'+UrlHandler.dailyTaskUrl+'">Aktuelle Aufgabe</a></li>' +
+          '      <li><a href="'+UrlHandler.dailyTaskUrl+'rewards/">Belohnungen</a></li>' +
+          '      <li><a href="'+UrlHandler.dailyTaskUrl+'recent/">Log</a></li>' +
+          '  </ul></span></div></li>') :
+          '') +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'financial/">Bilanzen</a></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'awards/">Auszeichnungen</a></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.nop+'" class="disabled" id="PullDownMenuPennerProfil">Dein Profil</a></div></li>' +
+          '  <li><div class="pdsubmenu"><a href="'+UrlHandler.wwwUrl+'change_please/statistics/">Spenden Statistik</a></div></li>' +
+          '</ul>';
+
+        var style =
+          'div.pdmenu {' +
+          '  position: relative;' +
+          '}' +
+          'div.pdmenu_out span {' +
+          '  display: none;' +
+          '}' +
+          'div.pdmenu span {' +
+          '  display: block;' +
+          '  position: absolute;' +
+          '  top: 48px;' +
+          '  left: 0;' +
+          '  z-index: 20000;' +
+          '  border-width: 0 1px 1px;' +
+          '  border-style: solid;' +
+          '  border-color: #777777 #777777 #777777 #777777;' +
+          '  opacity: .95;' +
+          '  background: #262626;' +
+          '}' +
+          '#topmenu .pdmenu span a {' +
+          '  border-color: #5d5d5d;' +
+          '  border-style: solid;' +
+          '  border-width: 1px 0 0;' +
+          '  color: #c3c3c3;' +
+          '  font-size: 11px;' +
+          '  height: 17px;' +
+          '  width: 140px;' +
+          '  padding-top: 3px;' +
+          '  font-size: 11px;' +
+          '  background-image: none;' +
+          '  text-transform:none;' +
+          '}' +
+          '#topmenu .pdmenu span a.disabled {' +
+          '  color: #838383;' +
+          '}' +
+          '#topmenu .pdmenu span a.disabled:hover {' +
+          '  color: #838383;' +
+          '}' +
+          '#topmenu .pdmenu span a:hover {' +
+          '  color: #f3f3f3;' +
+          '}' +
+          '#topmenu .pdmenu ul {' +
+          '  margin-left: 0;' +
+          '}' +
+          '.pdmenu div.pdsubmenu_out span {' +
+          '  display: none;' +
+          '}' +
+          '.pdmenu div.pdsubmenu span {' +
+          '  display: block;' +
+          '  position: absolute;' +
+          '  left: 120px;' +
+          '  z-index: 20001;' +
+          '}' +
+          '#topmenu .pdsubmenu span a.disabled {' +
+          '  color: #838383;' +
+          '}' +
+          '#topmenu .pdsubmenu span a.disabled:hover {' +
+          '  color: #838383;' +
+          '}' +
+          '#topmenu .pdsubmenu span a:hover {' +
+          '  color: #f3f3f3;' +
+          '}' +
+          '#topmenu .pdmenu .pdsubmenu span a {' +
+          '  width: 130px;' +
+          '}';
+
+        BaseLib.addGlobalStyle (style);
+
+        PullDownMenu.addPulldown(4, menueNews);
+        PullDownMenu.addPulldown(3, menueStadt);
+        PullDownMenu.addPulldown(2, menueBande);
+        PullDownMenu.addPulldown(1, menuCommunication);
+        PullDownMenu.addPulldown(0, menuPenner);
+
+        UIHelpers.addDelayedHover('pdmenu', undefined, 1);
+        UIHelpers.addDelayedHover('pdsubmenu');
+    };
+
+    PullDownMenu.update = function() {
+        var uid = UserInfo.uid;
+        var gid = UserInfo.gang;
+
+        if (!document.getElementById("PullDownMenuGangProfil")) {
+            PullDownMenu.setup();
+        }
+
+        // remove gang menu if not in one
+        var c = document.getElementById("PullDownMenuGang");
+        if (c && gid <= 0) {
+            c.parentNode.removeChild(c);
+        } else {
+            // create gang profile link
+            c = document.getElementById("PullDownMenuGangProfil");
+            if (c) {
+                c.href = UrlHandler.createProfilUrlGang(gid);
+                c.setAttribute('class', '');
+            }
+        }
+
+        // create my profile link
+        c = document.getElementById("PullDownMenuPennerProfil");
+        if (c) {
+            c.href = UrlHandler.createProfilUrlUser(uid);
+            c.setAttribute('class', '');
+        }
+
+        // create id highscore link
+        c = document.getElementById("PullDownMenuPennerHighscoreId");
+        if (c) {
+            c.href = UrlHandler.createShowByIdURL(/*you never know ;)*/uid <= 10 ? uid : uid - 10);
+            c.setAttribute('class', '');
+        }
+
+        // show admin links if admin
+        if (UserInfo.adminStatus == eMember) {
+            document.getElementById("PullDownMenuAdmin").style.display = 'none';
+            document.getElementById("PullDownMenuAdminLog").style.display = 'none';
+        }
+    };
+
+    PullDownMenu.create = function() {
+        PullDownMenu.setup();
+    };
+
+    PullDownMenu.onRunlevel = function(runlevel) {
+        if (runlevel == 30) {
+            PullDownMenu.create();
+        } else if (runlevel == 60) {
+            PullDownMenu.update();
+        }
+    };
+};
+
+// ########### Buddy List ################
+
+BuddyList.init = function() {
+    BuddyList.create = function() {
+        var elem = UIHelpers.createSidebarItem("buddylist", "Freundesliste", 'sidebar_buddy', 'sidebar_buddy');
+        if (!elem) return;
+
+        var url = UrlHandler.friendlistUrl;
+        var f = function(req) {
+            if (req.readyState == 4) {
+                if (req.status == 200) {
+                    var starttable = '<td width="500" height="15" colspan="4" align="left" valign="top">';
+                    var endtable = '</tr>';
+                    var rest = req.responseText;
+                    var pos1 = rest.search(starttable);
+                    var newText = "";
+
+                    if (pos1 != -1) {
+                        rest = rest.substr(pos1, rest.length - pos1);
+                        var pos2 = rest.search(endtable);
+                        if (pos2 != -1) {
+                            pos2 += endtable.length;
+                            newText += "<table style=\"width: 100%\">";
+
+                            rest = rest.substr(pos2, rest.length - pos2);
+                            var online = "";
+                            var offline = "";
+
+                            endtable = '<td height="15" colspan="4" align="left" valign="top">';
+                            var pos3 = rest.search(endtable);
+                            if (pos3 != -1) {
+                                pos3 += endtable.length;
+                                var freundeTable = rest.substr(0, pos3);
+                                rest = freundeTable;
+
+                                // process the table
+                                var pos = rest.search("<tr>");
+                                while (pos != -1) {
+                                    rest = rest.substr(pos + 1, rest.length - pos - 1);
+                                    var rest1 = rest;
+
+                                    pos1 = rest.search("<td");
+                                    if (pos1 != -1) {
+                                        rest1 = rest1.substr(pos1 + 1, rest1.length - pos1 - 1);
+                                        pos2 = rest1.search("<td");
+                                        if (pos2 != -1) {
+                                            rest1 = rest1.substr(pos2 + 1, rest1.length - pos2 - 1);
+                                            pos3 = rest1.search("<td");
+                                            if (pos3 != -1) {
+                                                // alles gefunden!
+                                                var line = rest.substr(pos1, pos2 + pos3 + 2);
+                                                var id = BaseLib.getStringBetweenTags(line, '/profil/id:', '/');
+                                                line = line.replace(" width=\"460\"", "").replace(" width=\"150\"", "");
+                                                if (id) line += '<td><a href="'+UrlHandler.messagesWriteToUrl+id+'"><img width="12" src="'+UrlHandler.icoNewMsg+'"></a></td>';
+                                                line = "<tr>" + line + "</tr>";
+                                                if (line.search("buddy_off.png") != -1) {
+                                                    offline += line;
+                                                } else {
+                                                    online += line;
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    pos = rest.search("<tr>");
+                                }
+                            }
+
+                            newText += online + offline + "</table>";
+                        }
+                    }
+                    var fillList = function () {
+                        elem.innerHTML += newText;
+                    }
+                    fillList();
+                }
+            }
+        };
+        BaseLib.xmlhttpRequest(url, f);
+    };
+
+    BuddyList.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            BuddyList.create();
+        }
+    };
+
+};
+
+// ########### Pay all button ################
+
+PayAllButton.init = function() {
+    PayAllButton.create = function() {
+        var money = BaseLib.getElementsByClassNameForElements('li' ,'icon money')[0].innerHTML;
+        money = Math.floor(BaseLib.extractNumber(money) / 100);
+        var p = document.getElementById("f_money").parentNode;
+
+        p.innerHTML += '&nbsp;&nbsp;';
+        var b = document.createElement('input');
+        b.setAttribute('type', 'button');
+        b.setAttribute('value', 'alles');
+        b.setAttribute('onclick', 'new function() { document.getElementById("f_money").value = ' + money + '; }' );
+        p.appendChild(b);
+    };
+
+    PayAllButton.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isGangCreditUrl()) {
+                PayAllButton.create();
+            }
+        }
+    };
+};
+
+// ########### Checker for Page Load Error ################
+
+ErrorChecker.init = function() {
+
+    var posted = false;
+
+    ErrorChecker.prepareWindow = function() {
+        if (BaseLib.tab) {
+            if (typeof BaseLib.tab.posted !== 'undefined') {
+                posted = BaseLib.tab.posted;
+            }
+            if (typeof BaseLib.tab.postreload === 'undefined') {
+                BaseLib.tab.postreload = false;
+            }
+            BaseLib.tab.posted = false;
+            var onsubmit = function() {
+                BaseLib.tab.posted = true;
+                BaseLib.handlePostedUrl();
+            };
+            window.addEventListener('submit', onsubmit, true);
+        }
+    };
+
+    ErrorChecker.wasPosted = function() {
+        return posted;
+    };
+
+    ErrorChecker.reload = function(rt) {
+        var postreload = false;
+
+        if (BaseLib.tab && BaseLib.tab.postreload) {
+            BaseLib.tab.postreload = false;
+            // do not reload urls that need post parameters
+            postreload = true;
+        }
+
+        if (!postreload) {
+            if (rt == undefined) rt = UrlHandler.urlGetParam("rt", 1);
+            rt *= 2;
+            if (rt > 60) {
+                if (!UrlHandler.isWwwOnlyUrl()) {
+                    UrlHandler.doRedirect(UrlHandler.wwwUrl);
+                    return;
+                } else {
+                    rt = 60;
+                }
+            }
+            UrlHandler.doReload(0, rt, (new Date()).getTime());
+        } else {
+            UrlHandler.doRedirect(UrlHandler.wwwUrl);
+        }
+    };
+
+    ErrorChecker.check = function(autoreload, callback, retries) {
+        var err = true;
+
+        if (UrlHandler.isNetErrorUrl()) {
+            // evil!!! retry loading every 30 seconds
+            var ourl = unescape(BaseLib.getStringBetweenTags(document.URL, '&u=', '&'));
+            if (!ourl) ourl = UrlHandler.overviewUrl;
+            UrlHandler.doRedirect(ourl, 30000);
+            return;
+        }
+
+        if (retries == undefined) retries = 70; // wait 70 * 100 msec before reloading
+
+        // search for my-profile div, this one is shown only if logged in
+        if (document.getElementById("wrap") && document.getElementById("my-profile")) {
+            err = false;
+        }
+        if (err && autoreload) {
+            if (retries-- > 0 && BaseLib.onLoadTime == 0) {
+                // wait some msec before reloading
+                BaseLib.setTimeoutEx(function () {  ErrorChecker.check(autoreload, callback, retries); }, 100);
+            } else if (UrlHandler. isWwwOnlyUrl()) {
+                // main url might show a login prompt, redirect to another page, that might redirect us to the login page
+                UrlHandler.doRedirect(UrlHandler.overviewUrl, 100);
+            } else {
+                // reload
+                var rt = UrlHandler.urlGetParam("rt", 2);
+                var bodies = document.getElementsByTagName('body');
+                if (bodies.length > 0 ) {
+                    var elem = bodies[0].getElementsByTagName('h1');
+                    if (elem) elem.innerHTML += "<span style=\"color: red;\">Reloading page...</span>";
+                }
+                BaseLib.setTimeoutEx(function () { ErrorChecker.reload(rt); }, rt * 1000);
+            }
+            
+        }
+
+        if (!err && callback != undefined) callback();
+        return err;
+    };
+};
+
+// ########### Highscore Parser ##############
+
+HighscoreParser.init = function() {
+
+    HighscoreParser.highscore = new Array();
+
+    /* private */
+    HighscoreParser.getFromSource = function(source, minPoints, maxPoints, minRank, count, cb) {
+        var hs = JSON.parse(source);
+        var matching = new Array();
+
+        if (!hs || !hs.highscore) {
+            cb(matching);
+            return;
+        }
+
+        HighscoreParser.highscore = hs.highscore;
+
+        for (var i = 0; i < hs.highscore.length; i++) {
+            var u = hs.highscore[i];
+            var points = u.p ? u.p : u.points;
+            if (minPoints != 0 && points < minPoints) {
+                continue;
+            }
+            if (maxPoints != 0 && points > maxPoints) {
+                continue;
+            }
+            matching.push(u.id);
+        }
+
+        if (minPoints != 0 || maxPoints != 0) {
+            matching = matching.reverse();
+        }
+
+        if (minRank <= 0 || count <= 0) {
+            cb(matching);
+            return;
+        }
+
+        var minIdx = minRank - 1;
+        var inRange = new Array();
+        for (var i = minIdx; i < matching.length && i < minIdx + count; i++) {
+            inRange.push(matching[i]);
+        }
+        cb(inRange);
+    };
+
+    HighscoreParser.getByParameters = function(minPoints, maxPoints, minRank, count, cb) {
+        var url = "http://pennergame.biniok.net/highscore/" + UrlHandler.configPrefix + "_highscore.json";
+        var d = new Date();
+        var ds = d.getFullYear() + (d.getMonth() < 9 ? "0" : "") + (d.getMonth() + 1) + (d.getDate() < 10 ? "0" : "") + d.getDate();
+        url += "?ts=" + ds;
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                HighscoreParser.getFromSource(req.responseText, minPoints, maxPoints, minRank, count, cb);
+            }
+        };
+        BaseLib.xmlhttpRequest(url, f, true);
+    };
+
+    HighscoreParser.getAll = function(cb) {
+        HighscoreParser.getByParameters(0, 0, 0, 0, cb);
+    };
+
+    HighscoreParser.getByPointRange = function(minPoints, maxPoints, cb) {
+        HighscoreParser.getByParameters(minPoints, maxPoints, 0, 0, cb);
+    };
+
+    HighscoreParser.getByPointRangeAndPage = function(minPoints, maxPoints, page, cb) {
+        if (page <= 0) page = 1;
+        var i = (page - 1) * 20 + 1;
+        HighscoreParser.getByParameters(minPoints, maxPoints, i, 20, cb);
+    };
+
+    // CAUTION: ranking starts with 1 for the best dosser, not with 0!
+    HighscoreParser.getByRanking = function(minRank, count, cb) {
+        HighscoreParser.getByParameters(0, 0, minRank, count, cb);
+    };
+
+    // CAUTION: page starts with 1 for the best dossers, not with 0!
+    HighscoreParser.getByHighscorePage = function(page, cb) {
+        if (page <= 0) page = 1;
+        var i = (page - 1) * 20 + 1;
+        HighscoreParser.getByRanking(i, 20, cb);
+    };
+
+    HighscoreParser.getRankById = function(uid) {
+        if (!HighscoreParser.highscore) {
+            return 0;
+        }
+        for (var i = 0; i < HighscoreParser.highscore.length; i++) {
+            if (HighscoreParser.highscore[i].id == uid) {
+                return i+1;
+            }
+        }
+        return 0;
+    };
+
+    HighscoreParser.getPointsById = function(uid) {
+        if (!HighscoreParser.highscore) {
+            return 0;
+        }
+        for (var i = 0; i < HighscoreParser.highscore.length; i++) {
+            if (HighscoreParser.highscore[i].id == uid) {
+                return HighscoreParser.highscore[i].p;
+            }
+        }
+        return 0;
+    };
+};
+
+// ########### Button to clear finished fights ##############
+
+ClearFightsButton.init = function() {
+
+    ClearFightsButton.create = function() {
+        // find the "fights info" button
+        var divs = BaseLib.getElementsByClassNameForElements('div', 'new_msg');
+        for (var i = 0; divs && i < divs.length; i++) {
+            if (divs[i].innerHTML.search("fightinfo.gif") != -1) {
+                // we need to add us here ...
+                var s = document.createElement("span");
+                var img = UIHelpers.getImage(GM_getResourceURL("clearFight.png"));
+                s.appendChild(img);
+                s.appendChild(document.createTextNode("  "));
+
+                var out = function() {
+                    img.setAttribute('style', 'cursor:default;');
+                };
+                var over = function() {
+                    img.setAttribute('style', 'cursor:pointer;');
+                };
+                var clk = function() {
+                    var url = UrlHandler.wwwUrl + "fight/list/clear/";
+                    var f = function(req) {
+                        if (req.readyState == 4 && req.status == 200) {
+                            UrlHandler.doReload();
+                        }
+                    };
+                    BaseLib.xmlhttpRequest(url, f, false);
+                };
+
+                img.addEventListener('mouseout', out, true);
+                img.addEventListener('mouseover', over, true);
+                img.addEventListener('click', clk, true);
+
+                var a = divs[i].getElementsByTagName('a');
+                divs[i].insertBefore(s, a[a.length-1]);
+
+                return;
+            }
+        }
+    };
+
+    ClearFightsButton.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isOverviewUrl()) {
+                ClearFightsButton.create();
+            }
+        }
+    };
+
+};
+
+// ########### remove gang profile ##############
+
+ProfileCutter.init = function() {
+
+    ProfileCutter.pId = "idProfCutter";
+    ProfileCutter.motdBtn = null;
+    
+    var hideElem = function(tr, desc) {
+        if (desc == undefined) desc = 'Profil';
+        var h = tr.innerHTML;
+        tr.innerHTML = '';
+        tr.setAttribute("id", ProfileCutter.pId);
+        tr.setAttribute('oldhtml', escape(h));
+        var show = UIHelpers.createSidebarButton('Zeige ' + desc + ' ' + Math.round(h.length / 1024) + 'KB + ' + (h.split('<img').length - 1) + ' Bild(er)' , false, 'showProfile');
+
+        var f = function() {
+            var e = document.getElementById(ProfileCutter.pId);
+            if (e) {
+                e.innerHTML = unescape(e.getAttribute('oldhtml'));
+                RedirectRemover.removeRedirects();
+            }
+        };
+
+        show.addEventListener('click', f, true);
+        var td = document.createElement('td');
+        td.setAttribute('colspan', '4');
+        td.appendChild(show);
+        tr.appendChild(td);
+        return show;
+    };
+
+    ProfileCutter.recheckMotD = function() {
+        var t = document.getElementById(ProfileCutter.pId);
+        if (t) {
+            var f = t.getAttribute('oldhtml');
+            var b = ProfileCutter.motdBtn;
+            if (f && b) {
+                var md5 = MD5.get(f);
+                if (md5 != Config.shoutbox.motd_md5) {
+                    b.addImage(GM_getResourceURL("messages.png"), null);
+                    b.addImage(GM_getResourceURL("messages.png"), null, true);
+                    b.addEventListener('click', function() { Config.shoutbox.motd_md5 = md5; Config.saveConfigGM(); }, true);
+                }
+            }
+        }
+    };
+
+    ProfileCutter.hideMotD = function() {
+        if (Language.motd == Language.unbekannt) return;
+        var ls = document.getElementsByClassName('listshop');
+        if (!ls || !ls.length) return;
+        var ta = ls[0].getElementsByTagName('table');
+        if (!ta || !ta.length) return;
+        var trs = ta[0].getElementsByTagName('tr');
+        for (var i = 0; i < trs.length; i++) {
+            if (trs[i].innerHTML.search(Language.motd) != -1 &&
+                (i + 1) < trs.length) {
+                ProfileCutter.motdBtn = hideElem(trs[i+1], 'MotD');
+                break;
+            }
+        }
+    };
+    
+    ProfileCutter.hideGang = function() {
+        if (Language.beschreibung == Language.unbekannt) return;
+        var trs = document.getElementsByTagName('tr');
+        for (var i = 0; i < trs.length; i++) {
+            if (trs[i].innerHTML.search(Language.beschreibung) != -1 &&
+                (i + 1) < trs.length) {
+                hideElem(trs[i+1]);
+                break;
+            }
+        }
+    };
+
+    ProfileCutter.hideUser = function() {
+
+        var t = BaseLib.getElementsByClassNameForElements('table', 'profil_tabelle');
+        if (t.length != 0) {
+            var tbody = BaseLib.getChildsByTagName('tbody', t[0]);
+            if (tbody.length == 0) return;
+
+            var trs = BaseLib.getChildsByTagName('tr', tbody[0]);
+            if (trs.length == 0) return;
+
+            var tag = "<strong>&nbsp;" + Language.punkte + "</strong>";
+
+            /* reverse search for plunder, pet and last but not least the "Points" tag
+               if found, the last tr element contains the user profile stuff */
+            var petTable = '<table style="margin: 5px; padding: 5px; -moz-border-radius: 4px; border:1px solid #000000; background-color: #111;">';
+            for (var i = trs.length-1; i >= 0; i--) {
+                var html = trs[i].innerHTML;
+                if ((i + 1) < trs.length) {
+                    if (html.search(petTable) != -1) {
+                        hideElem(trs[i+1]);
+                        return;
+                    } else if ((i + 2) < trs.length &&
+                               (Language.punkte != Language.unbekannt) &&
+                               html.search(tag) != -1) {
+                        // trs[i+1] contains the empty pet and plunder row
+                        hideElem(trs[i+2]);
+                        return;
+                    }
+                }
+            }
+
+        } else {
+            var fldiv = BaseLib.getElementsByClassNameForElements('div', 'user_custom_bg');
+            if (fldiv.length == 0) return;
+
+            var usdiv = fldiv[0].getElementsByTagName('div');
+            if (usdiv.length == 0) return;
+
+            hideElem(usdiv[0]);
+        }
+    };
+
+    ProfileCutter.show = function() {
+        var b = document.getElementById(ProfileCutter.pId);
+        if (b) {
+            var f = b.getAttribute('oldhtml');
+            if (f) {
+                b.innerHTML = unescape(f);
+                RedirectRemover.removeRedirects();
+            }
+        }
+    };
+
+    ProfileCutter.onRunlevel = function(runlevel) {
+        if (runlevel == 30) {
+            if (UrlHandler.isProfileGangUrl()) {
+                ProfileCutter.hideGang();
+            }
+            if (UrlHandler.isProfileUserUrl()) {
+                ProfileCutter.hideUser();
+            }
+            if (UrlHandler.isGangShoutboxUrl()) {
+                ProfileCutter.hideMotD();
+            }
+        } else if (runlevel == 60) {
+            if (!Config.entferne_beschreibung &&
+                (UrlHandler.isProfileGangUrl() || UrlHandler.isProfileUserUrl())) {
+                /* Config is loaded... what? u want to see all profiles? ok! */
+                ProfileCutter.show();
+            }
+    
+            if (UrlHandler.isGangShoutboxUrl()) {
+                if (Config.verstecke_motd) {
+                    ProfileCutter.recheckMotD();
+                } else {
+                    /* Config is loaded... show motd if we're configured for */
+                    ProfileCutter.show();
+                }
+            }
+        }
+    };
+
+};
+    
+// ########### relogin ##############
+
+Login.init = function() {
+
+    Login.retries = 3;
+
+    Login.prepareLogout = function() {
+        var fs = document.getElementsByTagName('form');
+        var btns = null;
+
+        for (var i=0; i<fs.length; i++) {
+            var form = fs[i];
+            if (form.action.search('\/logout\/') != -1) {
+                btns = form.getElementsByTagName('input');
+                break;
+            }
+        }
+
+        if (btns != null && btns.length) {
+            var btn = btns[0];
+            // clear autologin details!
+            var f = function() { Login.setDetails('',''); };
+            btn.addEventListener('click', f, true);
+        }
+    }
+    
+    Login.tryReLogin = function() {
+        var det = Login.getDetails();
+        if (!det) return;
+
+        Login.logIn(det.user, det.pass);
+    }
+
+    Login.getDetails = function() {
+        var ret = new Object();
+        if (BaseLib.tab) {
+            if (typeof BaseLib.tab.username !== 'undefined' &&
+                typeof BaseLib.tab.password !== 'undefined') {
+                ret.user = BaseLib.tab.username;
+                ret.pass = BaseLib.tab.password;
+                if (ret.user == '' || ret.pass == '') ret = null;
+            } else {
+                ret = null;
+            }
+        } else {
+            ret = null;
+        }
+        return ret;
+    }
+
+    Login.setDetails = function(user, pass) {
+        if (user == undefined) {
+            var prof = document.getElementById('my-profile');
+            if (!prof) return false;
+            var aarr = prof.getElementsByTagName('a');
+            for (var i=0; i<aarr.length; i++) {
+                var a = aarr[i];
+                if (a.href.search("id:") != -1) {
+                    user = a.innerHTML.trim();
+                    break;
+                }
+            }
+            if (user == undefined) return false;
+        }
+        if (pass == undefined) {
+            pass = Base64.decodeString(Config.relogin_password);
+        }
+        if (BaseLib.tab) {
+            BaseLib.tab.username = user;
+            BaseLib.tab.password = pass;
+        } else {
+            return false;
+        }
+        return true;
+    }
+
+    Login.logIn = function(user, pass) {
+        var param = [];
+        var o = unsafeWindow.document.getElementById("formReg");
+        if (!o) return;
+
+        var os = o.getElementsByTagName('input');
+
+        for (var i=0; i<os.length; i++) {
+            var n = os[i].name;
+            var v = os[i].value;
+            var t = os[i].type;
+            if (n != '') {
+                if (n.search('username') != -1) {
+                    v = user;
+                } else if (n.search('password') != -1) {
+                    v = pass;
+                }
+                param.push(BaseLib.postParam(n, v));
+            }
+        }
+
+        var oobj = this;
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                if (req.responseText.search(Language.passwortFalsch) != -1) {
+                    alert('AutoLogin failed. Sorry.');
+                } else {
+                    UrlHandler.doRedirect(UrlHandler.overviewUrl);
+                }
+            } else {
+                if (--oobj.retries > 0) {
+                    Login.logIn(user, pass);
+                }
+            }
+        };
+
+        var url = UrlHandler.loginCheckUrl;
+        BaseLib.xmlhttpPostRequest(url, f, param);
+    };
+
+    Login.onRunlevel = function(runlevel) {
+        if (runlevel == 50) {
+            if (Config.relogin && Config.relogin_password != '') {
+                /* do not overwrite existing login data */
+                Login.prepareLogout();
+                if  (Login.getDetails() == null) Login.setDetails();
+            }
+        }
+    };
+
+};
+
+// ########### Some Actions like drinking, washing, etc. ##############
+
+Actions.init = function() {
+
+    Actions.submitForm = function(url, params, cb) {
+        if (!cb) {
+            cb = UrlHandler.doReload;
+        }
+        BaseLib.xmlhttpPostRequest(url, cb, params);
+    };
+
+    Actions.drinkBeer = function(amount, cb) {
+        Actions.submitForm(UrlHandler.foodUseUrl, [ BaseLib.postParam('item', 'Bier'),
+                                                    BaseLib.postParam('promille', '35'),
+                                                    BaseLib.postParam('id', '1'),
+                                                    BaseLib.postParam('menge', amount) ], cb);
+    };
+
+    Actions.buyBeer = function(amount, cb) {
+        var params = [ BaseLib.postParam('menge', amount), 
+                       BaseLib.postParam('id', '1'),
+                       BaseLib.postParam('cat', '1'),
+                       BaseLib.postParam('preis', (GameType.costsBeer / 100).toFixed(2)),
+                       BaseLib.postParam('preis_cent', GameType.costsBeer),
+                       BaseLib.postParam('inventar_name', 'bier') ];
+
+        Actions.submitForm(UrlHandler.supermarketBuyUrl, params, cb);
+    };
+
+    Actions.checkBeer = function(callback) {
+        var f = function(req) {
+            if (req.readyState == 4) {
+                if (req.status == 200) {
+                    var t1 = '<input type="hidden" id="lager_Bier" value="';
+                    var t2 = '" \/>';
+                    var t = Number(BaseLib.getStringBetweenTags(req.responseText, t1, t2));
+
+                    if (callback)
+                        callback(t);
+                }
+            }
+        };
+
+        BaseLib.xmlhttpRequest(UrlHandler.stockBeerUrl, f);
+    };
+
+    Actions.buyAndDrinkBeer = function(Benoetigtbier, cb) {
+        var doDrink = function () {
+            Actions.drinkBeer(Benoetigtbier, cb);
+        };
+        var doBuy = function (beer, callback) {
+            Actions.buyBeer(beer, callback);
+        };
+        var inventory = function (beer) {
+            if (beer >= Benoetigtbier) {
+                doDrink();
+            } else {
+                var anz = Benoetigtbier - beer;
+                var costs = (anz * GameType.costsBeer);
+                var afterSell = function(suc) {
+                    if (suc == null) {
+                        Log.console("Keine Flaschen zum Verkauf :(");
+                        return;
+                    }
+                    doBuy(anz, doDrink);
+                };
+                if (PennerInfo.state.moneyInCent == null) {
+                    BaseLib.setTimeoutEx(function () { Actions.buyAndDrinkBeer(Benoetigtbier, cb); }, 1000);
+                } else if (PennerInfo.state.moneyInCent < costs) {
+                    BottleTools.sellBottlesByMoney(Math.ceil(costs / 100), afterSell);
+                } else {
+                    afterSell(true);
+                }
+            }
+        };
+        Actions.checkBeer(inventory);
+    };
+
+    Actions.eatBread = function(amount, cb) {
+        Actions.submitForm(UrlHandler.foodUseUrl, [ BaseLib.postParam('item', 'Brot'),
+                                                    BaseLib.postParam('promille', '-35'),
+                                                    BaseLib.postParam('id', '2'),
+                                                    BaseLib.postParam('menge', amount) ], cb);
+    };
+
+    Actions.buyBread = function(amount, callback) {
+        var url = UrlHandler.supermarketBuyUrl;
+        var params = [
+                      BaseLib.postParam('menge', amount),
+                      BaseLib.postParam('id', '2'),
+                      BaseLib.postParam('cat','2'),
+                      BaseLib.postParam('preis', (GameType.costsBread / 100).toFixed(2)),
+                      BaseLib.postParam('preis_cent', GameType.costsBread),
+                      BaseLib.postParam('inventar_name', 'brot') ];
+
+        var f = function(req) {
+            if (req.readyState == 4) {
+                if (req.status == 200) {
+                    if (callback)
+                        callback();
+                }
+            }
+        };
+        BaseLib.xmlhttpPostRequest(url, f, params);
+    };
+
+    Actions.checkBread = function(callback) {
+        var f = function(req) {
+            if (req.readyState == 4) {
+                if (req.status == 200) {
+                    var t1 = '<input type="hidden" id="lager_Brot" value="';
+                    var t2 = '" \/>';
+                    var t = Number(BaseLib.getStringBetweenTags(req.responseText, t1, t2));
+                    if (callback)
+                        callback(t);
+                }
+            }
+        };
+
+        BaseLib.xmlhttpRequest(UrlHandler.stockBreadUrl, f);
+    };
+
+    Actions.buyAndEatBread = function(Benoetigtbrot, cb) {
+        var doEat = function () {
+            Actions.eatBread(Benoetigtbrot, cb);
+        };
+        var doBuy = function (bread, callback) {
+            Actions.buyBread(bread, callback);
+        };
+        var inventory = function (bread) {
+            if (bread >= Benoetigtbrot) {
+                doEat();
+            } else {
+                var anz = Benoetigtbrot - bread;
+                var costs = (anz * GameType.costsBread);
+                var afterSell = function(suc) {
+                    if (suc == null) {
+                        Log.console("Keine Flaschen zum Verkauf :(");
+                        return;
+                    }
+                    doBuy(anz, doEat);
+                };
+                if (PennerInfo.state.moneyInCent == null) {
+                    BaseLib.setTimeoutEx(function () { Actions.buyAndEatBread(Benoetigtbrot, cb); }, 1000);
+                } else if (PennerInfo.state.moneyInCent < costs) {
+                    BottleTools.sellBottlesByMoney(Math.ceil(costs / 100), afterSell);
+                } else {
+                    afterSell(true);
+                }
+            }
+        };
+        Actions.checkBread(inventory);
+    };
+
+    Actions.wash = function(cb) {
+        var clean = 0;
+        if (PennerInfo.state.cleanness != null) {
+            clean = PennerInfo.state.cleanness;
+        }
+
+        var sponges = Math.ceil((100 - clean) / 20);
+        if (sponges > 3) {
+            Actions.washCarWash(cb);
+        } else {
+            Actions.washSponge(sponges, cb);
+        }
+    };
+
+    Actions.washCarWash = function(cb) {
+        Actions.submitForm(UrlHandler.washBuyUrl, [ BaseLib.postParam('id', '2'),
+                                                    BaseLib.postParam('submitForm', 'Waschen') ], cb);
+    };
+
+    Actions.washSponge = function(sponges, cb) {
+        if (sponges <= 0) {
+            if (cb) {
+                cb();
+            } else {
+                UrlHandler.doReload();
+            }
+            return;
+        }
+
+        var cb0 = function() {
+            Actions.washSponge(sponges - 1, cb);
+        };
+        Actions.submitForm(UrlHandler.washBuyUrl, [ BaseLib.postParam('id','1'),
+                                                    BaseLib.postParam('submitForm', 'Waschen') ], cb0);
+    };
+
+    Actions.heal = function(cb) {
+        var health = 0;
+        if (PennerInfo.state.healthState != null) {
+            health = BaseLib.extractNumber(PennerInfo.state.healthState);
+        }
+        var kits = Math.ceil((100 - health) / 20);
+        Actions.healKit(kits, cb);
+    };
+
+    Actions.healKit = function(kits, cb) {
+        if (kits <= 0) {
+            if (cb) {
+                cb();
+            } else {
+                UrlHandler.doReload();
+            }
+            return;
+        }
+
+        var cb0 = function() {
+            Actions.healKit(kits - 1, cb);
+        };
+        Actions.submitForm(UrlHandler.firstAidUrl, [ BaseLib.postParam('id', '2'),
+                                                     BaseLib.postParam('submitForm', '30.00') ], cb0);
+    };
+
+    Actions.payToGangKitty = function(amount, cb) {
+        var url = UrlHandler.gangCreditUrl;
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                var t1 = '<input type="submit" name="Submit" value="';
+                var t2 = '">';
+                var t = BaseLib.getStringBetweenTags(req.responseText, t1, t2);
+
+                if (t) {
+                    Actions.payToGangKitty_internal(amount, t, cb);
+                    return;
+                }
+                if (cb) cb(false);
+            }
+        };
+
+        BaseLib.xmlhttpRequest(url, f, true, 30);
+    };
+
+    Actions.payToGangKitty_internal = function(amount, desc, cb) {
+        Actions.submitForm(UrlHandler.gangKittyPayUrl, [ BaseLib.postParam('f_money', amount),
+                                                         BaseLib.postParam('f_comment', ''),
+                                                         BaseLib.postParam('submit', desc) ], cb);
+    };
+
+    Actions.buyLuck = function(cnt, cb) {
+        var url = UrlHandler.luckUrl;
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                var t1 = '<input id="submitForm1"';
+                var t2 = '>';
+                var t = BaseLib.getStringBetweenTags(req.responseText, t1, t2);
+
+                var u1 = 'value="';
+                var u2 = '"';
+                var u = BaseLib.getStringBetweenTags(t, u1, u2);
+
+                if (u) {
+                    Actions.buyLuck_internal(cnt, u, cb);
+                    return;
+                }
+                if (cb) cb(false);
+            }
+        };
+
+        BaseLib.xmlhttpRequest(url, f, true, 30);
+    };
+
+    Actions.buyLuck_internal = function(cnt, desc, cb) {
+        if (!cb) cb = UrlHandler.doReload;
+
+        var shouldBuy = cnt;
+        var waiting = cnt;
+        var round = 0;
+
+        var cbRound = function(cntRound) {
+            waiting -= cntRound;
+            if (waiting <= 0) {
+                cb();
+            }
+        };
+
+        var buyRound = function(cntRound) {
+            Actions.buyLuck_internal2(cntRound, desc, function() { cbRound(cntRound); });
+        };
+
+        while (shouldBuy > 0) {
+            round++;
+            var cntRound = Math.min(shouldBuy, GameType.maxLuck);
+            shouldBuy -= cntRound;
+            BaseLib.setTimeoutEx(function() { buyRound(cntRound); }, round * 100);
+        }
+    };
+
+    Actions.buyLuck_internal2 = function(cnt, desc, cb) {
+        Actions.submitForm(UrlHandler.buyLuckUrl, [ BaseLib.postParam('menge', cnt),
+                                                    BaseLib.postParam('id', '1'),
+                                                    BaseLib.postParam('preis', '1.00'),
+                                                    BaseLib.postParam('preis_cent', '100'),
+                                                    BaseLib.postParam('submitForm', desc) ], cb);
+    };
+
+    Actions.emptyStomach = function(cb) {
+        Actions.submitForm(UrlHandler.medicineHelpUrl, [ BaseLib.postParam('id', '2'),
+                                                         BaseLib.postParam('submitForm', 'Auspumpen') ], cb);
+    };
+
+    Actions.postShoutbox = function(text, cb) {
+        Actions.submitForm(UrlHandler.gangChatAddUrl, [ BaseLib.postParam('f_text', text),
+                                                        BaseLib.postParam('Submit', 'Abschicken') ], cb);
+    };
+
+    Actions.sendMessage = function(to, subject, text, cb) {
+        Actions.submitForm(UrlHandler.messageSendUrl, [ BaseLib.postParam('f_toname', to),
+                                                        BaseLib.postParam('f_subject', subject),
+                                                        BaseLib.postParam('f_text', text),
+                                                        BaseLib.postParam('f_did', ''),
+                                                        BaseLib.postParam('submit', 'Abschicken') ], cb);
+    };
+
+    Actions.getMusicMoney = function(cb) {
+        Actions.submitForm(UrlHandler.musicPayoutUrl, null, cb);
+    };
+
+};
+
+// ########### Remove PG redirections ##############
+RedirectRemover.init = function() {
+
+    RedirectRemover.removeRedirects = function() {
+        // don't ask why we need to have this twice ... ;)
+        var redirectSearch = 'redirect\\/\\?site=';
+        var links = document.getElementsByTagName("a");
+        for (var i = 0; links && i < links.length; i++) {
+            var p;
+            if ((p = links[i].href.search(redirectSearch)) != -1) {
+                links[i].href = links[i].href.substr(p + redirectSearch.length - 2);
+                if (links[i].href.search(UrlHandler.wwwUrl) == -1 || links[i].href.search(UrlHandler.change_please) != -1) {
+                    links[i].setAttribute('target', '_blank');
+                }
+            }
+        }
+    };
+
+    RedirectRemover.onRunlevel = function(runlevel) {
+        if (runlevel == 59) {
+            RedirectRemover.removeRedirects();
+        }
+    };
+
+};
+
+// ########### Games: lotto etc. ##############
+Games.init = function() {
+    Games.createBuyAllTickets = function() {
+        if (Language.duKannstLoseKaufen == Language.unbekannt) return;
+
+        var table = BaseLib.getElementsByClassNameForElements('table', 'tieritemA')[0];
+        if (!table) return;
+
+        // find the number of possible game tickets
+        var row = table.getElementsByTagName('tr')[1];
+        if (!row) return;
+        var col = row.getElementsByTagName('td')[0];
+        if (!col) return;
+        var cnt = BaseLib.extractNumber(BaseLib.getStringBetweenTags(col.innerHTML, Language.duKannstLoseKaufen[0], Language.duKannstLoseKaufen[1]));
+        if (!cnt) return;
+
+        // create new button to buy all tickets
+        row = table.getElementsByTagName('tr')[3];
+        if (!row) return;
+        col = row.getElementsByTagName('td')[0];
+        if (!col) return;
+
+        var btn = document.createElement('input');
+        btn.setAttribute('type', 'button');
+        btn.setAttribute('value', 'Alle ' + cnt + ' Rubbellose kaufen');
+        col.appendChild(btn);
+
+        btn.addEventListener('click', function() { Actions.buyLuck(cnt); btn.setAttribute('disabled', 'disabled'); btn.setAttribute('value', 'Bitte warten ...'); }, true);
+    };
+
+    Games.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isCityGamesUrl()) {
+                Games.createBuyAllTickets();
+            }
+        }
+    };
+};

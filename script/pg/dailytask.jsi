@@ -1,0 +1,336 @@
+/** 
+ * @filename daylytask.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+DailyTaskBot = new Object();
+
+Registry.register("DailyTaskBot", DailyTaskBot);
+
+DailyTaskBot.init = function() {
+
+    DailyTaskBot.button = null;
+    DailyTaskBot.nullDate = '01.01.10';
+    DailyTaskBot.lockManTS = 0;
+    DailyTaskBot.clearTimer = null;
+
+    DailyTaskBot.printMsg = function(msg, clear) {
+        var m = msg;
+        var elem = document.getElementById("dailytask_message");
+        if (!elem) return;
+        elem.innerHTML = msg;
+
+        if (DailyTaskBot.clearTimer) {
+            window.clearTimeout(DailyTaskBot.clearTimer);
+            DailyTaskBot.clearTimer = null;
+        }
+        if (clear) {
+            DailyTaskBot.clearTimer = BaseLib.setTimeoutEx(function () {
+                if (elem.innerHTML == msg) elem.innerHTML = '';
+                DailyTaskBot.clearTimer = null;
+            }, clear);
+        }
+        Log.dbg(msg);
+    };
+
+    DailyTaskBot.run = function() {
+        DailyTaskBot.button = DailyTaskBot.createButton();
+        LockManager.addLockCallback(false, DailyTaskBot.check);
+    }
+
+    DailyTaskBot.check = function() {
+        if (PennerInfo.state.dailyTaskAchieved == null || !Plunder.initialized) {
+            BaseLib.setTimeoutEx(DailyTaskBot.check, 1000);
+            return;
+        }
+
+        DailyTaskBot.refreshButton();
+        var o = DailyTaskBot.getLastAction();
+        if (!Config.bot_dailytask_running ||
+            PennerInfo.state.dailyTaskAchieved == true ||
+            (BaseLib.getDateAsNumber(o.date) >= BaseLib.getDateAsNumber(DailyTaskBot.getDate())) &&
+            o.time + (3 * 60 * 60 * 1000) > (new Date()).valueOf()) {
+            BaseLib.setTimeoutEx(LockManager.run, 1);
+            return;
+        }
+
+        DailyTaskBot.processTaskPage();
+        DailyTaskBot.lockManTS = (new Date()).valueOf();
+        DailyTaskBot.lockManTimeout();
+    };
+
+    DailyTaskBot.lockManTimeout = function() {
+        if (DailyTaskBot.lockManTS + 30000 < (new Date()).valueOf()) {
+            DailyTaskBot.runLockMan();
+        } else {
+            BaseLib.setTimeoutEx(DailyTaskBot.lockManTimeout, 1000);
+        }
+    };
+
+    DailyTaskBot.runLockMan = function(t) {
+        if (DailyTaskBot.lockManTS != -1) {
+            if (typeof t === 'undefined') t = 1;
+            DailyTaskBot.lockManTS = -1;
+            BaseLib.setTimeoutEx(LockManager.run, t);
+        }
+    };
+
+    DailyTaskBot.finishLockMan = function() {
+        DailyTaskBot.runLockMan(30*1000);
+    };
+
+    DailyTaskBot.key = function() {
+        return Config.getConfigKey('last_action', 'dailyTask');
+    };
+
+    DailyTaskBot.setLastAction = function(type, date) {
+        if (date == undefined) date = DailyTaskBot.getDate();
+        GM_setValue(DailyTaskBot.key(), JSON.stringify(DailyTaskBot.getLastActionObj(type, date)));
+    };
+
+    DailyTaskBot.getLastActionObj = function(type, d, t) {
+        if (t == undefined) t = (new Date).valueOf();
+        return { type: type, date: d, time: t};
+    };
+    
+    DailyTaskBot.getLastAction = function() {
+        var o = DailyTaskBot.getLastActionObj('', DailyTaskBot.nullDate, 0);
+        try {
+            o = JSON.parse(GM_getValue(DailyTaskBot.key()));
+        } catch (e) { Log.console("DailyTask: " + e); }
+        return o;
+    };
+
+    DailyTaskBot.getDate = function() {
+        return BaseLib.formatDate(new Date(), true);
+    };
+
+    DailyTaskBot.wash = function(v) {
+        var p;
+        if (Config.bot_dailytask_soap && PennerInfo.state.cleanness == 100 && (p = Plunder.getWashPlunder())) {
+            Plunder.use(p.id, UrlHandler.doReload);
+        } else if (PennerInfo.state.cleanness != 100) {
+            Actions.wash();
+        } else if (Config.bot_dailytask_stomach) {
+            Actions.emptyStomach(function() { Actions.wash(); });
+        } else {
+            DailyTaskBot.printMsg("Ich bin schon sauber, darf aber nicht den Magen auspumpen :(", 10000);
+        }
+        DailyTaskBot.finishLockMan();
+    };
+
+    DailyTaskBot.drink = function(v) {
+        var neededBeer = BottleTools.getNeededBeer();
+        var neededBread = BottleTools.getNeededBread();
+        if (neededBeer == 0) {
+            Actions.buyAndEatBread(neededBread, function() {
+                                                    Actions.buyAndDrinkBeer(8, (Config.bot_dailytask_bread_after_beer ?
+                                                                                function() {  Actions.buyAndEatBread(8); } :
+                                                                                null)); });
+        } else {
+            Actions.buyAndDrinkBeer(neededBeer, (Config.bot_dailytask_bread_after_beer ?
+                                                 function() { Actions.buyAndEatBread(neededBeer); } :
+                                                 null));
+        }
+        DailyTaskBot.finishLockMan();
+    };
+
+    DailyTaskBot.sendMsg = function(v) {
+        if (Config.bot_dailytask_message_to && Config.bot_dailytask_message_to != '') {
+            var s = Messages.getDailyTaskString();
+            Actions.sendMessage(Config.bot_dailytask_message_to, s, s);
+        } else {
+            DailyTaskBot.printMsg("Bitte konfiguriere ein Opfer für '"+v+"'!", 10000);
+        }
+        DailyTaskBot.finishLockMan();
+    };
+
+    DailyTaskBot.sellPlunder = function(v) {
+        var p = Plunder.getPlunderByName(Config.bot_dailytask_plunder_sell);
+        if (!p) {
+            DailyTaskBot.printMsg("Bitte konfiguriere einen Plunder für '"+v+"'!", 10000);
+        } else if (p.count < 2) {
+            DailyTaskBot.printMsg("Habe nur noch einen einzigen einen Plunder für '"+v+"'!", 10000);
+        } else {
+            Plunder.sell(p.id, 1);
+        }
+        DailyTaskBot.finishLockMan();
+    };
+
+    DailyTaskBot.depositPlunder = function(v) {
+        var p = Plunder.getPlunderByName(Config.bot_dailytask_plunder_deposit);
+        if (!p) {
+            DailyTaskBot.printMsg("Bitte konfiguriere einen Plunder für '"+v+"'!", 10000);
+        } else if (p.count < 2) {
+            DailyTaskBot.printMsg("Habe nur noch einen einzigen einen Plunder für '"+v+"'!", 10000);
+        } else {
+            Plunder.payToGang(p.id, 1);
+        }
+        DailyTaskBot.finishLockMan();
+    };
+
+    DailyTaskBot.buildPlunder = function(v) {
+        var p = Plunder.getPlunderByName(Config.bot_dailytask_plunder_create, true);
+        if (!p) {
+            DailyTaskBot.printMsg("Bitte konfiguriere einen Plunder für '"+v+"'!", 10000);
+        } else {
+            Plunder.build(p.id);
+        }
+        DailyTaskBot.finishLockMan();
+    };
+
+    DailyTaskBot.payInToGangKitty = function(v) {
+        if (Config.bot_dailytask_bk_pay) Actions.payToGangKitty(Config.bot_dailytask_bk_pay);
+        DailyTaskBot.finishLockMan();
+    };
+
+    DailyTaskBot.eatASnack = function(v) {
+        Actions.buyAndEatBread(1);
+        DailyTaskBot.finishLockMan();
+    };
+
+    DailyTaskBot.shoutboxSpam = function(v) {
+        Actions.postShoutbox(Messages.getDailyTaskString(), function() { Shoutbox.deleteDailyTask(true); });
+        DailyTaskBot.finishLockMan();
+    };
+
+    DailyTaskBot.sellBottles = function(v) {
+        BottleTools.sellBottlesByNumber(1, UrlHandler.doReload);
+        DailyTaskBot.finishLockMan();
+    };
+
+    DailyTaskBot.buyLuck = function(v) {
+        Actions.buyLuck(1);
+        DailyTaskBot.finishLockMan();
+    };
+
+    DailyTaskBot.buyBeer = function(v) {
+        Actions.buyBeer(1);
+        DailyTaskBot.finishLockMan();
+    };
+
+    DailyTaskBot.petFight = function(v) {
+        PetFights.startPetFightSimple(Config.bot_dailytask_petfight_tries);
+        DailyTaskBot.finishLockMan();
+    };
+    
+    DailyTaskBot.processTaskPage = function(text) {
+        if (text == undefined)  {
+            DailyTaskBot.loadTaskPage();
+            return;
+        }
+
+        var r = text;
+        var u1 = '<div style="text-align:center; width:98%; padding:3px; border: 1px solid #999; background:#222;">';
+        var u2 = '</div>';
+        var u = BaseLib.getStringBetweenTags(r, u1, u2);
+
+        if (u.search('style="color:#0C3"') != -1) {
+            // already completed...
+            DailyTaskBot.setLastAction('?');
+            return;
+        }
+
+        var v1 = '<strong>';
+        var v2 = '</strong>';
+        var v = BaseLib.getStringBetweenTags(u, v1, v2).replace(v1, '').replace(v2, '');
+
+        var doit = {};
+        doit[Language.sauberWerden] = DailyTaskBot.wash;
+        doit[Language.bierTrinken] = DailyTaskBot.drink;
+        doit[Language.nachrichtSenden] = DailyTaskBot.sendMsg;
+        doit[Language.plunderVerkaufen] = DailyTaskBot.sellPlunder;
+        doit[Language.plunderEinzahlen] = DailyTaskBot.depositPlunder;;
+        doit[Language.plunderBasteln] = DailyTaskBot.buildPlunder;
+        doit[Language.snackEssen] = DailyTaskBot.eatASnack;
+        doit[Language.inBandenkasseEinzahlen] = DailyTaskBot.payInToGangKitty;
+        doit[Language.shoutboxSpam] = DailyTaskBot.shoutboxSpam;
+        doit[Language.loseKaufen] = DailyTaskBot.buyLuck;
+        doit[Language.flaschenVerkaufen] = DailyTaskBot.sellBottles;
+        doit[Language.bierKaufen] = DailyTaskBot.buyBeer;
+        doit[Language.haustierkampfStarten] = DailyTaskBot.petFight;
+        doit[Language.kampfStarten] = null;
+        doit[Language.sammelnStarten] = null;
+        doit[Language.verbrechenBegehen] = null;
+        doit[Language.haustierWbStarten] = null;
+
+        var tostart = null;
+
+        for (var k in doit) {
+            if (k != Language.unbekannt &&
+                doit[k] != null &&
+                v.search(k) != -1) {
+                tostart = doit[k];
+                break;
+            }
+        }
+
+        if (tostart) {
+            DailyTaskBot.printMsg("Bearbeite DailyTask '" + v + "'", 10000);
+            tostart(v);
+       } else {
+            // dunno what to do...
+            DailyTaskBot.printMsg("Keine Aktion für '" + v + "' hinterlegt");
+        }
+
+        DailyTaskBot.setLastAction(v);
+    };
+
+    DailyTaskBot.loadTaskPage = function() {
+        var url = UrlHandler.dailyTaskUrl;
+
+        var f = function(req) {
+            if (req.readyState == 4) {
+                if (req.status == 200) {
+                    DailyTaskBot.processTaskPage(req.responseText);
+                }
+            }
+        };
+        BaseLib.xmlhttpRequest(url, f, true);
+    };
+
+    DailyTaskBot.refreshButton = function() {
+        UIHelpers.enableSidebarButton(DailyTaskBot.button, Config.bot_dailytask && PennerInfo.state.dailyTaskAchieved != null);
+        UIHelpers.startstopSidebarButton(DailyTaskBot.button, !Config.bot_dailytask_running);
+    };
+
+    DailyTaskBot.createButton = function() {
+        UIHelpers.createHelpersSidebarItem();
+
+        var btn = UIHelpers.createSidebarImgButton(GM_getResourceURL("dailyTask.png"), GM_getResourceURL("dailyTaskDisabled.png"), 'Tagesaufgabe', true, 'daily_button', true);
+        var td = UIHelpers.addButtonsToStatusBar("dailytask_button", btn);
+
+        var txt = document.createElement("span");
+        txt.setAttribute("id", "dailytask_message");
+        txt.setAttribute("style", "max-width:140px; float:left;");
+        td.appendChild(txt);
+
+        var clickh = function(btn) {
+            Config.bot_dailytask_running = !Config.bot_dailytask_running;
+            DailyTaskBot.setLastAction('',  DailyTaskBot.nullDate);
+            DailyTaskBot.printMsg("DailyTaskBot ist " + (Config.bot_dailytask_running ? "an" : "aus :("), 5000);
+            Config.save();
+            DailyTaskBot.refreshButton();
+            if (Config.bot_dailytask_running) {
+                DailyTaskBot.check();
+            } else {
+                DailyTaskBot.runLockMan();
+            }
+        };
+
+        btn.addEventListener('click', function() { clickh(btn); }, true);
+
+        return btn;
+    };
+
+    DailyTaskBot.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (Config.bot_dailytask && GameType.hasRewards) {
+                DailyTaskBot.run();
+            }
+        }
+    };
+
+};

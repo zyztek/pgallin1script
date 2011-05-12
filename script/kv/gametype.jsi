@@ -1,0 +1,355 @@
+/** 
+ * @filename gametype.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var Globals = new Object();
+var UrlHandler = new Object();
+var GameType = new Object();
+var Language = new Object();
+
+Registry.register("Globals", Globals);
+Registry.register("UrlHandler", UrlHandler);
+Registry.register("GameType", GameType);
+Registry.register("Language", Language);
+
+// ########### Global Settings ##############
+
+Globals.init = function () {
+    Globals.darkRed = '#9f0000';
+    Globals.darkGreen = '#106f10';
+};
+
+// ########### UrlHandler ##############
+
+UrlHandler.init = function () {
+    UrlHandler.m_knastvoegel = 0;
+
+    var url = document.URL;
+    var http = 'http://';
+
+    UrlHandler.loadConstants = function() {
+        UrlHandler.http = http;
+        UrlHandler.wwwstr = 'www';
+        UrlHandler.url = url.replace(http, "");
+        // remove last '/' to avoid the last empty slashPart
+        UrlHandler.questionMarkParts = UrlHandler.url.split('?');
+        var surl = UrlHandler.questionMarkParts[0].replace(/\/$/, '');
+        UrlHandler.slashParts = surl.split('/');
+        UrlHandler.dotParts = UrlHandler.slashParts[0].split('.');
+
+        if (url.search(BaseLib.escapeForRegExp('knastvoegel.de')) != -1) {
+            UrlHandler.mode = UrlHandler.m_knastvoegel;
+            UrlHandler.configPrefix = 'knastvoegel';
+            UrlHandler.highscorePrefix = 'www';
+            UrlHandler.www = 'www';
+            UrlHandler.local = 'de_DE';
+            UrlHandler.mainUrl = 'knastvoegel';
+            UrlHandler.ext = '.de';
+            UrlHandler.forumPrefix = 'forum';
+        }
+
+        if (UrlHandler.www.search('.') != -1) {
+            if (UrlHandler.dotParts[0] == UrlHandler.www.split('.')[0] &&
+                UrlHandler.dotParts[1] == UrlHandler.www.split('.')[1]) {
+                // remove the first two array elements and insert UrlHandler.www
+                UrlHandler.dotParts.splice(0,2,UrlHandler.www);
+            }
+        }
+        
+        UrlHandler.biniok = 'http://knastvoegel.biniok.net/';
+        UrlHandler.sslbiniok = 'https://ssl-id.de/knastvoegel.biniok.net/';
+        UrlHandler.biniokPics = UrlHandler.biniok + 'pics/';
+        // NOTE: this will be replaced by script compiler in ManyInOne case :-)
+        UrlHandler.homeUrl = UrlHandler.biniok + MD5.get("kvAllInOneScript").toString() + '/';
+        UrlHandler.scriptHtml = UrlHandler.homeUrl + 'changelog/' + 'kvAllInOneScript.html';
+        UrlHandler.configServer = UrlHandler.sslbiniok + 'config/config.php';
+        UrlHandler.notifyServer = UrlHandler.sslbiniok + 'notify/sendmail.php';
+        UrlHandler.wwwUrl = UrlHandler.http + UrlHandler.wwwstr + "." + UrlHandler.mainUrl + UrlHandler.ext + "/";
+        UrlHandler.overviewUrl = UrlHandler.wwwUrl + UrlHandler.overview + '/' + UrlHandler.profile + '.' + UrlHandler.html;
+        UrlHandler.statisticsUrl = UrlHandler.wwwUrl + UrlHandler.overview + '/' + UrlHandler.statistics + '.' + UrlHandler.html;
+        UrlHandler.donateUrl = UrlHandler.wwwUrl + "donate.html";
+    };
+
+    UrlHandler.nop = 'javascript://nop/';
+    UrlHandler.userProfilUrlSuffix = "public/";
+    UrlHandler.html = "html";
+    UrlHandler.profile = "profile";
+    UrlHandler.overview = 'overview';
+    UrlHandler.statistics = 'statistics';
+    UrlHandler.index_html = 'index.' + UrlHandler.html;
+
+    UrlHandler.doWwwRedirect = function() {
+        if (this.dotParts[0] == UrlHandler.wwwstr &&
+            UrlHandler.www != UrlHandler.wwwstr) {
+            UrlHandler.doRedirect(document.URL.replace(UrlHandler.wwwstr + '.', ''));
+        } else {
+            UrlHandler.doRedirect(document.URL.replace(UrlHandler.http, UrlHandler.http + UrlHandler.www + "."));
+        }
+    };
+
+    UrlHandler.doRedirect = function(url, time) {
+        if (time == undefined) {
+            window.location = url;
+        } else {
+            BaseLib.setTimeoutEx(function () { window.location = url; },  time);
+        }
+    };
+
+    UrlHandler.doReload = function(time, rt, ts) {
+        var url = document.URL;
+        if (Registry.hasObject("ErrorChecker") && ErrorChecker.wasPosted() && BaseLib.tab) {
+            BaseLib.tab.postreload = true;
+        }
+        if (rt != undefined) {
+            url = UrlHandler.urlSetParam(url, "rt" , rt);
+        }
+        if (ts != undefined) {
+            url = UrlHandler.urlSetParam(url, "ts" , ts);
+        }
+        if (time) {
+            UrlHandler.doRedirect(url);
+        } else {
+            UrlHandler.doRedirect(url,  time);
+        }
+        Log.dbg("Url: reload (" + url + ")");
+    };
+
+    UrlHandler.doNothing = function() {
+    };
+
+    UrlHandler.getNonPostUrl = function() {
+        if (this.slashParts.length > 1) {
+            // remove last slash part
+            return url.replace(this.slashParts[this.slashParts.length - 1] + '/', '');
+        }
+        return url;
+    };
+
+    UrlHandler.isNetErrorUrl = function() {
+        return (url.search('about:') != -1);
+    };
+
+    UrlHandler.isGameInternalUrl = function() {
+        return true; // TODO: !!!
+    };
+    
+    UrlHandler.needRedirect = function() {
+        return false; // TODO: !!!
+    };
+
+    UrlHandler.isWwwUrl = function() {
+        return (this.dotParts[0] == UrlHandler.www);
+    };
+
+    UrlHandler.isWwwOnlyUrl = function() {
+        return (this.dotParts[0] == UrlHandler.www && this.slashParts.length == 1);
+    };
+
+    UrlHandler.isNonSpeedFactorUrl = function() {
+        return false; // TODO: !!!
+    };
+
+    UrlHandler.isSettingsUrl = function() {
+        return false; // TODO: !!!
+    };
+
+    UrlHandler.isRedirectUrl = function() {
+        return false; // TODO: !!!
+    };
+
+    UrlHandler.isForumUrl = function() {
+        return (this.dotParts[0] == UrlHandler.forumPrefix);
+    };
+
+    UrlHandler.isDonationUrl = function() {
+        return false; // TODO: !!!
+    };
+
+    UrlHandler.isLoginUrl = function() {
+        return (this.slashParts.length >= 2 && this.slashParts[1] == UrlHandler.index_html);
+    };
+
+    UrlHandler.isOverviewUrl = function() {
+        return (this.slashParts.length >= 2 && this.slashParts[1] == UrlHandler.overview);
+    };
+
+    UrlHandler.isMyUrl = function() {
+        return (this.dotParts[1] == UrlHandler.mainUrl);
+    };
+
+    UrlHandler.removeParam = function(durl,  param) {
+        if (param.constructor.toString().indexOf("Array") == -1) {
+            var t = param;
+            param = new Array();
+            param.push(t);
+        }
+
+        var pos = durl.search(/\?/);
+
+        if (pos != -1) {
+            var t = durl.split('?');
+            var url = t[0];
+            var wertestring = t[1];
+            var paare = wertestring.split("&");
+            var paar;
+            var sep = "?";
+            for (var i = 0; i < paare.length; i++) {
+                paar = paare[i].split("=");
+                var found = false;
+                for (var j = 0; j < param.length; j++) {
+                    if (paar[0] == param[j]) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    url += sep + paar[0] + "=" + paar[1];
+                    sep = "&";
+                }
+            }
+            return url;
+        } else {
+            return durl;
+        }
+    };
+
+    UrlHandler.setParam = function(durl, param, value) {
+        if (param.constructor.toString().indexOf("Array") == -1) {
+            var t = param;
+            param = new Array();
+            param.push(t);
+        }
+        if (value.constructor.toString().indexOf("Array") == -1) {
+            var t = value;
+            value = new Array();
+            value.push(t);
+        }
+
+        var url = UrlHandler.urlRemoveParam(durl, param);
+        var sep = "?";
+        if (url.search(/\?/) != -1) {
+            sep = "&";
+        }
+
+        for (var j = 0; j < param.length; j++) {
+            url += sep + param[j] + "=" + value[j];
+            sep = "&";
+        }
+
+        return url;
+    };
+
+    UrlHandler.getParam = function(param, defltval) {
+        var wertestring = location.search.slice(1);
+        var paare = wertestring.split("&");
+        var paar;
+        var ret = defltval;
+        for (var i = 0; i < paare.length; i++) {
+            paar = paare[i].split("=");
+            var value = unescape(paar[1]).replace("+", " ");
+            if (paar[0] == param) {
+                ret = value;
+                break;
+            }
+        }
+        return ret;
+    };
+
+    UrlHandler.createProfilUrlUser = function(uid) {
+        return UrlHandler.wwwUrl + UrlHandler.userProfilUrlSuffix + uid + '.' + UrlHandler.html;
+    };
+    
+    UrlHandler.onRunlevel = function(runlevel) {
+        if (runlevel == 1) {
+            UrlHandler.loadConstants();
+        }
+    };
+
+};
+
+// ########### Game Type - constants for some games ##############
+
+GameType.init = function() {
+    GameType.loadConstants = function() {
+        GameType.timeOffset = Number(0);
+        GameType.maxSpenden = 100;
+    }
+
+    GameType.onRunlevel = function(runlevel) {
+        if (runlevel == 2) {
+            GameType.loadConstants();
+        }
+    };
+};
+
+// ########### Language handler ##############
+
+Language.init = function () {
+
+    Language.unbekannt = '__unknown__';
+
+    Language.loadLanguage = function() {
+        Language.lokalesKomma = ',';
+        Language.javascriptKomma = '.';
+        Language.numberConversion = [
+            { unit: "Trilliarden",factor: 1000000000000000000000 },
+            { unit: "Trillionen", factor: 1000000000000000000 },
+            { unit: "Billiarden", factor: 1000000000000000 },
+            { unit: "Billionen",  factor: 1000000000000 },
+            { unit: "Milliarden", factor: 1000000000 },
+            { unit: "Millionen",  factor: 1000000 } ];
+
+        if (UrlHandler.mode == UrlHandler.m_knastvoegel) {
+
+            Language.numbers = [
+                [ "ein", "eine", "einer" ],
+                [ "zwei" ],
+                [ "drei" ],
+                [ "vier" ],
+                [ "fünf", "f&uuml;nf" ],
+                [ "sechs" ],
+                [ "sieben" ],
+                [ "acht" ],
+                [ "neun" ],
+                [ "zehn" ],
+            ];
+
+        }
+    };
+
+    Language.replaceNumbers = function(s) {
+        for (var i = 0; i < Language.numbers.length; i++) {
+            if (!Language.numbers[i]) {
+                continue;
+            }
+            for (var j = 0; j < Language.numbers[i].length; j++) {
+                var l = Language.numbers[i][j];
+                if (!l || l == Language.unbekannt) {
+                    continue;
+                }
+                l = ' ' + l + ' ';
+                while (s.search(l) != -1) {
+                    s = s.replace(l, ' ' + (i+1) + ' ');
+                }
+            }
+        }
+        return s;
+    };
+
+    Language.staerke = "Stärke";
+    Language.intelligenz = "Intelligenz";
+    Language.gesundheit = "Gesundheit";
+    Language.befriedigung = "Befriedigung";
+    Language.plundersammelfortschritt = "Plunder sammeln Fortschritt";
+    Language.trainigsfortschritt = "Trainings Fortschritt";
+    Language.fortschritt = "Fortschritt";
+
+    Language.onRunlevel = function(runlevel) {
+        if (runlevel == 5) {
+            Language.loadLanguage();
+        }
+    };
+};

@@ -1,0 +1,146 @@
+/** 
+ * @filename donations.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+DonationsPerClickObject = function() {
+
+    this.getPlunderRememberKey = function() {
+        return UrlHandler.configPrefix + "_plunder_for_" + UserInfo.uid + "_ts";
+    };
+
+    this.usedPlunderRecently = function() {
+        var lastUsage = GM_getValue(this.getPlunderRememberKey());
+        if (!lastUsage) return false;
+        var now = BaseLib.getCurrentTimestamp();
+        var diff = now - lastUsage;
+        return (diff < 6 * 60 * 60);
+    };
+
+    // overridden method!
+    this.prepareCollect = function(needed) {
+        var oobj = this;
+        if (PennerInfo.state.cleanness != 100) {
+            var f = function() {
+                oobj.print("Wischi Waschi.");
+                Actions.wash(function() { oobj.prepareCollect2(needed); });
+            };
+            if (PennerInfo.state.moneyInCent != null && PennerInfo.state.moneyInCent < 2500) {
+                oobj.print("Verkaufe Flaschen.");
+                BottleTools.sellBottlesByMoney(25, f, null, false);
+            } else {
+                f();
+            }
+        } else {
+            this.prepareCollect2(needed);
+        }
+    };
+
+    this.prepareCollect2 = function(needed) {
+        var oobj = this;
+        var pl = Plunder.getBestDonationsUsePlunder();
+        if (Config.donations_use_plunder &&
+            !this.usedPlunderRecently() &&
+            pl) {
+            var cb = function() {
+                GM_setValue(oobj.getPlunderRememberKey(), BaseLib.getCurrentTimestamp());
+                oobj.prepareCollect3(needed);
+            };
+            this.print("Benutze " + pl.name + ".");
+            Plunder.use(pl.id, cb);
+        } else {
+            this.prepareCollect3(needed);
+        }
+    };
+
+    this.prepareCollect3 = function(needed) {
+        var oobj = this;
+        var pl = Plunder.getBestDonationsPlunder();
+        if (pl != null && Plunder.getCurrent() != pl.id) {
+            this.print("Lege " + pl.name + " an.");
+            var oldplImg = Plunder.getImage(Plunder.getCurrent());
+            /* switch plunder and re-load plunder info afterwards */
+            var loadCb = function() {
+                oobj.priv = Plunder.getPlunderByImage(oldplImg);
+                BaseLib.setTimeoutEx(function () { oobj.doCollect(1, needed); }, 1000);
+            };
+            var changeCb = function() {
+                Plunder.loadFromWebsite(loadCb);
+            };
+            Plunder.change(pl.id, changeCb);
+        } else {
+            this.doCollect(1, needed);
+        }
+    };
+
+    // overridden method!
+    this.updateUi = function() {
+        PennerInfo.updateBasic(PennerInfo.refreshGui);
+    };
+
+    // overridden method!
+    this.getDonationUrl = function() {
+        return UrlHandler.changePleaseUrl + PennerInfo.state.donationId + '/';
+    };
+
+    // overridden method!
+    this.checkFinished = function(run, needed) {
+        var oobj = this;
+        var f = function() {
+            oobj.checkFinishedCb(run, needed);
+        };
+        PennerInfo.updateBasic(f);
+    };
+
+    this.checkFinishedCb = function(run, needed) {
+        var neededNow = GameType.maxSpenden - PennerInfo.state.donations;
+        if (neededNow == 0) {
+            this.endCollect("Fertig.");
+        } else if (neededNow == needed) {
+            this.endCollect("Abbruch nach erfolgloser Spende.");
+        } else if (run >= Config.donations_max_run) {
+            this.endCollect("Abbruch nach " + run + " Runden.");
+        } else {
+            this.doCollect(run+1, neededNow);
+        }
+    };
+
+    // overridden method!
+    this.endCollect = function(msg) {
+        this.print(msg);
+        if (this.priv) {
+            var oldpl = this.priv;
+            this.print("Lege " + oldpl.name + " wieder an.");
+            Plunder.change(oldpl.id, UrlHandler.doReload);
+        } else {
+            UrlHandler.doReload();
+        }
+    };
+
+    // overridden method!
+    this.getNeededDonations = function() {
+        if (PennerInfo.state.donations == null ||
+            PennerInfo.state.donationId == null ||
+            PennerInfo.state.cleanness == null) {
+            return null;
+        }
+
+        return GameType.maxSpenden - PennerInfo.state.donations;
+    };
+
+    this.waitForInfo = function() {
+        if (PennerInfo.state.cleanness == null) {
+            this.print("Warte auf Sauberkeit.");
+            return true;
+        }
+        return false;
+    }
+
+};
+
+DonationsPerClickObject.prototype = new DonationsPerClickBase();
+
+Registry.register("DonationsPerClick", DonationsPerClickObject);
+

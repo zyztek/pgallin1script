@@ -1,0 +1,174 @@
+/** 
+ * @filename config.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var ConfigClass = function() {
+
+    this.createConfig = function() {
+        this.setSubset("Allgemeine Einstellungen");
+        this.addElement('plundereigenschaften', t_bool, true, 'Zeige Plundereigenschaften');
+        this.addElement('verstecke_motd', t_bool, true, 'Zeige MotdD nur auf Wunsch oder nach Änderung');
+        this.addElement('show_conci_bug', t_bool, false, 'Zeige Elemente zum Nutzen des Konzi-Bugs');
+        this.addElement('bbcode', t_bool, true, 'Nutze erweiterten BBCode');
+        this.addElement('hide_don', t_bool, false, 'Verstecke Spendenhinweis');
+        this.addElement('show_asserts', t_bool, false, 'Zeige Fehlermeldungen');
+        this.addElement('relogin', t_bool, false, 'Automatisches Wiedereinloggen');
+        this.addLocalElement('relogin_password', 'password', '', 'Passwort für automatisches Einloggen (Für jeden Browser separat!!)', 'Muss für jeden Browser separat gespeichert werden!');
+
+        this.setSubset("Logging");
+        this.addElement('debug', t_bool, false, 'Aktiviere Entwicklertools');
+        this.addElement('debug_sendmail', t_bool, false, 'Sende Tagebuch per Mail');
+        this.addElement('debug_mail', t_string, '', 'Sende Tagebuch per Mail an');
+        this.addElement('debug_entry_count', t_integer, 500, 'Sende Tagebuch wenn x Einträge');
+
+        this.setSubset("Info Screen (oben) Einstellungen");
+        this.addElement('aktualisiere_infoscreen', t_bool, true, 'Aktualisiere Infobereich', 'Aktualisiert den Pennerinfoscreen wenn die Maus darüber ist');
+        this.addElement('zeige_skill_leer', t_bool, true, 'Warne bei Weiterbildungsmangel');
+        this.addElement('zeige_pet_skill_leer', t_bool, false, 'Warne bei Weiterbildungsmangel (Haustier)');
+        if (!Registry.hasObject("BottleSell")) {
+            this.addElement('markiere_pfand', t_integer, 16, 'Markiere Pfand ab x Cent');
+        }
+        this.addElement('zeige_max_bandenkaempfe', t_integer, 3, 'Zeige max. x Bandenkämpfe');
+
+        if (Registry.hasObject("BotManager")) {
+            this.setSubset("Bot und GotYa Einstellungen");
+            this.addElement('nutze_gotya', t_bool, false);
+            this.addElement('bot_plchange_time', t_integer, 30, 'Warte min x Sekunden bis Bot-Neustart(Wechsel zu Orignal-Plunder)');
+            this.addElement('bot_wait_time', t_integer, 120, 'Warte max x Sekunden bis Bot-Neustart');
+            this.addElement('bot_max_cerr', t_integer, 6, 'Maximal x falsche Captchas', 'Stoppe den Bot wenn x Fehler hintereinander', '');
+            this.addElement('bot_min_suc_to_err_ratio', t_integer, 50, 'Min. Erfolgsquote', 'Stoppe den Bot, wenn keine Erfolgsquote von min. x %');
+            this.addElement('gotya_debug', t_bool, false, 'Zeige GotYa Debug');
+
+            this.setSubset("Kampf- und Flaschenbot");
+            this.addElement('bot', t_bool, true, 'Aktiviere die Bots');
+            this.addElement('bot_running', t_object, new Types.BotStateEntry());
+            this.addElement('bot_fight_recent_days', t_integer, 100, 'Ignoriere ausgehende Kämpfe die älter sind als x Tage');
+            this.addElement('bot_use_fightstart_plunder', t_bool, true, 'Nutze Angriffsbeschleunigenden Plunder');
+            this.addElement('bot_use_collect_plunder', t_bool, true, 'Nutze Flaschensuchbeschleunigenden Plunder');
+            this.addElement('bot_collect_time', t_botcollecttime, 10, 'Sammle x oder mehr Minuten', '', 'bot_collect_time');
+            this.addElement('bot_fight_recheck_time', t_string, 900, 'Ausweichcheck nach x Sekunden', 'Schaue alle x + Zufallswert Sekunden ob noch gekämpft wird.');
+            this.addElement('bot_fight_speed', t_botspeed, 100, 'Beginne Pennersuche bei x% der Minimum-Wertes', 'Beginne Pennersuche bei x% der Minimum-Wertes', 'bot_speed');
+            this.addElement('bot_attack_list', t_object, [], 'Liste der nächsten Opfer');
+            this.addElement('bot_autodelete_attack_list', t_bool, false, 'Lösche Liste der nächsten Opfer beim Beenden des Kampf-Bots');
+
+            this.setSubset("Weiterbildungsbot");
+            this.addElement('bot_skill', t_bool, true, 'Aktiviere den Weiterbildungsbot');
+            this.addElement('bot_skill_running', t_object, new Types.SkillBotStateEntry());
+            this.addElement('bot_skill_use_beer', t_bool, true, 'Nutze Bier vor dem Starten der Weiterbildung');
+            this.addElement('bot_skill_use_bread', t_bool, true, 'Nutze Brot nach dem Starten der Weiterbildung');
+            this.addElement('bot_skill_def_to', t_integer, 100, 'Skille DEF bis x % von ATT');
+            this.addElement('bot_skill_def_to_max', t_integer, GameType.maxUsefulDefLevel, '...aber max. bis DEF Level x (0 == DEF -> &infin;)');
+            this.addElement('bot_skill_dex_to', t_integer, 35, 'Skille DEX bis Level');
+
+            this.addElement('bot_skill_enqueue_count', t_botenqueuecount, 2, 'Stelle x Weiterbildungen in die Warteschlange');
+            if (GameType.sameskill2times || GameType.skillCount > 2) {
+                this.addElement('bot_skill_sameskill2times', t_bool, true, 'Stelle gleiche Weiterbildungen in die Warteschlange');
+            }
+            this.addElement('bot_skill_sell_bottles', t_bool, true, 'Verkaufe Flaschen, wenn das Geld nicht reicht');
+            this.addElement('bot_skill_use_music_money', t_bool, true, 'Nutze und bevorzuge Musikgeld vor Fl.verkauf');
+            this.addElement('bot_skill_use_music_money_factor', t_integer, 4, 'Nutze Musikgeld nur, wenn es weniger als x mal WB-Kosten ist');
+            this.addElement('bot_skill_prefer_primary', t_bool, false, 'Versuche immer nach Skill-Plan zu skillen (Fl. werden verkauft)');
+            this.addElement('bot_skill_pet', t_bool, false, 'Aktiviere den Weiterbildungsbot für das Haustier');
+        }
+
+        if (Registry.hasObject("DailyTaskBot")) {
+            this.setSubset("Daily Task Bot");
+            this.addElement('bot_dailytask', t_bool, true, 'Aktiviere den Daily Task Bot');
+            this.addElement('bot_dailytask_running', t_bool, false);
+            this.addElement('bot_dailytask_bk_pay', t_integer, 1, 'Zahle x Währungseinheiten ein ;)');
+            this.addElement('bot_dailytask_bread_after_beer', t_bool, true, 'Nutze Brot nach dem Biertrinken');
+            this.addElement('bot_dailytask_message_to', t_string, '', 'Sende private Nachricht an');
+            this.addElement('bot_dailytask_soap', t_bool, true, 'Benutze Seife zum Waschen');
+            this.addElement('bot_dailytask_stomach', t_bool, false, 'Pumpe Magen aus falls du sauber bist');
+            this.addElement('bot_dailytask_plunder_sell', t_plundersell, 'nix', 'Verkaufe Plunder');
+            this.addElement('bot_dailytask_plunder_deposit', t_plunderdeposit, 'nix', 'Zahle Plunder x in die Plunderbank');
+            this.addElement('bot_dailytask_plunder_create', t_plundercreate, 'nix', 'Bastel Plunder');
+            this.addElement('bot_dailytask_petfight_tries', t_integer, 10, 'x Versuche beim Starten vom Haustierkämpfen');
+        }
+
+        if (Registry.hasObject("BottleSell")) {
+            this.setSubset("Flaschenverkaufbot");
+            this.addElement('bot_sell', t_bool, true, 'Aktiviere den Flaschenverkaufbot');
+            this.addElement('bot_sell_running', t_bool, false);
+            this.addElement('bot_sell_refresh_time', t_integer, 1800, 'Aktualisiere den Flaschenkurs alle x Sekunden');
+            this.addElement('bot_sell_max_money', t_integer, 20, 'Verkaufe bis max x Euro auf dem Konto sind');
+            this.addElement('markiere_pfand', t_integer, 16, 'Markiere Pfand und Verkaufe ab x Cent', '0 = aus');
+        }
+
+        if (GameType.hasHealth && Registry.hasObject("HealthTools")) {
+            this.setSubset("Heile-die-Welt-Bot");
+            this.addElement('bot_cure', t_bool, true, 'Aktiviere den Heile-Welt-Bot');
+            this.addElement('bot_cure_running', t_bool, false);
+            this.addElement('bot_cure_refresh_time', t_integer, 1800, 'Aktualisiere die Lebenspunkte alle x Sekunden');
+            this.addElement('bot_cure_level', t_integer, 99, 'Heile den Penner (inkl bei Kampfende), wenn Lebenspunkte unter x');
+        }
+
+        if (Registry.hasObject("DonationsPerClick")) {
+            this.setSubset("Spenden-per-Klick Einstellungen");
+            this.addElement('donations_max_run', t_integer, 5, 'Maximale Anzahl an Spenden-Durchläufen');
+            this.addElement('donations_use_plunder', t_bool, true, 'Benutze zusätzlichen Spendenplunder (Minibrunnen, Augenklappe)');
+            // hidden key to enable donations via local server
+            this.addLocalElement('donations_url', t_string, UrlHandler.biniok);
+        }
+
+        this.setSubset("Kampf Einstellungen");
+        this.addElement('disableFailingFights', t_bool, true, 'Entferne Angriffs-Link bei aussichtslosen Kämpfen');
+        this.addElement('disableGangFights', t_bool, true, 'Entferne Angriffs-Link bei Bandenmitgliedern');
+        this.addElement('disableAlliedGangFights', t_bool, true, 'Entferne Angriffs-Link bei Mitgliedern verbündeter Banden');
+
+        if (Registry.hasObject("AioSuperSearch")) {
+            this.setSubset("SuperSearch(tm) Einstellungen");
+            this.addElement('erlaube_supersearch', t_bool, true, 'Aktiviere Supersearch', 'Supersearch aka IntelliSearch ;)');
+            this.addElement('supersearch_suche_geld', t_integer, 10000, 'Opfer mit mindestens x Euro');
+            this.addElement('supersearch_dabei_ab', t_date, GameType.gamestart, 'Opfer registriert ab');
+            this.addElement('supersearch_dabei_bis', t_date, '31.12.2012', 'Opfer registriert bis');
+            this.addElement('supersearch_nps', t_integer, 6, 'SuperSuche x Opfer', 'stoppe supersuche, wenn x nutzer gefunden ;)');
+            this.addElement('supersearch_mpl', t_integer, 10, 'SuperSuche auf max. x Highscore-Seiten', 'maximale anzahl an automatisch geladenen seiten');
+            this.addElement('supersearch_check_parameter', t_bool, true, 'SuperSearch Check Parameter');
+            this.addElement('supersearch_sortierung', t_sssort, 'geld', 'Sortierung nach', 'möglich: \'keine\', \'geld\', \'punkte\', \'datum\', \'siege\', \'siegratio\'');
+            this.addElement('supersearch_sort_richtung', t_ssdirection, 'ab', 'Sortierrichtung', 'möglich: \'auf\', \'ab\'');
+        }
+
+        this.setSubset("Profil Einstellungen");
+        this.addElement('zeige_bandenmitglieder', t_bool, true, 'Zeige Bandenmitglieder', 'Zeige Bandenmitglieder auf Profilseiten');
+        this.addElement('entferne_beschreibung', t_bool, true, 'Zeige Beschreibung nur auf Wunsch');
+        this.addElement('nutze_lf_werte_pw', t_string, Base64.encodeString('FILLME'), '');
+        this.addElement('nutze_lf_werte', t_bool, true, 'Benutze zentral gespeicherte Let\'s Fight-Werte');
+
+        this.setSubset("Highscore Einstellungen");
+        this.addElement('alternate_highscore', t_bool, false);
+        this.addElement('markiere_viel_geld', t_integer, 10000, 'Markiere Geld ab x Euro');
+        this.addElement('markiere_dabei_vor', t_date, '01.01.2005', 'Markiere Opfer registriert vor');
+        this.addElement('markiere_dabei_nach', t_date, '31.12.2010', 'Markiere Opfer registriert nach');
+        this.addElement('zeige_punkte', t_points, 'normal', 'Zeige Punkte');
+
+        this.setSubset("Größeneinstellungen");
+        this.addElement('groesse_tierbild', t_integer, 43, 'Größe des Tierbildes in Pixeln');
+        this.addElement('groesse_signatur', t_integer, 80, 'Größe der Signatur in Pixeln');
+        this.addElement('schriftgroesse', t_integer, 9, 'Schriftgröße');
+
+        this.setSubset("Gaaaaaaaaanz Allgemeine Einstellungen");
+        this.addElement('kein_cache', t_bool ,false, 'Deaktiviere die Cachenutzung');
+        this.addElement('use_api', t_bool, true);  // Cfg values mit leerem Namen werden nicht angezeigt...
+
+        //this.setSubset("Kampf Blacklist");
+        this.addElement('blacklist', t_object, {}, 'Kampf Blacklist', 'Blacklist für Angriffe');
+
+        //this.setSubset("Internals");
+        this.addLocalElement('shoutbox', t_object, { ts: 0, md5: 0, motd_md5: 0 });
+        this.addElement('intern', t_intern, '');
+        this.addElement('power', t_object, { att: 0, def: 0 });
+        this.addLocalElement('ui_settings', t_object, { });
+        this.addElement('gang_id', t_integer, 0);
+        this.addElement('version', t_version, '');
+    };
+};
+
+// derive from ConfigBase class
+ConfigClass.prototype = new ConfigBase();
+
+// register Config object
+Registry.register("Config", ConfigClass);

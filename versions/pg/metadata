@@ -1,0 +1,16 @@
+guid           1b95d3b5-7d43-4863-8308-28aeeb80bc8a
+appid          mmmmbajnleiliinebampgiljgmkeflfm
+name           pgAllInOneScript
+version        1.7.1
+namespace      http://pennergame.biniok.net
+author         _der_, MajorTom123
+description    Das Schweizer Taschenmesser fuer Pennergame und alle Ableger!
+include        http://*pennergame.de/*
+include        http://*dossergame.co.uk/*
+include        http://*clodogame.fr/*
+include        http://*menelgame.pl/*
+include        http://*mendigogame.es/*
+include        http://*bumrise.com/*
+include        http://*serserionline.com/*
+updateurl      https://ssl-id.de/pennergame.biniok.net/
+changelogurl   http://pennergame.biniok.net/
