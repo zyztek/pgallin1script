@@ -1,0 +1,151 @@
+/** 
+ * @filename donationsbase.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var DonationsPerClickBase = function() {
+
+    this.authString = "FILLME";
+    this.priv = null;
+
+    this.showCurtain = function() {
+        var oobj = this;
+        var id = 'donCollDiv';
+        var grey = document.getElementById(id);
+        if (!grey) {
+            var f = function() {
+                oobj.endCollect('Abgebrochen!', oobj.priv);
+            }
+            var b = UIHelpers.createCurtainButton('Abbrechen', null, id, f);
+            b.style.width = '150px';
+            var t = document.createElement('div');
+            var d = UIHelpers.createCurtainWaitMsg('Hole Spenden...');
+            t.appendChild(b);
+            d.appendChild(t);
+            var c = UIHelpers.createCurtain(d);
+            c.show();
+        }
+    };
+
+    this.print = function(text) {
+        var m = document.getElementById("collect_donations_message");
+        Log.console(text);
+        m.innerHTML = text;
+    };
+
+    this.start = function(needed, btn) {
+        var oobj = this;
+        if (this.waitForInfo()) {
+            BaseLib.setTimeoutEx(function () { oobj.start(needed, btn); }, 1000);
+            return;
+        }
+
+        var don = function() {
+            oobj.prepareCollect(needed);
+        };
+
+        UIHelpers.enableSidebarButton(btn, false);
+        this.showCurtain();
+        LockManager.addLockCallback(false, don);
+    };
+
+    this.doCollect = function(run, needed) {
+        var oobj = this;
+        var reallyNeeded = Math.max(20, Math.min(250, needed * 10));
+        var count = 10 * reallyNeeded;
+        var params = 'auth=' + this.authString + '&count=' + count + '&needed=' + reallyNeeded + '&link=' + this.getDonationUrl();
+
+        this.print("Runde " + run + ": Noch " + needed + " Spenden.");
+
+        var to;
+        var uf = function() {
+            oobj.updateUi();
+            to = BaseLib.setTimeoutEx(uf, 5000);
+        };
+
+        var f = function() {
+            if (to) {
+                window.clearTimeout(to);
+                to = undefined;
+            }
+            oobj.checkFinished(run, needed);
+        };
+
+        uf();
+
+        var url = Config.donations_url + "donations/getdonations.php" + "?" + params;
+        // TODO: disable server access for public release
+        // BaseLib.xmlhttpRequest(url, f, false);
+    };
+
+    this.update = function(btn) {
+        var oobj = this;
+        var needed = this.getNeededDonations();
+        if (needed == null) {
+            BaseLib.setTimeoutEx(function () { oobj.update(btn); }, 100);
+            return;
+        }
+
+        UIHelpers.enableSidebarButton(btn, needed > 0);
+        btn.addEventListener('click', function() { oobj.start(needed, btn); }, true);
+    };
+
+    this.create = function() {
+        var oobj = this;
+        UIHelpers.createHelpersSidebarItem();
+
+        var btn = UIHelpers.createSidebarImgButton(GM_getResourceURL("cashAuto.png"), GM_getResourceURL("cashAutoDisabled.png"), 'Spenden', true, 'collect_donations_button');
+        var td = UIHelpers.addButtonsToStatusBar("donation_buttons", btn);
+
+        var txt = document.createElement("span");
+        txt.setAttribute("id", "collect_donations_message");
+        td.appendChild(txt);
+
+        LockManager.addLockCallback(true, function() { oobj.update(btn); } );
+    };
+
+    // virtual methods, supposed to be overridden!
+    this.getNeededDonations = function() {
+        return 0;
+    };
+
+    this.waitForInfo = function() {
+        // default case: no info required
+        return false;
+    };
+
+    this.prepareCollect = function(needed) {
+        // default case: directly start collecting
+        this.doCollect(1, needed);
+    };
+
+    this.checkFinished = function(run, needed) {
+        // default case: just finish
+        this.endCollect("Fertig.");
+    };
+
+    this.endCollect = function(msg) {
+        // default case: just reload
+        this.print(msg);
+        UrlHandler.doReload();
+    };
+
+    this.updateUi = function() {
+        // do nothing
+    };
+
+    this.getDonationUrl = function() {
+        BaseLib.assert(false, "Virtuelle Methode: getDonationUrl()");
+        return "";
+    };
+
+    // main runlevel function ...
+    this.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            this.create();
+        }
+    };
+
+};

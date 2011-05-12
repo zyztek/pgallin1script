@@ -1,0 +1,213 @@
+/** 
+ * @filename lock.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+LockManager = new Object();
+
+Registry.register("LockManager", LockManager);
+
+LockManager.init = function() {
+
+    LockManager.showDebug = false;
+
+    LockManager.lock = null;
+    LockManager.lockCallback = [];
+    LockManager.tabID = null; // initialized later
+    LockManager.readdButtonsListener = [];
+
+    LockManager.key = 'lockManager';
+    LockManager.key_lock = function() { return Config.getConfigKey('lock', LockManager.key); };
+    LockManager.key_run = function() { return UrlHandler.configPrefix + "_" + LockManager.key; };
+
+    LockManager.initialRun = function() {
+
+        LockManager.tabID = LockManager.getTabId();
+
+        if (!UserInfo.uid) {
+            LockManager.printState('Bitte einloggen!');
+            BaseLib.setTimeoutEx(function () { LockManager.initialRun(); }, 2000);
+            return;
+        }
+
+        if (!LockManager.lock) {
+            LockManager.lock = new Date().valueOf();
+        }
+
+        if (LockManager.isLocked()) {
+            LockManager.printState('LockManager in anderem Tab! :(');
+            BaseLib.setTimeoutEx(function () { LockManager.initialRun(); },  2000);
+            return;
+        }
+
+        LockManager.setRunTS();
+        LockManager.lock = LockManager.setLock();
+        LockManager.debugState('LockManager gestartet (Tab ID:' + LockManager.tabID + ')');
+        LockManager.printState('');
+        LockManager.run();
+    };
+
+    LockManager.addButtonsListener = function(l) {
+        LockManager.readdButtonsListener.push(l);
+    };
+
+    LockManager.readdButtons = function() {
+        while (LockManager.readdButtonsListener.length) {
+            var p = LockManager.readdButtonsListener.pop();
+            p();
+        }
+    };
+    
+    LockManager.run = function() {
+
+        if (!UserInfo.uid) {
+            LockManager.printState('Bitte einloggen!');
+            BaseLib.setTimeoutEx(function () { LockManager.run(); }, 500);
+            return;
+        }
+
+        if (!LockManager.lock) {
+            LockManager.lock = new Date().valueOf();
+        }
+
+        if (LockManager.isLocked()) {
+            LockManager.printState('LockManager in anderem Tab!');
+            BaseLib.setTimeoutEx(function () { LockManager.run(); },  3000);
+            return;
+        }
+
+        LockManager.lock = LockManager.setLock();
+        LockManager.readdButtons();
+        
+        if (LockManager.lockCallback.length > 0) {
+            var job = LockManager.lockCallback.pop();
+            job.callback(job.args);
+            if (!job.rerun) return;
+        } else {
+            /* keep manager running */
+            BaseLib.setTimeoutEx(function () { LockManager.run(); },  200);
+            return;
+        }
+
+        /* there is something to do... */
+        BaseLib.setTimeoutEx(function () { LockManager.run(); },  10);
+    };
+
+    LockManager.addLockCallback = function(autorerun, callback, args) {
+        var o = new Object();
+        o.callback = callback;
+        o.args = args;
+        o.rerun = autorerun;
+        LockManager.lockCallback.push(o);
+    };
+
+    LockManager.getTabId = function() {
+        var ret = 0;
+        if (BaseLib.tab) {
+            if (typeof BaseLib.tab.aioTabId !== 'undefined') {
+                ret = BaseLib.tab.aioTabId;
+            } else {
+                ret = (new Date()).getTime() + BaseLib.rand(999);
+                BaseLib.tab.aioTabId = ret;
+            }
+        } else {
+            Log.console("No tab object!");
+        }
+        return ret;
+    };
+
+    LockManager.createLockObject = function(lock, tab) {
+        if (lock == undefined) lock = 0;
+        if (tab == undefined) tab = 0;
+        var t = new Object();
+        t.lock = lock;
+        t.tab = tab;
+        return t;
+    };
+
+    LockManager.getObj = function(key, dflt) {
+        var abl = GM_getValue(key);
+        var t = dflt ? dflt : {};
+        if (abl) {
+            try {
+                t = JSON.parse(abl);
+            } catch (e) {
+                Log.console('Lock:' + e);
+            }
+        }
+        return t;
+    };
+
+    LockManager.setRunTS = function() {
+        GM_setValue(LockManager.key_run(), JSON.stringify( { lock: (new Date()).valueOf() }));
+    };
+
+    LockManager.getRunTS = function() {
+        var t = LockManager.getObj(LockManager.key_run(), { lock: 0 });
+        return t.lock;
+    };
+    
+    LockManager.isLocked = function() {
+        var t = LockManager.getObj(LockManager.key_lock(), LockManager.createLockObject());
+        var lt = LockManager.tabID ? ((LockManager.tabID == t.tab) ? 0 : 60000) : 8000;
+        return (t.lock != LockManager.lock && ((new Date().valueOf() - t.lock) < lt));
+    };
+
+    LockManager.setLock = function() {
+        var lock = new Date().valueOf();
+        var o = LockManager.createLockObject(lock, LockManager.tabID);
+        GM_setValue(LockManager.key_lock(), JSON.stringify(o));
+
+        return lock;
+    };
+
+    LockManager.printState = function(m, color) {
+        LockManager.updateStateInternal(m, color, false, false);
+    };
+
+    LockManager.appendState = function(m, color) {
+        LockManager.updateStateInternal(m, color, false, true);
+    };
+
+    LockManager.debugState = function(m, color) {
+        LockManager.updateStateInternal(m, color, true, false);
+    };
+
+    LockManager.updateStateInternal = function(m, color, debug, append) {
+        if (debug == undefined) debug = true;
+        if (append == undefined) append = false;
+        var e = document.getElementById('lockmanger_dbg');
+        var s = '<span' + (color ? ' style="color:'+color+';"' : '') + '>' + m + '</span>';
+
+        if (e && (LockManager.showDebug || !debug)) {
+            if (append) {
+                e.innerHTML = e.innerHTML + '<br>' + s;
+            } else {
+                e.innerHTML = s;
+            }
+        }
+        if (debug) Log.dbg('Lock:' + m);
+    };
+
+    // ##################### entry point ###########################
+    LockManager.onRunlevel = function(runlevel) {
+        if (runlevel == 10) {
+            var ts = LockManager.getRunTS();
+            // Log.console("ts : " + ts);
+            var cls = UrlHandler.isLoginUrl() || (ts + (3 * 60 * 60 * 1000) < (new Date()).getTime());
+    
+            if (cls) {
+                /* set the dirty flag to reload the config from remote server when we're logged in */
+                Config.setDirtyFlag(true);
+                /* clear cache if used */
+                BaseLib.clearCache();
+            }
+        } else if (runlevel == 60) {
+            LockManager.printState("Starte LockManager...");
+            LockManager.initialRun();
+        }
+    };
+
+}

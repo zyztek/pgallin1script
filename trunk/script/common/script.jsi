@@ -1,0 +1,174 @@
+/** 
+ * @filename script.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+/*
+ * Runlevels
+ *
+ * + Runlevels 0..9:
+ *   - Very early initialization
+ *   - Runlevel 0 loads the script and registers all objects, so other objects
+ *     are not supposed to use level 0
+ *   - Runlevel 9 decides whether the script should be run at all on the current
+ *     page, so don't use levels up to 9 if you don't want to be run in absolutely
+ *     any case
+ *
+ * + Runlevels 10..19:
+ *   - Early initialization
+ *   - It is clear that we should run here, but nothing is loaded yet
+ *   - Also, it might be possible that the script is disabled
+ *   - Runlevel 19 checks whether we're disabled and should stop running,
+ *     so only use stuff here that should be run even if the script is disabled
+ *
+ * + Runlevels 20..29:
+ *   - Still early init, but we are enabled
+ *   - Checks for errors are not yet performed, so this might be on an 50x page
+ *   - Runlevel 29 checks for errors and automatic logouts
+ *
+ * + Runlevels 30..39
+ *   - Initialization
+ *   - It is now clear that we are on a correct page an we're supposed to run
+ *   - Our own User ID and the config is still not initialized
+ *   - Runlevel 38 loads the user ID
+ *   - Runlevel 39 loads the config
+ *
+ * + Runlevels 40..49
+ *   - Late initialization
+ *   - Config is available, but UserInfo is not filled yet
+ *   - Runlevel 49 fills the UserInfo object
+ *
+ * + Runlevels 50..59
+ *   - After initialization, everything is ready to be used
+ *   - this range is for high priority tasks!
+ *
+ * + Runlevels 60..99
+ *   - Everything is initialized
+ *   - Used to start anything that should be run on the page
+ *   - Runlevels are used for priority
+ */
+
+var ScriptBase = function() {
+
+    // +++++++++ Check for correct URLs +++++++++
+    this.checkRedirect = function() {
+        if (UrlHandler.needRedirect() &&
+            UrlHandler.url.search(UrlHandler.change_please) == -1) {
+            // redirect from xxx.de to www.xxx.de if necessary
+            UrlHandler.doWwwRedirect();
+            return true;
+        }
+        return false;
+    };
+
+    this.checkUrl = function() {
+        if (!UrlHandler.isNetErrorUrl() &&
+            (!UrlHandler.isGameInternalUrl() ||
+             !UrlHandler.isMyUrl() || UrlHandler.isRedirectUrl() ||
+             UrlHandler.isForumUrl() || UrlHandler.isDonationUrl())) {
+            /* don't do anything on some urls, this won't work ;-) */
+            return true;
+        }
+        return false;
+    };
+
+    this.checkLogout = function() {
+        if (UrlHandler.isLoginUrl()) {
+            var details = Login.getDetails();
+            if (details != null) {
+                /* relogin */
+                Login.tryReLogin();
+                return false;
+            }
+            /* don't do anything on the login url, this won't work ;-) */
+            return true;
+        }
+    };
+
+
+    // +++++++++ Check for correct initialization +++++++++
+
+    this.reloadHandler = null;
+
+    this.installCheckTimer = function() {
+        if (!this.reloadHandler) {
+            var f = function() {
+                Log.console("Initialization not successful after 2 minutes, reloading");
+                BaseLib.setTimeoutEx(function() { UrlHandler.doReload(); }, 100);
+            };
+
+            this.reloadHandler = BaseLib.setTimeoutEx(f, 2 * 60 * 1000);
+        }
+    };
+
+    this.removeCheckTimer = function() {
+        if (this.reloadHandler) {
+            window.clearTimeout(this.reloadHandler);
+        }
+    };
+
+    // +++++++++ Misc. +++++++++
+
+    this.includeAdditionalFiles = function() {
+    };
+
+    this.isDisabled = function() {
+        var d = GM_getValue(UrlHandler.configPrefix + "_disabled");
+        return d == undefined ? false : d;
+    };
+
+    this.setDisabled = function(d) {
+        GM_setValue(UrlHandler.configPrefix + "_disabled", d);
+    };
+
+    this.runError50xcheck = function(autoreload, callback) {
+        if (callback != undefined) BaseLib.setTimeoutEx(callback, 1);
+        return false; // TODO: !!!!
+    };
+
+    // +++++++++ Run levels +++++++++
+
+    this.onRunlevel = function(runlevel, cb) {
+        /* -------- init functionality ----------- */
+        if (runlevel == 9) {
+            // runlevel 9: check for correct URL or redirect and skip further runlevels
+            if (this.checkRedirect()) return -1;
+            if (this.checkUrl()) return -1;
+        } else if (runlevel == 19) {
+            // runlevel 19: check if the script is disabled
+            if (this.isDisabled()) {
+                return -1;
+            }
+        } else if (runlevel == 28) {
+            if (this.checkLogout()) {
+                return -1;
+            }
+            this.installCheckTimer();
+        } else if (runlevel == 99) {
+            this.removeCheckTimer();
+        }
+
+        /* -------- other functionality ----------- */
+        else if (runlevel == 10) {
+            this.includeAdditionalFiles();
+        }
+    };
+
+    this.onRunlevelAsync = function(runlevel, cb) {
+        /* -------- init functionality ----------- */
+        if (runlevel == 2) {
+            BaseLib.initAsync(cb);
+        } else if (runlevel == 29) {
+            if (this.runError50xcheck(true, cb)) {
+                return -1;
+            }
+        } else if (runlevel == 38) {
+            // runlevel 38: load user ID
+            this.getUserId(cb);
+        } else {
+            cb();
+        }
+    };
+};

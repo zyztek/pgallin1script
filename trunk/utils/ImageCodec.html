@@ -1,0 +1,71 @@
+<html><body>
+
+<script type="text/javascript">
+/* 
+ * @filename ImageCode.html
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+ */
+
+function format(txt) {
+    var t2 = txt;
+    var ret = '';
+    var charsPerLine = 80;
+
+    var pos = txt.search(',');
+    if (pos != -1) {
+        ret = "'" + t2.substr(0, pos+1) + "' +\n";
+        t2 = t2.substr(pos+1);
+    }
+
+    while (t2.length > charsPerLine) {
+        ret += "'" + t2.substr(0, charsPerLine) + "' +\n";
+        t2 = t2.substr(charsPerLine);
+    }
+    ret += "'" + t2 + "'";
+
+    return ret;
+}
+
+function unformat(txt) {
+    return txt.replace(/\s\+\n/g, '').replace(/\'/g, '');
+}
+
+function setImage(src) {
+    var img = document.createElement('img');
+    img.setAttribute('src', src);
+    document.getElementById('image_div').innerHTML = '';
+    document.getElementById('image_div').appendChild(img);
+}
+
+function encode() {
+    var src = document.getElementById('file_url').files.item(0).getAsDataURL();
+    document.getElementById('base64').value = format(src);
+}
+
+function decode() {
+    var src = unformat(document.getElementById('base64').value);
+    setImage(src);
+}
+
+</script>
+
+<table>
+    <tr>
+        <td>Datei zum Encoden:</td>
+        <td><input type="file" id="file_url" name="file_url" accept="image/*" style="width: 400px;"></td>
+        <td><input type="button" value="Encode" onclick="encode(); decode();"></td>
+    </tr>
+    <tr>
+        <td>Base64:</td>
+        <td><textarea id="base64" style="width: 800px; height: 300px;"></textarea></td>
+        <td><input type="button" value="Decode" onclick="decode();"></td>
+    </tr>
+    <tr>
+        <td>Bild:</td>
+        <td colspan="2"><div id="image_div"></div></td>
+    </tr>
+</table>
+
+</body></html>

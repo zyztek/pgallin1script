@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RDF:RDF xmlns:RDF="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:em="http://www.mozilla.org/2004/em-rdf#">
+
+  <RDF:Description about="urn:mozilla:extension:{$guid}">
+    <em:updates>
+      <RDF:Seq>
+
+        <!-- Each li is a different version of the same add-on -->
+
+        <RDF:li>
+          <RDF:Description>
+	    <!-- Versioning according to https://developer.mozilla.org/en/Toolkit_version_format -->
+            <em:version>$version</em:version>
+            <em:targetApplication>
+              <RDF:Description>
+                <em:id>{ec8030f7-c20a-464f-9b0e-13a3a9e97384}</em:id>
+                <em:minVersion>$minVersion</em:minVersion>
+                <em:maxVersion>$maxVersion</em:maxVersion>
+                <em:updateLink>$updateUrl$shortname.xpi</em:updateLink>
+	        <em:updateInfoURL>$changelogUrl$shortname.xml</em:updateInfoURL>
+              </RDF:Description>
+            </em:targetApplication>
+          </RDF:Description>
+        </RDF:li>
+
+      </RDF:Seq>
+    </em:updates>
+  </RDF:Description>
+</RDF:RDF>

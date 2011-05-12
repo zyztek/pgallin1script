@@ -1,0 +1,28 @@
+/** 
+ * @filename donations.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+DonationsPerClickObject = function() {
+    // overridden methods
+    this.getNeededDonations = function() {
+        if (UserInfo.donationId == null) {
+            return null;
+        }
+
+        // FIXME: Knastvoegel currently always shows 100 donations if no donation was received yet!
+        return GameType.maxSpenden;
+    };
+
+    this.getDonationUrl = function() {
+        return UrlHandler.donateUrl + "?k=" + UserInfo.donationId;
+    };
+
+};
+
+DonationsPerClickObject.prototype = new DonationsPerClickBase();
+
+Registry.register("DonationsPerClick", DonationsPerClickObject);
+

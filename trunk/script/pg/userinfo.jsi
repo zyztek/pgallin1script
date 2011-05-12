@@ -1,0 +1,1851 @@
+/** 
+ * @filename uersinfo.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var PennerInfo = new Object();
+var UserInfo = new Object();
+
+Registry.register("PennerInfo", PennerInfo);
+Registry.register("UserInfo", UserInfo);
+
+// ######## Pennerinfo ################
+
+PennerInfo.init = function() {
+
+    PennerInfo.progress = 0;
+    PennerInfo.mouseIn = false;
+    PennerInfo.runUpdate = false;
+    PennerInfo.initialUpdate = true;
+
+    PennerInfo.state = {};
+    PennerInfo.state.reset = function() {
+        PennerInfo.state.promille = null;               // current promille level (string)
+        PennerInfo.state.euro = null;                   // current money (string)
+        PennerInfo.state.moneyInCent = null;            // current money in cent (number)
+        PennerInfo.state.pfand = null;                  // pfand value in cent (number)
+        PennerInfo.state.pfandunit = null;              // pfand unit (currency) (string)
+        PennerInfo.state.points = null;                 // my points (number)
+        PennerInfo.state.crowncap = null;               // my number of "kronkorken" (number)
+        PennerInfo.state.gangcap = null;                // gang property, WiWu or Wut (string)
+        PennerInfo.state.incomingfights = null;         // number of incoming fights (number)
+        PennerInfo.state.gangfights = null;             // number of running gang fights (number)
+        PennerInfo.state.concentrationmode = null;      // current concentration mode (string)
+        PennerInfo.state.skills = null;                 // my skills (object)
+        PennerInfo.state.donations = null;              // number of received donations (number)
+        PennerInfo.state.weather = null;                // the current weather (string)
+        PennerInfo.state.cleanness = null;              // cleanness percentage (number)
+        PennerInfo.state.healthState = null;            // health percentage (number)
+        PennerInfo.state.donationId = null;             // my donation ID (string)
+        PennerInfo.state.dailyTaskAchieved = null;      // is the daily task completed? (bool)
+        PennerInfo.state.rewards = null;                // the number of "sammelmarken" (number)
+        PennerInfo.state.att = null;                    // my let's fight value of ATT (number)
+        PennerInfo.state.def = null;                    // my let's fight value of DEF (number)
+        PennerInfo.state.attBase = null;                // my let's fight value of ATT without boost (wut or boost plunder) (number)
+        PennerInfo.state.defBase = null;                // my let's fight value of DEF without boost (boost plunder? currently none...) (number)
+        PennerInfo.state.shoutboxactivity = null;       // was something posted in the shoutbox? (bool)
+        PennerInfo.state.newmessage = null;             // are there new private messages? (bool)
+        PennerInfo.state.district = null;               // my district (string)
+        PennerInfo.state.bottles = null;                // the number of bottles in my repository (number)
+        PennerInfo.state.rank = null;                   // my highscore position (number)
+        PennerInfo.state.musicmoney = null;             // the music money collected in cent (number)
+        PennerInfo.state.gangAttBoost = null;           // gang ATT boost (gang property), percent (number)
+        PennerInfo.state.gangDefBoost = null;           // gang DEF boost (gang property), percent (number)
+        PennerInfo.state.attWeapon = null;              // ATT value of my weapon (number)
+        PennerInfo.state.defHome = null;                // DEF value of my home (number)
+        PennerInfo.state.attPet = null;                 // ATT value of my pet, base value (number)
+        PennerInfo.state.defPet = null;                 // DEF value of my pet, base value (number)
+        PennerInfo.state.attBoost = null;               // ATT boost (plunder etc.) (number)
+        PennerInfo.state.defBoost = null;               // DEF boost (plunder etc.) (number)
+    };
+    PennerInfo.state.reset();
+    PennerInfo.state.incomplete = 0;
+
+    PennerInfo.run = function() {
+        PennerInfo.changeUi();
+
+        var runrun = function() {
+
+            // run update once
+            PennerInfo.update(true);
+
+            // information can be found at the Plunder and Equipment object
+            PennerInfo.showPlunder();
+            PennerInfo.showWeapons();
+            PennerInfo.showHomes();
+            PennerInfo.showDistricts();
+            PennerInfo.showSkillInfo();
+
+            if (Config.aktualisiere_infoscreen) {
+                var e = document.getElementById('options');
+                if (e) {
+                    var mouseover = function() {
+                        PennerInfo.mouseIn = true;
+                        BaseLib.setTimeoutEx(function () { PennerInfo.runUpdate = true; }, 1000);
+                    };
+                    var mouseout = function() {
+                        PennerInfo.mouseIn = false;
+                        PennerInfo.runUpdate = false;
+                    };
+
+                    e.addEventListener('mouseover', mouseover, false);
+                    e.addEventListener('mouseout', mouseout, false);
+                }
+            }
+        }
+
+        // render UI changes and run pennerinfo again...
+        BaseLib.setTimeoutEx(function () { UserInfo.determine(runrun); }, 1);
+    };
+
+    PennerInfo.changeUi = function() {
+        // remove unused stuff
+        var r = document.getElementById("xtra-nav");
+        if (r) r.parentNode.removeChild(r);
+
+        document.getElementById('options').setAttribute('style', 'width: 1050px;');
+
+        // add info field about our rewards
+        var style = '#options li.rewards a { background-position: -5px -238px;  padding-left: 25px; margin-right: 10px; margin-top: -3px; width: 30px; }' +
+                    '#notifyme .rewards { background-position: -855 0; }';
+        BaseLib.addGlobalStyle(style);
+        r = BaseLib.getElementsByClassNameForElements('li' ,'icon crowncap')[0];
+        if (r) {
+            r = r.getElementsByTagName('a')[0];
+            style = r.getAttribute('style');
+            style = 'width: 30px;' + (style ? style : '');
+            r.setAttribute('style', style);
+        }
+        if (GameType.hasRewards) {
+            r = document.createElement("li");
+            r.setAttribute('class', 'icon rewards');
+            r.innerHTML = '<a class="ttip" rel="Deine Sammelmarken" href="' + UrlHandler.nop + '">&nbsp;</a>';
+            document.getElementById('options').appendChild(r);
+        }
+        r = document.createElement("li");
+        r.setAttribute('id', 'updateProgress');
+        r.innerHTML = '&nbsp;';
+        document.getElementById('options').appendChild(r);
+
+        // make some space ;-)
+        var tabnav = document.getElementById('tabnav');
+        if (tabnav) {
+            var elems = BaseLib.getElementsByClassNameForElements('span', 'btn-left');
+            for (var i = 0; i < elems.length; i++) {
+                var pos = elems[i].innerHTML.search('/');
+                if (pos != -1) {
+                    elems[i].innerHTML = elems[i].innerHTML.substr(0, pos);
+                }
+            }
+        }
+
+        // change background picture
+        var prof = document.getElementById('my-profile');
+        prof.setAttribute('style', 'background: url("' + GM_getResourceURL("bgProfile.png") + '") no-repeat scroll 0 0 transparent; width: 294px; height: 220px; z-index: 20;');
+
+        // move "logout" button
+        var lform = prof.getElementsByTagName('form')[0];
+        lform.parentNode.removeChild(lform);
+        var li = document.createElement('li');
+        var div = document.createElement('div');
+        document.getElementById('topmenu').getElementsByTagName('ul')[0].appendChild(li);
+        li.appendChild(div);
+        div.appendChild(lform);
+
+        var lbd = lform.getElementsByTagName('div')[0];
+        var lb = lbd.getElementsByTagName('input')[0];
+        lb.setAttribute('value', '');
+
+        var overout = function(over) {
+            lb.setAttribute('style', 'position: relative; left: 0px; top: 3px; width: 60px; height: 50px; border: none; cursor: pointer;' +
+                                     'background: url("'+ (over ? GM_getResourceURL("logoutHover.png") : GM_getResourceURL("logout.png")) + '") no-repeat;');
+        };
+        var mouseover = function() {
+            overout(true);
+        };
+        var mouseout = function() {
+            overout(false);
+        };
+        lb.addEventListener('mouseover', mouseover, false);
+        lb.addEventListener('mouseout', mouseout, false);
+        overout(true);
+        overout(false);
+
+        // add some more information
+        var i = 0;
+        PennerInfo.createInfoElem(i++, 1, 1, 1, 'Plund', 'plunder_info');
+        PennerInfo.createInfoElem(i++, 1, 1, 1, 'Home', 'home_info');
+        PennerInfo.createInfoElem(i++, 1, 1, 1, 'Att', 'weapon_info');
+        PennerInfo.createInfoElem(i++, 1, 1, 1, 'Msg', 'message_info');
+        PennerInfo.createInfoElem(i++, 1, 1, 1, 'Bande', 'gang_info');
+        PennerInfo.createInfoElem(i++, 1, 1, 1, 'Konz', 'konz_info');
+        PennerInfo.createInfoElem(i++, 1, 1, 1, 'Power', 'power_info');
+        PennerInfo.createInfoElem(0,   2, i, 2, 'Weiterbildungen', 'skills_info');
+
+        // fix line wrapping in the city
+        var city, points, rank;
+        for (var i = 1; i <= 5; i += 2) {
+            var e = prof.getElementsByTagName('span')[i];
+            e.setAttribute('style', 'white-space:nowrap; width: 100px; position: absolute; left: 150px;');
+            if (i == 1) city = e;
+            if (i == 3) rank = e;
+            if (i == 5) points = e;
+        }
+        PennerInfo.state.district = city.innerHTML;
+
+        // add district switcher
+        var d1 = document.createElement('div');
+        d1.setAttribute('style', 'position: absolute; left: -16px; top: 0px;');
+        d1.setAttribute('id', 'district_info');
+        city.appendChild(d1);
+
+        // add extended points info
+        var v = points.innerHTML;
+        points.innerHTML = '';
+
+        var s1 = document.createElement('span');
+        s1.innerHTML = v;
+        s1.setAttribute('id', 'points_info');
+        points.appendChild(s1);
+
+        d1 = document.createElement('div');
+        d1.setAttribute('style', 'position: absolute; left: -16px; top: 2px;');
+        d1.setAttribute('id', 'points_info_img');
+        points.appendChild(d1);
+
+        // add extended rank info
+        v = rank.innerHTML;
+        rank.innerHTML = '';
+
+        s1 = document.createElement('span');
+        s1.innerHTML = v;
+        s1.setAttribute('id', 'rank_info');
+        rank.appendChild(s1);
+
+        d1 = document.createElement('div');
+        d1.setAttribute('style', 'position: absolute; left: -16px; top: 2px;');
+        d1.setAttribute('id', 'rank_info_img');
+        rank.appendChild(d1);
+
+        // remove bullshit
+        var a = BaseLib.getElementsByClassNameForElements('a', 'new_msg_infoscreen');
+        if (a && a.length) {
+            a[0].parentNode.removeChild(a[0]);
+        }
+
+        // add some space for fight warner
+        var d = BaseLib.getElementsByClassNameForElements('li' ,'icon fight')[0];
+        if (d) {
+            var d1 = document.createElement('div');
+            d1.setAttribute('id', 'div_for_fight_warner');
+            d.appendChild(d1);
+            d1 = document.createElement('div');
+            d1.setAttribute('id', 'div_for_gangfight_warner');
+            d.appendChild(d1);
+        }
+    };
+
+    PennerInfo.createInfoElem = function(posX, posY, colspan, rowspan, title, id) {
+        var x = 13;
+        var y = 66;
+
+        var m = 2;
+        var w1 = 38;
+        var w2 = colspan * w1 + (colspan - 1) * m;
+        var h1 = 36, h2 = 15;
+        var h3 = rowspan * h1;
+
+        var d1 = document.createElement('div');
+        d1.setAttribute('class', 'el2');
+        d1.setAttribute('style', 'text-align: center; vertical-align: middle; position:absolute; ' +
+                                 'left:' + (x + posX * (w1 + m)) + 'px; top:' + (y + posY * (h1 + h2 + m)) + 'px; ' +
+                                 'background: url("' + GM_getResourceURL("bgTop.png") + '"); ' +
+                                 'width: ' + w2 + 'px; height: ' + h2 + 'px;');
+        d1.innerHTML = title;
+
+        var d2 = document.createElement('div');
+        d2.setAttribute('style', 'position:absolute; ' +
+                                 'left:' + (x + posX * (w1 + m)) + 'px; top:' + (y + h2 + posY * (h1 + h2 + m)) + 'px; ' +
+                                 'background: url("' + GM_getResourceURL("bgInfo.png") + '"); ' +
+                                 'width: ' + w2 + 'px; height: ' + h3 + 'px;');
+        if (id) d2.setAttribute('id', id);
+
+        document.getElementById('my-profile').appendChild(d1);
+        document.getElementById('my-profile').appendChild(d2);
+    };
+
+    PennerInfo.update = function(firsttime) {
+        var time = 1000;
+
+        if (firsttime ||
+            PennerInfo.runUpdate && PennerInfo.mouseIn) {
+
+            if (PennerInfo.state.incomplete == 0) {
+                // run update only in case last update succeeded
+                PennerInfo.state.reset();
+                PennerInfo.state.incomplete = 1;
+                var f = function(req) {
+                    if (req.readyState == 4 && req.status == 200) {
+                        PennerInfo.refreshBasic(req.responseText);
+                        PennerInfo.refreshGui();
+                    }
+                };
+                BaseLib.xmlhttpRequest(UrlHandler.overviewUrl, f);
+                time = 3 * 1000;
+                PennerInfo.refreshExtended();
+            }
+        }
+
+        BaseLib.setTimeoutEx(function () { PennerInfo.update(); }, time);
+
+        if (PennerInfo.state.incomplete == 0) {
+            // triggered if update succeeds at least one time
+            PennerInfo.initialUpdate = false;
+        }
+    };
+
+    PennerInfo.updateBasic = function(cb) {
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                PennerInfo.refreshBasic(req.responseText);
+                if (cb) cb();
+            }
+        };
+        BaseLib.xmlhttpRequest(UrlHandler.overviewUrl, f);
+    };
+
+
+    PennerInfo.refreshBasic = function(resp) {
+        var r = BaseLib.getStringBetweenTags(resp, 'id="options"', 'weather_desc');
+
+        if (r == "") {
+            return;
+        }
+
+        p = BaseLib.getStringBetweenTags(resp, '<body class="', '"');
+        PennerInfo.state.weather = "";
+        if (p != "") {
+            var s = p.split(" ");
+            for (var i = 0; i < s.length; i++) {
+                if (s[i].search("day-") != -1 || s[i].search("night-") != -1) {
+                    PennerInfo.state.weather = s[i];
+                    break;
+                }
+            }
+        }
+
+        p = BaseLib.getStringBetweenTags(r, '<li class="icon beer">', '</li>');
+        if (p == "" || p == null) {
+            return;
+        }
+        PennerInfo.state.promille = p;
+
+        p = BaseLib.getStringBetweenTags(r, '<li class="icon money">', '</li>');
+        p = BaseLib.getStringBetweenTags(p, '">', '</a>');
+        if (p == "" || p == null) {
+            return;
+        }
+        PennerInfo.state.euro = p.replace(Language.currency, "").trim();
+        PennerInfo.state.moneyInCent = BaseLib.extractNumber(PennerInfo.state.euro);
+
+        p = BaseLib.getStringBetweenTags(BaseLib.getStringBetweenTags(r, '<li class="icon bottle">', '</li>'), '>', '<');
+        if (p == "" || p == null) {
+            return;
+        }
+        PennerInfo.state.pfand = BaseLib.extractNumber(p);
+        PennerInfo.state.pfandunit = p.replace(PennerInfo.state.pfand, '').replace(/[\r\n ]/gi,'').trim();
+
+        p = BaseLib.getStringBetweenTags(r, '<li class="icon award">', '</li>');
+        p = BaseLib.getStringBetweenTags(p, '>', '</a>');
+        if (p == "" || p == null) {
+            return;
+        }
+        PennerInfo.state.points = BaseLib.extractNumber(p);
+
+        p = BaseLib.getStringBetweenTags(r, '<li class="icon crowncap">', '</li>');
+        p = BaseLib.getStringBetweenTags(p, '>', '</a>');
+        if (p == "" || p == null) {
+            return;
+        }
+        PennerInfo.state.crowncap = BaseLib.extractNumber(p);
+
+        r = BaseLib.getStringBetweenTags(resp, 'id="my-profile"', 'action="/logout/"');
+        var s1 = '<span class="el2">', s2 = '</span>';
+        p = r.search(s1);
+        if (p != -1) {
+            var ss = r.substr(p + s1.length);
+            PennerInfo.state.rank = BaseLib.getStringBetweenTags(ss, s1, s2);
+            PennerInfo.state.rank = BaseLib.extractNumber(PennerInfo.state.rank);
+        }
+
+        PennerInfo.state.cleanness = BaseLib.extractNumber(BaseLib.getStringBetweenTags(resp, '<div class="processbar_clean" style="width: ', ';"></div>'));
+
+        r = BaseLib.getStringBetweenTags(resp, '<form method="post" action="/overview/music_payout/">', '</form>');
+        PennerInfo.state.musicmoney = BaseLib.extractNumber(BaseLib.getStringBetweenTags(r, 'value="', '/>'));
+
+        if (GameType.hasHealth) {
+            PennerInfo.state.healthState = BaseLib.extractNumber(BaseLib.getStringBetweenTags(resp, '<div class="processbar_health" style="width: ', ';"></div>'));
+        }
+
+        p = BaseLib.getStringBetweenTags(resp, '<input size="50" type="text" class="link" name="reflink" ', '</li>');
+        p = BaseLib.getStringBetweenTags(p, 'value="', '"');
+        if (p && p != "") {
+            p = BaseLib.getStringBetweenTags(p, UrlHandler.change_please+'/', '/');
+            if (p && p != "") {
+                PennerInfo.state.donationId = p;
+            }
+        }
+
+        p = BaseLib.extractString(resp, null, Language.duHastHeute, Language.SpendenErhalten, null, true, false);
+        p = BaseLib.extractNumber(p);
+        PennerInfo.state.donations = p;
+
+        PennerInfo.state.dailyTaskAchieved = (resp.search('korkenhaken.png') != -1);
+
+        PennerInfo.state.att = BaseLib.extractNumber(BaseLib.getStringBetweenTags(resp, '<span class="att">', '</span>'));
+        PennerInfo.state.def = BaseLib.extractNumber(BaseLib.getStringBetweenTags(resp, '<span class="def">', '</span>'));
+
+        PennerInfo.state.attWeapon = 0;
+        PennerInfo.state.defHome = 0;
+        PennerInfo.state.attPet = 0;
+        PennerInfo.state.defPet = 0;
+        r = resp;
+        if ((p = r.search('<div class="double"')) != -1) {
+            var a = BaseLib.getStringBetweenTags(r, '<div class="double"', '</ul>');
+            PennerInfo.state.attWeapon = BaseLib.extractNumber(BaseLib.getStringBetweenTags(a, '<span class="att">', '</span>'));
+            r = r.substr(p + 10);
+            var d = BaseLib.getStringBetweenTags(r, '<div class="double"', '</ul>');
+            PennerInfo.state.defHome = BaseLib.extractNumber(BaseLib.getStringBetweenTags(d, '<span class="def">', '</span>'));
+        }
+
+        var sPet = resp;
+        var t1 = '<ul class="first"', t2 = '</ul>';
+        r = BaseLib.getStringBetweenTags(sPet, t1, t2);
+        while (!BaseLib.isEmpty(r)) {
+            var a = BaseLib.getStringBetweenTags(r, '<span class="att">', '</span>');
+            if (BaseLib.isEmpty(a)) {
+                var pos = sPet.search(t1) + t1.length;
+                sPet = sPet.substr(pos);
+                r = BaseLib.getStringBetweenTags(sPet, t1, t2);
+                continue;
+            }
+            a = BaseLib.getStringBetweenTags(a, '+', ' (');
+            PennerInfo.state.attPet = BaseLib.extractNumber(a);
+            var d = BaseLib.getStringBetweenTags(r, '<span class="def">', '</span>');
+            d = BaseLib.getStringBetweenTags(d, '+', ' (');
+            PennerInfo.state.defPet = BaseLib.extractNumber(d);
+            break;
+        }
+
+        if (resp.search('new_msg.gif') == -1) {
+            PennerInfo.state.newmessage = false;
+        } else {
+            var f = function(newMsgs) {
+                PennerInfo.state.newmessage = newMsgs > 0;
+            };
+            Messages.getUnreadMessages(true, f);
+        }
+    };
+
+    PennerInfo.refreshGui = function() {
+        var up = document.getElementById("updateProgress");
+        if (!up) {
+            // sanity check! It seems PennerInfo.changeUi() sometimes runs later than refreshGui!!
+            BaseLib.setTimeoutEx(function () { PennerInfo.refreshGui(); }, 300);
+            return;
+        }
+        var p = BaseLib.formatNr(PennerInfo.state.points, 3);
+        up.innerHTML = BaseLib.getAsciiProgress(PennerInfo.progress++);
+        BaseLib.getElementsByClassNameForElements('li' ,'icon money')[0].getElementsByTagName('a')[0].innerHTML = Language.formatMoney(PennerInfo.state.euro);
+        BaseLib.getElementsByClassNameForElements('li' ,'icon beer')[0].innerHTML = PennerInfo.state.promille;
+        BaseLib.getElementsByClassNameForElements('li' ,'icon award')[0].getElementsByTagName('a')[0].innerHTML = PennerInfo.state.points;
+        document.getElementById('rank_info').innerHTML = PennerInfo.state.rank;
+        document.getElementById('points_info').innerHTML = p.value + ' ' + p.unit;
+        if (!BaseLib.isEmpty(PennerInfo.state.weather)) {
+            var bodyclass = '';
+            if (document.body) {
+                bodyclass = document.body.getAttribute("class");
+            }
+
+            bodyclass = bodyclass.split(" ");
+            var s2 = "";
+            for (var i = 0; i < bodyclass.length; i++) {
+                if (s2 != "") {
+                    s2 += " ";
+                }
+                if (bodyclass[i].search("day-") != -1 || bodyclass[i].search("night-") != -1) {
+                    // replace weather
+                    s2 += PennerInfo.state.weather;
+                } else {
+                    s2 += bodyclass[i];
+                }
+            }
+            if (document.body) {
+                document.body.setAttribute("class", s2);
+            }
+        }
+
+        PennerInfo.markPermille();
+        PennerInfo.markDeposit();
+        PennerInfo.markPoints();
+        PennerInfo.markRank();
+        PennerInfo.showDonations();
+    };
+        
+    PennerInfo.refreshExtended = function() {
+
+        PennerInfo.state.incomplete += 2; // there is a lot of things to do :)
+        BaseLib.setTimeoutEx(function () { PennerInfo.processGangPage(); }, 1);
+
+        PennerInfo.state.incomplete++;
+        BaseLib.setTimeoutEx(function () { PennerInfo.showConcentration(); }, 1);
+
+        PennerInfo.state.incomplete++;
+        BaseLib.setTimeoutEx(function () { PennerInfo.showFightPower(); }, 1);
+
+        PennerInfo.state.incomplete++;
+        BaseLib.setTimeoutEx(function () { PennerInfo.showAttacks(); }, 1);
+
+        PennerInfo.state.incomplete++;
+        BaseLib.setTimeoutEx(function () { PennerInfo.showGangFights(); }, 1);
+
+        PennerInfo.state.incomplete++;
+        BaseLib.setTimeoutEx(function () { PennerInfo.getBottles(); }, 1);
+
+        PennerInfo.state.incomplete++;
+        BaseLib.setTimeoutEx(function () { PennerInfo.getGangBoost(); }, 1);
+
+        PennerInfo.state.incomplete++;
+        BaseLib.setTimeoutEx(function () { PennerInfo.getFightBoost(); }, 1);
+
+        if (Config.zeige_skill_leer != 0 || Config.zeige_pet_skill_leer != 0) {
+            PennerInfo.state.incomplete++;
+            BaseLib.setTimeoutEx(function () { PennerInfo.showSkillQueue(); }, 1);
+        }
+
+        if (GameType.hasRewards) {
+            PennerInfo.state.incomplete++;
+            BaseLib.setTimeoutEx(function () { PennerInfo.showRewards(); }, 1);
+        }
+
+        PennerInfo.state.incomplete++;
+        PennerInfo.powerCheck();
+
+        // remove the 1 added at the begin
+        PennerInfo.state.incomplete--;
+    };
+
+    PennerInfo.markDeposit = function() {
+        
+        if (PennerInfo.state.gangcap == null) {
+            BaseLib.setTimeoutEx(function () { PennerInfo.markDeposit(); }, 100);
+            return;
+        }
+
+        var elem = BaseLib.getElementsByClassNameForElements('li', "icon bottle")[0].getElementsByTagName('a')[0];
+
+        if (elem) {
+
+            var pfand = PennerInfo.state.pfand;
+
+            if (PennerInfo.state.gangcap == Language.wiwuGestartet) {
+                pfand = GameType.wiwuKurs;
+            }
+
+            elem.innerHTML = pfand + ' ' + PennerInfo.state.pfandunit;
+
+            if (pfand >= Config.markiere_pfand) {
+                elem.style.color = "#00ff00";
+            } else {
+                elem.style.color = "";
+            }
+        }
+    };
+
+    PennerInfo.markPermille = function() {
+
+        var elem = BaseLib.getElementsByClassNameForElements('li', "icon beer")[0].getElementsByTagName('a')[0];
+        var permil = BaseLib.extractNumber(elem.innerHTML);
+        var color = "";
+
+        if (permil < 100) {
+            color = "red";
+        } else if (permil < 250) {
+            color = "yellow";
+        } else if (permil < 350) {
+            color = "#00ff00";
+        } else if (permil < 400) {
+            color = "yellow";
+        } else {
+            color = "red";
+        }
+        elem.style.color = color;
+    };
+
+    PennerInfo.markPoints = function() {
+        var elem = BaseLib.getElementsByClassNameForElements('li', "icon award")[0].getElementsByTagName('a')[0];
+        var elem2 = document.getElementById('points_info');
+        var points = BaseLib.extractNumber(elem.innerHTML);
+        var c = null, c2 = null;
+        if (!Config.power.points || Config.power.points <= points) {
+            c = "#00ff00";
+            c2 = Globals.darkGreen;
+        } else if (Config.power.points > 5 * points) {
+            c = "red";
+            c2 = Globals.darkRed;
+        }
+
+        if (c) {
+            elem.style.color = c;
+        } else {
+            elem.style.color = 'white';
+        }
+
+        if (c2) {
+            elem2.style.color = c2;
+        } else {
+            elem2.style.color = "black";
+        }
+
+        if (!Config.power.points || Config.power.points < points) {
+            Config.power.points = points;
+            Config.save();
+        }
+    };
+
+    PennerInfo.markRank = function() {
+        var elem = document.getElementById('rank_info');
+        var rank = PennerInfo.state.rank;
+
+        var c = null;
+        if (!Config.power.bestRank || Config.power.bestRank >= rank) {
+            c = Globals.darkGreen;
+        } else if (!Config.power.worstRank || Config.power.worstRank <= rank) {
+            c = Globals.darkRed;
+        }
+
+        if (c) {
+            elem.style.color = c;
+        } else {
+            elem.style.color = 'black';
+        }
+
+        if (rank && (!Config.power.bestRank || Config.power.bestRank > rank)) {
+            Config.power.bestRank = rank;
+            Config.save();
+        }
+        if (rank && (!Config.power.worstRank || Config.power.worstRank < rank)) {
+            Config.power.worstRank = rank;
+            Config.save();
+        }
+    };
+
+    PennerInfo.getShoutboxMd5 = function(text) {
+        // replace all line endings and spaces
+        var t1 = '<tr align="left" valign="top" bgcolor="#343434">';
+        var t2 = '<form name="form1" method="post" action="/gang/chat/add/">';
+        var t = BaseLib.getStringBetweenTags(text, t1, t2).replace(/[\r\n ]/gi,'');
+        // if (t.length > 10000) t = t.substr(0,10000); // no need to check more than 10k bytes
+        return MD5.get(t);
+    }
+
+    PennerInfo.processGangPage = function() {
+
+        var showShoutBoxActivity = function(req) {
+
+            if (PennerInfo.state.newmessage == null) {
+                BaseLib.setTimeoutEx(function () { showShoutBoxActivity(req); }, 100);
+                return;
+            }
+
+            var md5 = PennerInfo.getShoutboxMd5(req.responseText);
+            var ts = (new Date()).getTime();
+            var divId = 'MessageInformer';
+
+            /* store md5 only if this is the inital update otherwise new
+               shoutbox entries are not recognized at this page */
+            if (UrlHandler.isGangUrl() &&
+                PennerInfo.initialUpdate &&
+                Config.shoutbox.md5 != md5) {
+                Config.shoutbox.ts = ts;
+                Config.shoutbox.md5 = md5;
+                Config.save();
+            }
+
+            if (Config.shoutbox.md5 != md5) {
+                // || Config.shoutbox.ts + 1 * 1000 > ts) {
+                PennerInfo.state.shoutboxactivity = true;
+            } else {
+                PennerInfo.state.shoutboxactivity = false;
+            }
+
+            var style = "position: absolute;";
+            var c = document.getElementById('message_info');
+
+            if (c) {
+                var elem = document.getElementById(divId);
+                if (elem) {
+                    elem.parentNode.removeChild(elem);
+                }
+
+                var link, src;
+                if (PennerInfo.state.newmessage) {
+                    link = UrlHandler.messagesUrl;
+                    if (PennerInfo.state.shoutboxactivity) {
+                        src = GM_getResourceURL("messages.png");
+                    } else {
+                        src = GM_getResourceURL("message.png");
+                    }
+                    style += "top: 4px; left: 6px; width: 27px;";
+                } else if (PennerInfo.state.shoutboxactivity) {
+                    link = UrlHandler.gangUrl;
+                    src = GM_getResourceURL("gangMessage.png");
+                    style += "top: 4px; left: 6px; width: 27px;";
+                } else {
+                    src = GM_getResourceURL("misc.png");
+                    link = UrlHandler.nop;
+                    style += 'top: 8px; left: 3px;';
+                }
+
+                var new_link = document.createElement("a");
+                new_link.setAttribute('id', divId);
+                new_link.href = link;
+
+                var new_element = UIHelpers.getImage(src, '', style);
+
+                new_link.appendChild(new_element);
+                c.appendChild(new_link);
+            }
+        };
+
+        var showRageAndMiracle = function(req) {
+            var t1 = '<div class="listshop"';
+            var t2 = '/gang/memberlist/';
+            var t = BaseLib.getStringBetweenTags(req.responseText, t1, t2);
+            var divId = 'RageAndEcoMiracleInformer';
+            var src;
+            if (t.search(Language.duProfitierstNicht) != -1) {
+                PennerInfo.state.gangcap = "";
+                src = GM_getResourceURL("misc.png");
+            } else if (t.search(Language.wutGestartet) != -1 && t.search(Language.wutGestopptVonGegner) == -1) {
+                PennerInfo.state.gangcap = Language.wutGestartet;
+                src = GM_getResourceURL("fight.png");
+            } else if (t.search(Language.wiwuGestartet) != -1) {
+                PennerInfo.state.gangcap = Language.wiwuGestartet;
+                src = GM_getResourceURL("collect.png");
+            } else {
+                PennerInfo.state.gangcap = "";
+                src = GM_getResourceURL("misc.png");
+            }
+
+            var style = "position: absolute; top: 8px; left: 3px;";
+            var c = document.getElementById('gang_info');
+
+            if (c) {
+                var elem = document.getElementById(divId);
+                if (elem) {
+                    elem.parentNode.removeChild(elem);
+                }
+                var new_element = UIHelpers.getImage(src, '', style, divId);
+                c.appendChild(new_element);
+            }
+        };
+
+        var url = UrlHandler.wwwUrl+UrlHandler.gang+'/';
+        var f = function(req) {
+            if (req.readyState == 4) {
+                if (req.status == 200) {
+                    showShoutBoxActivity(req);
+                    showRageAndMiracle(req);
+                }
+
+                PennerInfo.state.incomplete -= 2;
+            }
+        };
+        BaseLib.xmlhttpRequest(url, f, true, 15);
+    };
+
+    PennerInfo.showConcentration = function() {
+        var url = UrlHandler.wwwUrl+UrlHandler.activities+'/';
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                var t1 = Language.nebenbeschaeftigung;
+                var t2 = '<br>';
+                var t = BaseLib.getStringBetweenTags(req.responseText, t1, t2);
+
+                var src = GM_getResourceURL("misc.png");
+                PennerInfo.state.concentrationmode = "";
+
+                if (t != "") {
+                    t = BaseLib.getXMLTag(t, "<strong>");
+                    PennerInfo.state.concentrationmode = t;
+                    if (t == Language.nebenbeschaeftigungKeine) {
+                        src = GM_getResourceURL("skill.png");
+                    } else if (t == Language.nebenbeschaeftigungKaempfen) {
+                        src = GM_getResourceURL("fight.png");
+                    } else if (t == Language.nebenbeschaeftigungSammeln) {
+                        src = GM_getResourceURL("collect.png");
+                    }
+                }
+
+                var style = "position: absolute; top: 8px; left: 3px;";
+                var c = document.getElementById('konz_info');
+
+                if (c) {
+                    var elem = document.getElementById("ConcentrationInformer");
+                    if (elem) {
+                        elem.parentNode.removeChild(elem);
+                    }
+                    var new_element = UIHelpers.getImage(src, '', style, 'ConcentrationInformer');
+		    c.appendChild(new_element);
+                }
+            }
+            PennerInfo.state.incomplete--;
+        };
+        BaseLib.xmlhttpRequest(url, f, true, 24*60);
+    };
+
+    PennerInfo.showFightPower = function() {
+
+        if (PennerInfo.state.att == null) {
+            BaseLib.setTimeoutEx(function () { PennerInfo.showFightPower(); }, 100);
+            return;
+        }
+
+        PennerInfo.state.incomplete--;
+
+        var c = document.getElementById('power_info');
+        if (c) {
+            var elem = document.getElementById("FightPowerInformer");
+            if (elem) {
+                elem.parentNode.removeChild(elem);
+            }
+            var new_element = document.createElement("div");
+            new_element.setAttribute('id', 'FightPowerInformer');
+            c.appendChild(new_element);
+            var col = (PennerInfo.calcLetsFight(Config.power.att, Config.power.def) >
+                       PennerInfo.calcLetsFight(PennerInfo.state.att, PennerInfo.state.def)) ? Globals.darkRed : Globals.darkGreen;
+            var t = '<table border="0" cellspacing="0" cellpadding="0" style="position: relative; top: 3px;">' +
+                    '<tr><td><img src="' + UrlHandler.icoAtt + '" width="16" height="16" style="margin-right: 0px"></td>' +
+                    '<td><span style="color:'+col+'">' + PennerInfo.state.att + '</span></td></tr>' +
+                    '<tr><td><img src="' + UrlHandler.icoDef + '" width="16" height="16" style="margin-right: 0px"></td>' +
+                    '<td><span style="color:'+col+'">' + PennerInfo.state.def + '</span></td></tr></table>';
+            c.innerHTML = t;
+        }
+    };
+
+    PennerInfo.showAttacks = function() {
+        var fights_pending = 0;
+        var url = UrlHandler.wwwUrl+'fight/overview/';
+        var f = function(req) {
+            if (req.readyState == 4) {
+                if (req.status == 200) {
+                    var pos;
+                    var t = req.responseText;
+                    while ((pos = t.search("warning")) != -1) {
+                        fights_pending++;
+                        t = t.substr(pos + 7);
+                    }
+
+                    var pad = "padding-left:16px; ";
+                    var c = document.getElementById('div_for_fight_warner');
+                    var i = document.getElementById("FightWarner");
+                    if (c) {
+                        if (fights_pending) {
+                            if (i == null) {
+				var new_element = document.createElement("SPAN");
+				new_element.innerHTML += '&nbsp;&nbsp;' +
+				                         '<a title="Eingehende Kämpfe" href="'+UrlHandler.wwwUrl+'fight/overview/" style="background-image:none; margin-right:0px; padding-left:0px; width: 40px;">' +
+				                         '<img src="' + UrlHandler.icoAttackWarning + '" border="0">' +
+				                         '<span id="FightWarnerNumber" style="position: absolute; ' + pad + 'color:red;">(' + fights_pending + ')</span>' +
+				                         '</a>';
+				new_element.setAttribute("id", "FightWarner");
+				c.appendChild(new_element);
+                            } else {
+                                i = document.getElementById("FightWarnerNumber");
+                                if (i) {
+                                    PennerInfo.state.incomingfights = fights_pending;
+                                    i.innerHTML = '(' + fights_pending + ')';
+                                }
+                            }
+                        } else {
+                            if (i != null) {
+                                c.removeChild(i);
+                            }
+                        }
+                    }
+                }
+                PennerInfo.state.incomplete--;
+            }
+        };
+        BaseLib.xmlhttpRequest(url, f, true, 15);
+    };
+
+    PennerInfo.showGangFights = function() {
+        var f = function(req) {
+            if (req.readyState == 4) {
+                if (req.status == 200) {
+                    var t1 = 'class="drop_font"><strong>';
+                    var t2 = '</strong>';
+                    var standing = "";
+                    var details = "";
+
+                    var t = req.responseText;
+                    var show = new Array();
+                    var pos, count = 0;
+                    PennerInfo.state.gangfights = 0;
+                    while ((pos = t.search(t1)) != -1) {
+                        count++;
+                        standing = BaseLib.getStringBetweenTags(t, t1, t2);
+                        details = BaseLib.getStringBetweenTags(t.substr(pos), '<a href="/gang/fight/view/', '/">');
+
+                        var v = standing.split(":");
+                        var ours = Number(v[0]);
+                        var theirs = Number(v[1]);
+
+                        var color;
+                        if (ours < theirs) {
+                            color = "red";
+                        } else if (ours > theirs) {
+                            color = "#00ff00";
+                        } else {
+                            color = "yellow";
+                        }
+
+                        var linkUrl = UrlHandler.wwwUrl+'gang/fight/';
+                        if (details && details.length != 0) {
+                            linkUrl += 'view/'+details+'/';
+                        }
+                        show.push('<a href="'+linkUrl+'" ' +
+                                  'style="text-decoration:none; background-image:none; margin-right:0px; ' +
+                                  'padding-left: 0px; width: 36px; color: ' + color + ';">' +
+                                  standing + '</a>');
+
+                        t = t.substr(pos + t1.length);
+                        PennerInfo.state.gangfights++;
+                    }
+
+                    var c = document.getElementById('div_for_gangfight_warner');
+                    var i = document.getElementById("GangFightWarner");
+                    var max_show = Config.zeige_max_bandenkaempfe;
+                    if (c) {
+                        if (show.length) {
+                            var show2 = "";
+                            if (i == null) {
+				i = document.createElement("SPAN");
+				i.setAttribute("id", "GangFightWarner");
+				c.appendChild(i);
+			    }
+			    for (var j = 0; j < show.length; j++) {
+			        if (j >= max_show-1 && show.length > max_show) {
+			            show2 += '<a href="'+UrlHandler.gangFightUrl+'" ' +
+			                     'style="text-decoration:none; background-image:none; margin-right:0px; ' +
+			                     'padding-left: 0px; width: 36px; color: yellow;">mehr</a>';
+			            break;
+			        }
+			        show2 += show[j];
+			    }
+                            i.innerHTML = show2;
+                        } else {
+                            if (i != null) {
+                                c.removeChild(i);
+                            }
+                        }
+                    }
+                }
+                PennerInfo.state.incomplete--;
+            }
+        };
+
+        var url = UrlHandler.gangFightUrl;
+        BaseLib.xmlhttpRequest(url, f);
+    };
+
+    PennerInfo.showSkillQueue = function() {
+        if (!Skills.mySkills.initialized || !Skills.petSkills.initialized) {
+            BaseLib.setTimeoutEx(function () { PennerInfo.showSkillQueue(); }, 100);
+            return;
+        }
+
+        var mineEmpty = false;
+        var petEmpty = false;
+
+        PennerInfo.state.skills = new Object();
+
+        if (Config.zeige_skill_leer && Skills.mySkills.queue.length < 2) {
+            mineEmpty = true;
+        }
+        if (Config.zeige_pet_skill_leer && Skills.petSkills.queue.length < 1) {
+            petEmpty = true;
+        }
+
+        PennerInfo.state.skills.mineEmpty = mineEmpty;
+        PennerInfo.state.skills.petEmpty= petEmpty;
+        PennerInfo.state.incomplete--;
+
+        if (!petEmpty && !mineEmpty) {
+            return;
+        }
+
+        var url = (mineEmpty ? UrlHandler.skillsUrl : UrlHandler.petSkillsUrl);
+        var imgUrl = (mineEmpty && petEmpty) ? GM_getResourceURL("lampGroup.png") : GM_getResourceURL("lamp.png");
+
+        var c = BaseLib.getElementsByClassNameForElements('li' ,'icon book')[0].getElementsByTagName('a')[0];
+        var i = document.getElementById("SkillWarner");
+        if (c && !i) {
+            var new_element = document.createElement("SPAN");
+            new_element.innerHTML += '&nbsp;&nbsp;' +
+                                     '<a title="Bitte Weiterbilden" href="'+url+'" style="background-image:none; margin-right:0px; padding-left:0px; width: 16px;">' +
+                                     '<img src="'+ imgUrl +'" border="0" style="position: absolute;">' +
+                                     '</a>';
+            new_element.setAttribute("id", "SkillWarner");
+            c.parentNode.appendChild(new_element);
+        }
+    };
+
+    PennerInfo.showDonations = function() {
+
+        if (PennerInfo.state.donations == null) {
+            BaseLib.setTimeoutEx(function () { PennerInfo.showDonations(); }, 100);
+            return;
+        }
+
+        var divAlreadyAdded = true;
+        var s = PennerInfo.state.donations;
+        var div = document.getElementById('spendenDiv');
+        if (!div) {
+            divAlreadyAdded = false;
+            var c = BaseLib.getElementsByClassNameForElements('li' ,'icon beer')[0];
+            var li = document.createElement('li');
+            div = document.createElement('a');
+            if (UrlHandler.donationsHelper && UrlHandler.donationsHelper.length) {
+                div.setAttribute('href', UrlHandler.donationsHelper);
+            } else {
+                div.setAttribute('href', UrlHandler.nop);
+            }
+            div.setAttribute('target', 'blank');
+            li.setAttribute('style', 'margin-right: -12px; position: relative; left: -16px; top: 3px;');
+            div.setAttribute('id', 'spendenDiv');
+        }
+        var color = '';
+
+        if (s < (GameType.maxSpenden / 2)) {
+            color = 'red';
+        } else if (s < GameType.maxSpenden) {
+            color = 'yellow';
+        } else {
+            color = '#00ff00';
+        }
+        div.innerHTML = '('+s+')';
+        div.style.color = color;
+
+        if (!divAlreadyAdded) {
+            li.appendChild(div);
+            c.parentNode.insertBefore(li, c);
+        }
+    };
+
+    PennerInfo.showEquipmentCount = 0;
+
+    PennerInfo.showEquipment = function(id, url, renderImg, fillLine, itemClick, small) {
+        if (!PennerInfo.showEquipmentCount) {
+
+            var style =
+                '\ndiv.equipment_switch_out span {' +
+                '   display: none;' +
+                '}\n' +
+                'div.equipment_switch span {' +
+                '   display: block;' +
+                '   position:absolute;'+
+                '   z-index:100;'+
+                '   top:40px;'+
+                '   left:-15px;'+
+                '   width:200px;'+
+                '   color:#000000;'+
+                '   padding:3px;' +
+               '}\n';
+
+            for (var i=1; i<6; i++) {
+                style += 'div.btn'+i+':hover {' +
+                         '-moz-background-clip:border;' +
+                         '-moz-background-origin:padding;' +
+                         '-moz-background-size:auto auto;' +
+                         'background-attachment:scroll;' +
+                         'background-color:transparent;' +
+                         'background-image:url("'+UrlHandler.pgMediaUrl+'img/pv4/bg_subnav-on'+i+'.png");' +
+                         'background-position: 0px -5px;' +
+                         'background-repeat:no-repeat;' +
+                         'font-size: 10px;' +
+                         'height:30px;' +
+                         'width:190px;' +
+                    '}\n' +
+                    'div.btnsmall'+i+':hover {' +
+                         '-moz-background-clip:border;' +
+                         '-moz-background-origin:padding;' +
+                         '-moz-background-size:auto auto;' +
+                         'background-attachment:scroll;' +
+                         'background-color:transparent;' +
+                         'background-image:url("'+UrlHandler.pgMediaUrl+'img/pv4/bg_subnav-on'+i+'.png");' +
+                         'background-position: 0px -10px;' +
+                         'background-repeat:no-repeat;' +
+                         'font-size: 10px;' +
+                         'height:20px;' +
+                         'width:220px;' +
+                    '}\n' +
+                    'div.btn'+i+' {' +
+                         '-moz-background-clip:border;' +
+                         '-moz-background-origin:padding;' +
+                         '-moz-background-size:auto auto;' +
+                         'background-attachment:scroll;' +
+                         'background-color:transparent;' +
+                         'background-image:url("'+UrlHandler.pgMediaUrl+'img/pv4/bg_subnav-off'+i+'.png");' +
+                         'background-position: 0px -5px;' +
+                         'background-repeat:no-repeat;' +
+                         'font-size: 10px;' +
+                         'height:30px;' +
+                         'width:190px;' +
+                    '}\n' +
+                    'div.btnsmall'+i+' {' +
+                         '-moz-background-clip:border;' +
+                         '-moz-background-origin:padding;' +
+                         '-moz-background-size:auto auto;' +
+                         'background-attachment:scroll;' +
+                         'background-color:transparent;' +
+                         'background-image:url("'+UrlHandler.pgMediaUrl+'img/pv4/bg_subnav-off'+i+'.png");' +
+                         'background-position: 0px -10px;' +
+                         'background-repeat:no-repeat;' +
+                         'font-size: 10px;' +
+                         'height:20px;' +
+                         'width:220px;' +
+                    '}\n';
+            }
+
+            BaseLib.addGlobalStyle (style);
+        }
+
+        var div = document.getElementById(id);
+        if (!div) return;
+        var span = document.createElement('span');
+
+        div.setAttribute('class', 'equipment_switch_out');
+        div.innerHTML +=
+            '<a href="' + url + '">' +
+            renderImg() +
+            '</a>';
+
+        span.setAttribute('id', id + '_avatars');
+        span.setAttribute('class', 'tooltip_pl');
+        if (small) {
+            span.setAttribute('style', 'top:20px;');
+        }
+
+        var table = document.createElement('div');
+
+        var rowClick = function(v) {
+            var x = v.target;
+            var rid = null;
+            while (!rid && x) {
+                rid = x.getAttribute('id');
+                x = x.parentNode;
+            }
+            if (!rid) {
+                return;
+            }
+
+            var ids = rid.split('_');
+
+            if (ids.length < 1 || itemClick(ids[1])) {
+                document.getElementById(id + '_avatars').style.display='none';
+            }
+        };
+
+        var line = -1, btncount = 1;
+        while (true) {
+            var pldiv = document.createElement('div');
+            var pltable = document.createElement('table');
+            var icon = document.createElement('div');
+            var img = document.createElement('img');
+            var tr = document.createElement('tr');
+            var td1 = document.createElement('td');
+            var td2 = document.createElement('td');
+
+            if (line < 0) {
+                tr.setAttribute('style', 'color: #838383;');
+            } else {
+                tr.setAttribute('style', 'cursor: pointer;');
+                tr.addEventListener('click', function(v) { rowClick(v); }, true);
+            }
+
+            var rr = fillLine(line++, tr, img, td2);
+            if (rr < 0) {
+                break;
+            } else if (rr > 0) {
+                continue;
+            }
+
+            pldiv.setAttribute('class', 'btn'+(small?'small':'')+btncount);
+            pldiv.setAttribute('style', 'position: relative; top: -10px;');
+            pltable.setAttribute('style', 'padding-top: 1px; padding-left: 15px; height: 100%;');
+
+            if (img.src) {
+                img.setAttribute('style', 'width: 15px; height: 15px; margin: 0px;');
+                icon.setAttribute('class', 'item_pic');
+            } else {
+                img.setAttribute('style', 'width: 0px; height: 0px; margin: 0px;');
+            }
+
+            icon.appendChild(img);
+            td1.appendChild(icon);
+            tr.appendChild(td1);
+            tr.appendChild(td2);
+            pltable.appendChild(tr);
+            pldiv.appendChild(pltable);
+            table.appendChild(pldiv);
+            if (++btncount > 5) btncount = 1;
+        }
+
+        span.appendChild(table);
+        div.appendChild(span);
+
+        PennerInfo.showEquipmentCount++;
+        if (PennerInfo.showEquipmentCount == 4) {
+            UIHelpers.addDelayedHover('equipment_switch');
+        }
+    };
+
+    PennerInfo.showPlunder = function() {
+        if (!Plunder.initialized) {
+            BaseLib.setTimeoutEx(function () { PennerInfo.showPlunder(); }, 500);
+            return;
+        }
+
+        if (!UrlHandler.isStockPlunderUrl()) {
+            var form = document.createElement('div');
+            form.innerHTML = Plunder.setPlunderForm;
+            if (document.body) {
+                document.body.appendChild(form);
+            }
+        }
+
+        var renderImg = function() {
+            var imgName = Plunder.getImage(Plunder.getCurrent());
+            if (!imgName) {
+                imgName = UrlHandler.icoMailDel;
+            }
+            return '<img src="' + imgName + '" style="position:absolute; top:5px; left:5px;">';
+        };
+
+        var itemClick = function(rid) {
+            Plunder.change(rid, UrlHandler.doReload);
+            return true;
+        };
+
+        var fillLine = function(lineNr, row, img, txt) {
+            if (lineNr < 0) {
+                // current plunder
+                var imgName = Plunder.getImage(Plunder.getCurrent());
+                var name = Plunder.getName(Plunder.getCurrent());
+                if (!imgName) {
+                    return 1;
+                }
+
+                img.src = imgName;
+                txt.innerHTML = name;
+                return 0;
+            } else {
+                // available plunder
+                if (lineNr >= Plunder.items.length) {
+                    // stop here
+                    return -1;
+                }
+
+                var p = Plunder.items[lineNr];
+                if (p.usable || Plunder.getCurrent() == p.id) {
+                    // skip this item
+                    return 1;
+                }
+                row.setAttribute('id', 'plicon_'+p.id);
+                img.src = p.image;
+                txt.innerHTML = p.name;
+                return 0;
+            }
+        };
+
+        PennerInfo.showEquipment('plunder_info', UrlHandler.stockPlunderUrl, renderImg, fillLine, itemClick, false);
+    };
+
+    PennerInfo.showWeapons = function() {
+        if (!Equipment.weapons.initialized) {
+            BaseLib.setTimeoutEx(function () { PennerInfo.showWeapons(); }, 500);
+            return;
+        }
+
+        // add all weapons already purchased
+        var allWps = Equipment.weapons.items;
+        var weapons = new Array();
+        for (var i = 0; i < allWps.length; i++) {
+            var w = allWps[i];
+            if (w.cost == 0 && !(Equipment.weapons.current && Equipment.weapons.current.equals(w))) {
+                weapons.push(w);
+            }
+        }
+
+        // check whether a new weapons is available
+        if (allWps.length && allWps[allWps.length - 1].cost) {
+            // that means, the maximum att weapons has not been purchased yet!
+            weapons.push(allWps[allWps.length - 1]);
+        }
+
+        var renderImg = function() {
+            if (Equipment.weapons.current) {
+                return '<img src="' + UrlHandler.weaponsUrl + Equipment.weapons.current.img + '.jpg" style="position:absolute; top:3px; left:3px; width: 32px; height: 32px;">';
+            } else {
+                return '<img src="' + UrlHandler.icoMailDel + '" style="position:absolute; top:7px; left:7px;">';
+            }
+        };
+
+        var itemClick = function(rid) {
+            var w = Equipment.getWeaponById(rid);
+            if (!w || !w.cost) {
+                Equipment.changeWeapon(rid, UrlHandler.doReload);
+            } else {
+                UrlHandler.doRedirect(UrlHandler.weaponStoreUrl);
+            }
+            return true;
+        };
+
+        var fillLine = function(lineNr, row, img, txt) {
+            if (lineNr < 0) {
+                // current weapon
+                if (!Equipment.weapons.current) {
+                    return 1;
+                }
+
+                img.src = UrlHandler.weaponsUrl + Equipment.weapons.current.img + '.jpg';
+                txt.innerHTML = Equipment.weapons.current.name + ' (+' + Equipment.weapons.current.att + ')';
+                return 0;
+            } else {
+                // available weapons
+                if (lineNr >= weapons.length) {
+                    // stop here
+                    return -1;
+                }
+
+                var w = weapons[lineNr];
+                if (Equipment.weapons.current && Equipment.weapons.current.equals(w)) {
+                    // skip this item
+                    return 1;
+                }
+                row.setAttribute('id', 'wpicon_'+w.id);
+                img.src = UrlHandler.weaponsUrl + w.img + '.jpg';
+                txt.innerHTML = w.name + ' (+' + w.att + ')';
+                if (w.cost) {
+                    // new weapon!
+                    txt.innerHTML = 'Neu: ' + txt.innerHTML;
+                    txt.setAttribute('style', 'color: #bf0000;');
+                }
+                return 0;
+            }
+        };
+
+        PennerInfo.showEquipment('weapon_info', UrlHandler.weaponStoreUrl, renderImg, fillLine, itemClick, false);
+    };
+
+    PennerInfo.showHomes = function() {
+        if (!Equipment.homes.initialized) {
+            BaseLib.setTimeoutEx(function () { PennerInfo.showHomes(); }, 500);
+            return;
+        }
+
+        var allHomes = Equipment.homes.items;
+        // add all homes already purchased
+        var homes = new Array();
+        for (var i = 0; i < allHomes.length; i++) {
+            var h = allHomes[i];
+            if (h.cost == 0 && !(Equipment.homes.current && Equipment.homes.current.equals(h))) {
+                homes.push(h);
+            }
+        }
+
+        // check whether a new home is available
+        if (allHomes.length && allHomes[allHomes.length - 1].cost) {
+            // that means, the maximum att weapons has not been purchased yet!
+            homes.push(allHomes[allHomes.length - 1]);
+        }
+
+        var renderImg = function() {
+            if (Equipment.homes.current) {
+                return '<img src="' + UrlHandler.homesUrl + Equipment.homes.current.img + '.jpg" style="position:absolute; top:3px; left:3px; width: 32px; height: 32px;">';
+            } else {
+                return '<img src="' + UrlHandler.icoMailDel + '" style="position:absolute; top:7px; left:7px;">';
+            }
+        };
+
+        var itemClick = function(rid) {
+            var h = Equipment.getHomeById(rid);
+            if (!h || !h.cost) {
+                Equipment.changeHome(rid, UrlHandler.doReload);
+            } else {
+                UrlHandler.doRedirect(UrlHandler.cityHomeBuyUrl);
+            }
+            return true;
+        };
+
+        var fillLine = function(lineNr, row, img, txt) {
+            if (lineNr < 0) {
+                // current home
+                if (!Equipment.homes.current) {
+                    return 1;
+                }
+
+                img.src = UrlHandler.homesUrl + Equipment.homes.current.img + '.jpg';
+                txt.innerHTML = Equipment.homes.current.name + ' (+' + Equipment.homes.current.def + ')';
+                return 0;
+            } else {
+                // available home
+                if (lineNr >= homes.length) {
+                    // stop here
+                    return -1;
+                }
+
+                var h = homes[lineNr];
+                if (Equipment.homes.current && Equipment.homes.current.equals(h)) {
+                    // skip this item
+                    return 1;
+                }
+                row.setAttribute('id', 'hmicon_'+h.id);
+                img.src = UrlHandler.homesUrl + h.img + '.jpg';
+                txt.innerHTML = h.name + ' (+' + h.def + ')';
+                if (h.cost) {
+                    // new home!
+                    txt.innerHTML = 'Neu: ' + txt.innerHTML;
+                    txt.setAttribute('style', 'color: #bf0000;');
+                }
+                return 0;
+            }
+        };
+
+        PennerInfo.showEquipment('home_info', UrlHandler.cityHomeUrl, renderImg, fillLine, itemClick, false);
+    };
+
+    PennerInfo.showDistricts = function() {
+        if (!District.initialized || PennerInfo.state.moneyInCent == null) {
+            BaseLib.setTimeoutEx(function () { PennerInfo.showDistricts(); }, 500);
+            return;
+        }
+
+        var renderImg = function() {
+            return UIHelpers.getImageHtml(GM_getResourceURL("feet.png"));
+        };
+
+        var fillLine = function(lineNr, row, img, txt) {
+            if (lineNr < 0) {
+                // current district - already shown ...
+                return 1;
+            } else {
+                // available home
+                if (lineNr >= District.districts.length) {
+                    // stop here
+                    return -1;
+                }
+
+                var d = District.districts[lineNr];
+                if (d.state == eDistrictOccupied) {
+                    // skip this item
+                    return 1;
+                }
+                row.setAttribute('id', 'dsicon_'+d.id);
+                //img.src = UrlHandler.homesUrl + h.img + '.jpg';
+                txt.innerHTML = d.city + ' (' + d.bottles + ')';
+                if (d.state == eDistrictNew && d.cost) {
+                    // new home!
+                    txt.innerHTML += ' - ' + Language.formatMoney(d.cost / 100);
+                }
+                txt.setAttribute('style', 'font-weight: normal;');
+                return 0;
+            }
+        };
+
+        var itemClick = function(rid) {
+            var district =  District.getDistrictById(rid);
+            if (!district || district.state != eDistrictNew || !district.cost || PennerInfo.state.moneyInCent > district.cost) {
+                District.moveIn(rid, UrlHandler.doReload);
+                return true;
+            } else {
+                alert("Nicht genug Geld!");
+                return false;
+            }
+        };
+
+        PennerInfo.showEquipment('district_info', UrlHandler.districtUrl, renderImg, fillLine, itemClick, true);
+    };
+
+    PennerInfo.showRewards = function() {
+
+        if (PennerInfo.state.dailyTaskAchieved == null) {
+            BaseLib.setTimeoutEx(function () { PennerInfo.showRewards(); }, 100);
+            return;
+        }
+
+        var f = function(req) {
+            if (req.readyState == 4) {
+                if (req.status == 200) {
+                    var t1 = '<span style="font-size:18px; color:#FFF; font-weight:bold">';
+                    var t2 = '</span>';
+                    PennerInfo.state.rewards = BaseLib.extractNumber(BaseLib.getStringBetweenTags(req.responseText, t1, t2));
+
+                    var c = (PennerInfo.state.dailyTaskAchieved ? '#00ff00' : 'red');
+                    var l = UrlHandler.wwwUrl + 'daily/' + (PennerInfo.state.dailyTaskAchieved ? 'rewards/' : '');
+                    var e = BaseLib.getElementsByClassNameForElements('li' ,'icon rewards')[0].getElementsByTagName('a')[0];
+                    e.innerHTML = PennerInfo.state.rewards;
+                    e.setAttribute('style', 'color: ' + c + ';');
+                    e.setAttribute('href', l);
+                }
+                PennerInfo.state.incomplete--;
+            }
+        };
+
+        var url = UrlHandler.wwwUrl+'daily/rewards/';
+        BaseLib.xmlhttpRequest(url, f, true, 15);
+    };
+
+    PennerInfo.showSkillInfo = function() {
+        if (!Skills.mySkills.initialized || !Skills.petSkills.initialized) {
+            BaseLib.setTimeoutEx(function () { PennerInfo.showSkillInfo(); }, 100);
+            return;
+        }
+
+        var div = document.getElementById('skills_info');
+        var table = document.createElement('table');
+        table.setAttribute('style', 'width: 100%; height: 100%;');
+        div.appendChild(table);
+
+        var createEmptyRow = function() {
+            var tr = document.createElement('tr');
+            var td = document.createElement('td');
+            td.setAttribute('colspan', '5');
+            tr.appendChild(td);
+            table.appendChild(tr);
+            return td;
+        };
+
+        var createNoSkillRow = function(isPet) {
+            var row = createEmptyRow();
+            var span = document.createElement('span');
+            if ((isPet && Config.zeige_pet_skill_leer) || (!isPet && Config.zeige_skill_leer)) {
+                span.setAttribute('style', 'color: red;');
+            }
+            span.innerHTML = '<center>Kein ' + (isPet ? 'Haustier' : 'Penner') + '-Skill eingereiht</center>';
+            row.appendChild(span);
+            return row;
+        };
+
+        var createDividerRow = function() {
+            var row = createEmptyRow();
+            row.innerHTML = '<hr size="1" />';
+            return row;
+        };
+
+        var createSkillRow = function(skill, endTime, progress, isHidden) {
+            var tr = document.createElement('tr');
+            var tdHidden = document.createElement('td');
+            var tdImg = document.createElement('td');
+            var tdName = document.createElement('td');
+            var tdProgress = document.createElement('td');
+            var tdEnd = document.createElement('td');
+
+            if (isHidden) {
+                tdHidden.innerHTML = '<b>...</b>';
+            }
+
+            tdImg.setAttribute('style', 'width: 20px;');
+            tdProgress.setAttribute('style', 'width: 50px;');
+            tdEnd.setAttribute('style', 'width: 70px;');
+
+            var img = document.createElement('img');
+            img.setAttribute('src', skill.getImage());
+            img.setAttribute('style', 'width: 18px; height: 20px; margin-right: 0px;');
+            tdImg.appendChild(img);
+
+            if (progress != null) {
+                tdProgress.appendChild(UIHelpers.createSolidProgressBar(progress, 50));
+            } else {
+                img = UIHelpers.getImage(GM_getResourceURL("busy.png"), 'Wartet', 'margin-right: 0px;')
+                var ctr = document.createElement('center');
+                ctr.appendChild(img);
+                tdProgress.appendChild(ctr);
+            }
+
+            tdName.innerHTML = '<b>'+skill.getType()+'</b> ('+skill.level+')';
+            tdEnd.innerHTML = ' ' + (endTime ? BaseLib.formatDatetimeNice(new Date(endTime)) : '???');
+
+            tr.appendChild(tdHidden);
+            tr.appendChild(tdImg);
+            tr.appendChild(tdName);
+            tr.appendChild(tdProgress);
+            tr.appendChild(tdEnd);
+            table.appendChild(tr);
+        };
+
+        // show my skills
+        if (Skills.mySkills.queue.length < 1) {
+            createNoSkillRow(false);
+        } else {
+            createSkillRow(Skills.mySkills.queue[0], Skills.mySkills.endTimes[0], Skills.mySkills.progress, false);
+            if (Skills.mySkills.queue.length < 2) {
+                createNoSkillRow(false);
+            } else {
+                createSkillRow(Skills.mySkills.queue[Skills.mySkills.queue.length - 1],
+                               Skills.mySkills.endTimes[Skills.mySkills.endTimes.length - 1],
+                               null, Skills.mySkills.queue.length > 2);
+            }
+        }
+
+        createDividerRow();
+
+        // show pet skills
+        if (Skills.petSkills.queue.length < 1) {
+            createNoSkillRow(true);
+        } else {
+            createSkillRow(Skills.petSkills.queue[0], Skills.petSkills.endTimes[0], Skills.petSkills.progress, false);
+        }
+    };
+
+    PennerInfo.powerCheck = function() {
+        // do strength check
+        if (PennerInfo.state.gangcap == null ||
+            PennerInfo.state.att == null ||
+            PennerInfo.state.def == null ||
+            PennerInfo.state.attBoost == null) {
+            BaseLib.setTimeoutEx(function () { PennerInfo.powerCheck(); }, 100);
+            return;
+        }
+
+        var red = (PennerInfo.state.gangcap == Language.wutGestartet) ? GameType.wutBoostAtt : 0;
+        red += PennerInfo.state.attBoost;
+
+        PennerInfo.state.attBase = PennerInfo.state.att - red;
+        PennerInfo.state.defBase = PennerInfo.state.def;
+
+        PennerInfo.state.incomplete--;
+
+        if (PennerInfo.calcLetsFight(Config.power.att, Config.power.def) <
+            PennerInfo.calcLetsFight(PennerInfo.state.attBase, PennerInfo.state.defBase)) {
+            Config.power.att = PennerInfo.state.attBase;
+            Config.power.def = PennerInfo.state.defBase;
+            Config.save();
+        }
+    };
+
+
+    PennerInfo.getBottles = function() {
+        f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                var r = BaseLib.getStringBetweenTags(req.responseText, '<td align="left" width="250">', '<font id="wirkung">');
+                PennerInfo.state.bottles = BaseLib.extractNumber(r);
+                PennerInfo.state.incomplete--;
+            }
+        };
+        BaseLib.xmlhttpRequest(UrlHandler.wwwUrl + "stock/bottle/", f, false);
+    };
+
+    PennerInfo.getGangBoost = function() {
+        if (UserInfo.gang <= 0) {
+            PennerInfo.state.gangAttBoost = 0;
+            PennerInfo.state.gangDefBoost = 0;
+            PennerInfo.state.incomplete--;
+        } else {
+            var f = function(req) {
+                if (req.readyState == 4 && req.status == 200) {
+                    var pos = req.responseText.search('ATT');
+                    var r = req.responseText;
+                    PennerInfo.state.gangAttBoost = 
+                        BaseLib.extractNumber(BaseLib.getStringBetweenTags(r, '(+', 'ATT'));
+                    r = r.substr(pos+10);
+                    PennerInfo.state.gangDefBoost =
+                        BaseLib.extractNumber(BaseLib.getStringBetweenTags(r, '(+', 'DEF'));
+                    PennerInfo.state.incomplete--;
+                }
+            };
+            BaseLib.xmlhttpRequest(UrlHandler.wwwUrl + "gang/upgrades/", f, true, 300);
+        }
+    };
+
+    PennerInfo.getFightBoost = function() {
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                PennerInfo.state.attBoost = 0;
+                PennerInfo.state.defBoost = 0;
+
+                var div = BaseLib.getStringBetweenTags(req.responseText, '<div class="style_buff">', '</span>');
+                if (!BaseLib.isEmpty(div)) {
+                    var b = BaseLib.getStringBetweenTags(div, 'ATT:', '<br');
+                    PennerInfo.state.attBoost = BaseLib.extractNumber(b);
+                }
+
+                PennerInfo.state.incomplete--;
+            }
+        };
+        BaseLib.xmlhttpRequest(UrlHandler.fightOverviewUrl, f);
+    };
+
+    PennerInfo.calcFightVal = function(skill, pet, homeOrWeapon, gangBoost, plunder, plunderPercent) {
+        if (!(typeof skill === 'number')) skill = 0;
+        if (!(typeof pet === 'number')) pet = 0;
+        if (!(typeof homeOrWeapon === 'number')) homeOrWeapon = 0;
+        if (!(typeof gangBoost === 'number')) gangBoost = 1.0;
+        if (!(typeof plunder === 'number')) plunder = 0;
+        if (!(typeof plunderPercent === 'number')) plunderPercent = 0;
+
+        return Math.floor((skill + pet + homeOrWeapon + plunder) * (100 + gangBoost) / 100 * (100 + plunderPercent) / 100);
+    };
+
+    PennerInfo.calcLetsFight = function(att, def) {
+        return Math.round((att * GameType.attFactor + def * GameType.defFactor)*100)/100;
+    };
+
+    PennerInfo.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isWwwUrl()) {
+                PennerInfo.run();
+            }
+        }
+    };
+
+};
+
+// ########### Information about the current user ###########
+
+UserInfo.init = function() {
+
+    UserInfo.initialized = false;
+
+    UserInfo.uid = 0;
+    UserInfo.points = 0;
+    UserInfo.city = 0;
+    UserInfo.gang = 0;
+    UserInfo.adminStatus = 0;
+    UserInfo.minPoints = 0;
+    UserInfo.maxPoints = 0;
+    UserInfo.ext = new Object();
+    UserInfo.ext.alliedGangs = null;
+    UserInfo.ext.gangMembers = null
+
+    UserInfo.getUserId = function(cb) {
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+
+                UserInfo.uid = BaseLib.extractString(req.responseText, null, '<uid value="', '"/>', null, true, false);
+                UserInfo.points = 0;
+
+                if (UserInfo.uid) {
+                    cb();
+                    return;
+                }
+
+                var rt = Number(UrlHandler.urlGetParam("rt", 1));
+                var url =  UrlHandler.urlSetParam(document.URL, "rt", rt+1);
+                if (rt < 15) {
+                    // reload the page in two ore more minutes. this is better than reloadind now but being logged out
+                    BaseLib.setTimeoutEx(function () { ErrorChecker.reload(rt); }, rt * 1000);
+                } else {
+                    // reloading and hopping to be still logged in failed...
+                    UrlHandler.doRedirect(UrlHandler.loginUrl);
+                }
+            }
+
+            // something went wrong, so skip further stuff
+            cb(true);
+            return;
+        };
+
+        BaseLib.xmlhttpRequest(UrlHandler.pennerbar, f, true);
+    };
+    
+    UserInfo.determine = function(callback) {
+        if (!UserInfo.initialized) {
+            var fg = function(req) {
+                if (req.readyState == 4 && req.status == 200) {
+                    // find alliances
+                    UserInfo.ext.alliedGangs = new Array();
+                    var alliances = BaseLib.getStringBetweenTags(req.responseText, Language.verbuendetMit, '</td>');
+                    if (alliances != null && alliances != "") {
+                        var pos;
+                        while ((pos = alliances.search('<a href="')) != -1) {
+                            var found = BaseLib.getStringBetweenTags(alliances, 'bande:', '/">');
+                            if (Number(found) > 0) {
+                                UserInfo.ext.alliedGangs.push(found);
+                            }
+                            alliances = alliances.substr(pos + 20);
+                        }
+                    }
+
+                    // find members
+                    var t1 = '<table width="100%"  border="0" cellspacing="0" cellpadding="0" style="margin:1px;">';
+                    var t2 = '</table>';
+                    var members = BaseLib.getStringBetweenTags(req.responseText, t1, t2);
+                    UserInfo.ext.gangMembers = GangParser.parseMembers(members);
+                }
+            };
+
+            var fu = function(req) {
+                if (UserInfo.initialized) {
+                    if (callback) {
+                        callback();
+                    }
+                    return;
+                }
+                if (req.readyState == 4 && req.status == 200) {
+                    var pointstag = '<points>';
+                    if (req.responseText.search(pointstag) == -1) {
+                        BaseLib.setTimeoutEx(function () { UserInfo.determine(callback); }, 1500);
+                        return;
+                    }
+                    UserInfo.points = BaseLib.getXMLTag(req.responseText, pointstag);
+                    UserInfo.city = BaseLib.getXMLTag(req.responseText,"<city>");
+                    UserInfo.gang = BaseLib.extractNumber(BaseLib.getXMLTag(BaseLib.getXMLTag(req.responseText, "<gang>"), "<id>"));
+                    UserInfo.adminStatus = BaseLib.getXMLTag(BaseLib.getXMLTag(req.responseText, "<gang>"), "<status>");
+                    UserInfo.minPoints = Math.ceil(UserInfo.points * 0.8) + 1;
+                    UserInfo.maxPoints = Math.floor(UserInfo.points * 1.5) - 1;
+
+                    if (Number(UserInfo.gang) > 0) {
+                        var url = UrlHandler.createProfilUrlGang(UserInfo.gang);
+                        BaseLib.xmlhttpRequest(url, fg, true, 15*60);
+                    } else {
+                        UserInfo.ext.gangMembers = new Array();
+                        UserInfo.ext.alliedGangs = new Array();
+                    }
+
+                    if (UserInfo.gang != Config.gang_id) {
+                        GM_log("Neue Banden-ID gefunden: " + UserInfo.gang);
+                        Config.gang_id = UserInfo.gang;
+                        Config.save();
+                    }
+
+                    UserInfo.initialized = true;
+                    if (callback) {
+                        callback();
+                    }
+                }
+            };
+
+            BaseLib.xmlhttpRequest(UrlHandler.createApiUrlMyUser(), fu);
+        } else {
+            if (callback) {
+                callback();
+            }
+        }
+    };
+
+    UserInfo.onRunlevelAsync = function(runlevel, cb) {
+        if (runlevel == 49) {
+            UserInfo.determine(cb)
+        } else {
+            cb();
+        }
+    };
+
+};
+

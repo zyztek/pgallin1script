@@ -1,0 +1,54 @@
+/** 
+ * @filename config.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var ConfigClass = function() {
+    
+    this.createConfig = function() {
+        this.setSubset("Allgemeine Einstellungen");
+        this.addElement('relogin', t_bool, false, 'Automatisches Wiedereinloggen');
+        this.addLocalElement('relogin_password', 'password', '', 'Passwort für automatisches Einloggen (Für jeden Browser separat!!)', 'Muss für jeden Browser separat gespeichert werden!');
+
+        this.setSubset("Logging");
+        this.addElement('debug', t_bool, false, 'Aktiviere Entwicklertools');
+        this.addElement('debug_sendmail', t_bool, false, 'Sende Tagebuch per Mail');
+        this.addElement('debug_mail', t_string, '', 'Sende Tagebuch per Mail an');
+        this.addElement('debug_entry_count', t_integer, 500, 'Sende Tagebuch wenn x Einträge');
+
+        if (Registry.hasObject("BotManager")) {
+            this.setSubset("Bot und GotYa Einstellungen");
+
+            this.setSubset("Trainingsbot");
+            this.addElement('bot_skill', t_bool, true, 'Aktiviere den Weiterbildungsbot');
+            this.addElement('bot_skill_running', t_object, new Types.SkillBotStateEntry());
+        }
+
+        if (Registry.hasObject("DonationsPerClick")) {
+            this.setSubset("Spenden-per-Klick Einstellungen");
+            this.addElement('donations_max_run', t_integer, 5, 'Maximale Anzahl an Spenden-Durchläufen');
+            this.addElement('donations_use_plunder', t_bool, true, 'Benutze zusätzlichen Spendenplunder (Minibrunnen, Augenklappe)');
+            // hidden key to enable donations via local server
+            this.addLocalElement('donations_url', t_string, UrlHandler.biniok);
+        }
+
+        this.setSubset("Gaaaaaaaaanz Allgemeine Einstellungen");
+        this.addElement('kein_cache', t_bool ,false, 'Deaktiviere die Cachenutzung');
+
+        //this.setSubset("Internals");
+        this.addElement('intern', t_intern, '');
+        this.addElement('power', t_object, { att: 0, def: 0 });
+        this.addLocalElement('ui_settings', t_object, { '*_pinright' : true });
+        this.addElement('gang_id', t_integer, 0);
+        this.addElement('version', t_version, '');
+    };
+};
+
+// derive from ConfigBase class
+ConfigClass.prototype = new ConfigBase();
+
+// register Config object
+Registry.register("Config", ConfigClass);
+

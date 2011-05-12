@@ -1,0 +1,78 @@
+/** 
+ * @filename notifications.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var NotificationsClass = function() {
+
+    this.addAlert = function (msg, title, time) {
+
+        if (title == undefined) title = 'Hinweis';
+        if (time == undefined) time = 5;
+
+        var type = 'ok';
+
+        var new_element = document.createElement("DIV");
+        new_element.setAttribute("id", "notifyme");
+        new_element.setAttribute("class", "zabsolute zleft");
+        new_element.innerHTML  = '<div id="notifyme" class="zabsolute zleft">';
+        new_element.innerHTML += '<div class="icon ok zleft" id="nicon"></div>';
+        new_element.innerHTML += '<div class="zleft right" id="ntext">';
+        new_element.innerHTML += '<h2>' + title + '</h2>';
+        new_element.innerHTML += '</div></div>';
+
+        var script = unsafeWindow.document.createElement('script'); // create Element
+        script.innerHTML  = '\n\n';
+        script.innerHTML += 'try {\n';
+        script.innerHTML += "PgFunction.showMsg($(\'notifyme\'), '" + title + "', '" + msg + "', '" + type + "', '" + (time*1000) + "');\n";
+        script.innerHTML += '} catch (e) { alert(e); }\n';
+
+        this.insert(script, new_element);
+    };
+
+    this.overwrite = function() {
+        var script = unsafeWindow.document.createElement('script'); // create Element
+        var r = '';
+        r += "try {\n";
+        r += "  PgFunction.showMsg = function(elm, hl, text, id, time) {";
+        r += "	  elm.getElement('div#ntext').set('html', '<h2>' + hl + '</h2><p>' + text + '</p>');";
+        r += "	  elm.getElement('div#nicon').removeProperty('class');";
+        r += "	  elm.getElement('div#nicon').set('class', 'icon ' + id + ' zleft');";
+        r += "	  elm.tween('top', 87);";
+        r += "	  function myFunction(){";
+        r += "		this.tween('top', -10);";
+        r += "	  };";
+        r += "	  myFunction.delay(time, elm);";
+        r += "  };";
+        r += '} catch (e) { GM_log(e); }\n';
+        script.innerHTML = r;
+        this.insert(script);
+    };
+
+    this.insert = function(script, msg) {
+        if (msg != undefined) {
+            var tabnav = document.getElementById("tabnav");
+            if (!tabnav) {
+                BaseLib.setTimeoutEx(function() { this.insert(script, msg); }, 400);
+                return;
+            }
+            var parent = tabnav.parentNode;
+            parent.insertBefore(msg, tabnav);
+        }
+        if (document.body) {
+            document.body.appendChild(script);
+        }
+    };
+
+    this.onRunlevel = function(runlevel) {
+        if (runlevel == 50) {
+            this.overwrite();
+        }
+    };
+};
+
+NotificationsClass.prototype = new NotificationsBase();
+
+Registry.register("Notifications", NotificationsClass);

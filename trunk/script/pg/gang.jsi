@@ -1,0 +1,1220 @@
+/** 
+ * @filename gang.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var MemberDonations = new Object();
+var MemberLetsFight = new Object();
+var GangIdGetter = new Object();
+var GangParser = new Object();
+var GangFights = new Object();
+var LetsFight = new Object();
+
+Registry.register("MemberDonations", MemberDonations);
+Registry.register("MemberLetsFight", MemberLetsFight);
+Registry.register("GangIdGetter", GangIdGetter);
+Registry.register("GangParser", GangParser);
+Registry.register("GangFights", GangFights);
+Registry.register("LetsFight", LetsFight);
+
+// ########### Spenden von allen membern ###########
+
+MemberDonations.init = function() {
+
+    MemberDonations.donationDates = new Array();
+    MemberDonations.memberDonations = new Array();
+
+    MemberDonations.addDate = function(d) {
+        for (var i = 0; i < MemberDonations.donationDates.length; i++) {
+            if (MemberDonations.donationDates[i] == d) {
+                return;
+            }
+        }
+
+        MemberDonations.donationDates.push(d);
+    };
+
+    MemberDonations.addDonation = function(member, date, money) {
+        var i;
+
+        // search the entry for the current user
+        var memberVal = null;
+        for (i = 0; i < MemberDonations.memberDonations.length; i++) {
+            if (MemberDonations.memberDonations[i].member == member) {
+                memberVal = MemberDonations.memberDonations[i];
+                break;
+            }
+        }
+        if (memberVal == null) {
+            memberVal = new Object();
+            memberVal.member = member;
+            memberVal.donationDates = new Array();
+            memberVal.donationsAll = Number(0);
+            MemberDonations.memberDonations.push(memberVal);
+        }
+
+        // search the entry for the given date
+        var dateVal = null;
+        for (i = 0; i < memberVal.donationDates.length; i++) {
+            if (memberVal.donationDates[i].date == date) {
+                dateVal = memberVal.donationDates[i];
+                break;
+            }
+        }
+        if (dateVal == null) {
+            dateVal = new Object();
+            dateVal.date = date;
+            dateVal.spenden = Number(0);
+            memberVal.donationDates.push(dateVal);
+        }
+
+        // add the amount of cash
+        dateVal.spenden += Number(money);
+        memberVal.donationsAll += Number(money);
+    };
+
+    MemberDonations.addTableEntry = function(tr, text, strong) {
+        var td = document.createElement('td');
+        tr.appendChild(td);
+        td.style.padding = "2px";
+        if (strong) {
+            var s = document.createElement('strong');
+            td.appendChild(s);
+            s.innerHTML = text;
+        } else {
+            td.innerHTML = text;
+        }
+    };
+
+    MemberDonations.show = function() {
+        var i, j, k, l;
+
+        var table = BaseLib.getElementsByClassNameForElements('table', 'tieritemA')[0];
+        var tb = table.getElementsByTagName("table")[0].getElementsByTagName("tbody")[0];
+
+        // erstelle aussere tabelle
+        var outerTable = document.createElement('table');
+        outerTable.setAttribute('class', 'tieritemA');
+        var outerTb = document.createElement('tbody');
+        outerTable.appendChild(outerTb);
+
+        // innere tabelle
+        var newTable = document.createElement('table');
+        newTable.setAttribute('class', 'tieritemA');
+        var newTb = document.createElement('tbody');
+        newTable.appendChild(newTb);
+
+        // header hinzufuegen
+        var outerTr = document.createElement('tr');
+        outerTb.appendChild(outerTr);
+        MemberDonations.addTableEntry(outerTr, 'Übersicht der Bandenkasseneinzahlungen', true);
+        outerTr = document.createElement('tr');
+        outerTb.appendChild(outerTr);
+        MemberDonations.addTableEntry(outerTr, '<hr size="1"/>', true);
+
+        // innere table hinzufuegen
+        outerTr = document.createElement('tr');
+        outerTb.appendChild(outerTr);
+        var outerTd = document.createElement('td');
+        outerTr.appendChild(outerTd);
+        outerTd.appendChild(newTable);
+
+        // footer table hinzufuegen
+        outerTr = document.createElement('tr');
+        outerTb.appendChild(outerTr);
+        MemberDonations.addTableEntry(outerTr, '<hr size="1"/>', true);
+
+        var newTr = document.createElement('tr');
+        newTb.appendChild(newTr);
+        MemberDonations.addTableEntry(newTr, 'Name', true);
+        for (i = MemberDonations.donationDates.length - 1; i >= 0; i--) {
+            MemberDonations.addTableEntry(newTr, MemberDonations.donationDates[i], true);
+        }
+        MemberDonations.addTableEntry(newTr, '', false);
+        MemberDonations.addTableEntry(newTr, 'Gesamt&nbsp;1', true);
+        MemberDonations.addTableEntry(newTr, 'Gesamt&nbsp;2', true);
+
+        table.parentNode.insertBefore(outerTable, table.nextSibling);
+
+        var children = tb.getElementsByTagName("tr");
+        var start = 0;
+        var r1 = 0;
+        var r2 = 1;
+        var c;
+        for (var i = start; i < children.length; i++) {
+            var tr = children[i];
+            var tdUser = tr.getElementsByTagName("td")[r1];
+            var aUser = tdUser.getElementsByTagName("a")[0];
+            var tdMoney = tr.getElementsByTagName("td")[r2];
+            var money = tdMoney.innerHTML;
+
+            var id = aUser.href;
+            id = id.substr(id.search('id:') + 3).replace('/', '');
+            var name = aUser.innerHTML;
+
+            // neue zeile fuer den user
+            newTr = document.createElement('tr');
+            newTb.appendChild(newTr);
+
+            MemberDonations.addTableEntry(newTr, name, false);
+
+            // finde member entry
+            var memberVal = null;
+            for (j = 0; j < MemberDonations.memberDonations.length; j++) {
+                if (MemberDonations.memberDonations[j].member == id) {
+                    memberVal = MemberDonations.memberDonations[j];
+                    break;
+                }
+            }
+
+            // nix gefunden? what a geiziger member ;-)
+            if (memberVal == null) {
+                for (k = 0; k < MemberDonations.donationDates.length; k++) {
+                    MemberDonations.addTableEntry(newTr, '<font color="red">' + Language.formatMoney(0) + '</font>', false);
+                }
+                MemberDonations.addTableEntry(newTr, ' ' + UIHelpers.getImageHtml(GM_getResourceURL("arrow.png")) + ' ', true);
+                MemberDonations.addTableEntry(newTr, '<font color="red">' + Language.formatMoney(0) + '</font>', true);
+                c = BaseLib.extractNumber(money) != 0 ? "green" : "red";
+                MemberDonations.addTableEntry(newTr, '<font color="'+c+'">' + money + '</font>', true);
+                continue;
+            }
+
+            // finde eintraege nach datum
+            for (k = MemberDonations.donationDates.length - 1; k >= 0; k--) {
+                var spendenVal = null;
+                var date = MemberDonations.donationDates[k];
+
+                for (l = 0; l < memberVal.donationDates.length; l++) {
+                    if (memberVal.donationDates[l].date == date) {
+                        spendenVal = memberVal.donationDates[l];
+                        break;
+                    }
+                }
+
+                if (spendenVal == null) {
+                    MemberDonations.addTableEntry(newTr, '<font color="red">' + Language.formatMoney(0) + '</font>', false);
+                } else {
+                    c = spendenVal.spenden > 0 ? "green" : "red";
+                    MemberDonations.addTableEntry(newTr, '<font color="'+c+'">' + Language.formatMoney(spendenVal.spenden) + '</font>', false);
+                }
+            }
+
+            // gesamtspenden
+            MemberDonations.addTableEntry(newTr, ' ' + UIHelpers.getImageHtml(GM_getResourceURL("arrow.png")) + ' ', true);
+            c = memberVal.donationsAll > 0 ? "green" : "red";
+            MemberDonations.addTableEntry(newTr, '<font color="'+c+'">' + Language.formatMoney(memberVal.donationsAll) + '</font>', true);
+
+            c = (BaseLib.extractNumber(money) != 0 && money.charAt(0) != '-') ? "green" : "red";
+            MemberDonations.addTableEntry(newTr, '<font color="'+c+'">' + money + '</font>', true);
+        }
+    };
+
+    MemberDonations.create = function() {
+        var f = function(req) {
+            if (req.readyState == 4) {
+                if (req.status == 200) {
+                    var t1 = "<td colspan=\"2\"><br />";
+                    var t2 = /<br \/>\s*<br \/>/;
+
+                    var t = BaseLib.getStringBetweenTags(req.responseText, t1, t2);
+
+                    t1 = '<table width="100%"  border="0" cellspacing="0" cellpadding="0" style="background-color:#373737; margin:1px;">';
+                    t2 = '</table>';
+
+                    var line = BaseLib.getStringBetweenTags(t, t1, t2);
+                    while (line != null && line != "") {
+                        // sichern ist immer gut ;-)
+                        var oldLine = line;
+
+                        // weiter zur naechsten zeile
+                        t = t.substr(line.length + t1.length + t2.length);
+                        var p = t.search(t1);
+                        if (p != -1) {
+                            t = t.substr(p);
+                            line = BaseLib.getStringBetweenTags(t, '<table width="100%"  border="0" cellspacing="0" cellpadding="0" style="background-color:#373737; margin:1px;">', '</table>');
+                        }
+
+                        // auswerten
+                        var d, m, neg;
+
+                        if (oldLine.search(Language.ueberwiesAm) != -1) {
+                            d = BaseLib.extractString(oldLine, null, Language.ueberwiesAm, '</span>', null, true, false);
+                            m = BaseLib.getStringBetweenTags(oldLine, '<span class="positive" style="float:right">', '<');
+                            neg = false;
+                        } else if (oldLine.search(Language.bekamAm) != -1) {
+                            d = BaseLib.extractString(oldLine, null, Language.bekamAm, '</span>', null, true, false);
+                            m = BaseLib.getStringBetweenTags(oldLine, '<span class="negative" style="float:right">', '<');
+                            neg = true;
+                        } else {
+                            if (p != -1) continue; else break;
+                        }
+
+                        var id = BaseLib.getStringBetweenTags(oldLine, '<a href="/profil/id:', '/">');
+
+                        if (m == null || m == "" || d == null || d == "" || id == null || id == "") {
+                            if (p != -1) continue; else break;
+                        }
+
+                        d = d.substr(0, 6);
+                        m = BaseLib.extractNumber(m.trim()) / 100;
+                        if (neg) {
+                            m = -m;
+                        }
+
+                        MemberDonations.addDate(d);
+                        MemberDonations.addDonation(id, d, m);
+
+                        if (p == -1) {
+                            break;
+                        }
+                    }
+
+                    MemberDonations.show();
+                }
+            }
+        };
+
+        BaseLib.xmlhttpRequest(UrlHandler.gangCreditUrlAll, f);
+    };
+
+    MemberDonations.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isGangMemberlist()) {
+                MemberDonations.create();
+            }
+        }
+    };
+
+};
+
+// ########### Let's fight values for all members ################
+
+MemberLetsFight.init = function() {
+
+    MemberLetsFight.create = function() {
+        if (!Config.nutze_lf_werte) {
+            return;
+        }
+
+        if (LetsFight.letsfight == null) {
+            LetsFight.initialize(MemberLetsFight.create);
+            return;
+        }
+
+        var table = document.getElementById('pgmemberlist-table');
+        if (!table) return;
+
+        // we need to replace the table in order to re-enable sorting
+        var newTable = document.createElement('table');
+        newTable.innerHTML = table.innerHTML;
+        newTable.setAttribute('id', 'pgmemberlist-table');
+        table.parentNode.replaceChild(newTable, table);
+        table = newTable;
+
+        table.style.width = '645px';
+
+        var thead = table.getElementsByTagName('thead')[0];
+        thead.setAttribute('style', 'background-image: url("'+GM_getResourceURL("memberTableHead.png")+'");');
+
+        var trs = table.getElementsByTagName('tr');
+        var tr = trs[0];
+        var td = document.createElement('th');
+        td.setAttribute('class', 'pg-list-info zcenter');
+        td.setAttribute('style', 'width: 150px;')
+
+        try {
+            unsafeWindow.setTimeout("new SortingTable('pgmemberlist-table'); ", 10);
+        } catch (e) {
+            Log.console(e);
+            td.setAttribute('style', td.getAttribute('style')+'background: none;')
+        }
+
+        td.innerHTML = "Let's Fight";
+        tr.appendChild(td);
+
+        // run over all members
+        for (var i = 1; i < trs.length; i++) {
+            var tds = trs[i].getElementsByTagName('td');
+            var td = tds[0];
+            var a = td.getElementsByTagName('a')[0];
+            var id = BaseLib.extractNumber(BaseLib.getStringBetweenTags(a.getAttribute('href'), 'id:', '/'));
+
+            td = tds[tds.length - 1];
+            td.setAttribute('class', td.getAttribute('class').replace(' last', ''));
+
+            td = document.createElement('td');
+            td.setAttribute('class', 'zcenter last');
+            trs[i].appendChild(td);
+
+            var f = LetsFight.getLetsFightValueByUID(id);
+            if (f.power) {
+                td.innerHTML = PennerInfo.calcLetsFight(f.power.att, f.power.def) + ' - ' +
+                               '<span class="att">' + f.power.att + '</span>' +
+                               '<span class="def">' + f.power.def + '</span>';
+                td.setAttribute('title', 'Kampfstaerke: ' + PennerInfo.calcLetsFight(f.power.att, f.power.def) +
+                                          ' gespeichert vor: ' + BaseLib.timestampToDate(f.age * 1000) + ' (hr:mm:ss)');
+            }
+        }
+    };
+
+    MemberLetsFight.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isGangMemberlist()) {
+                MemberLetsFight.create();
+            }
+        }
+    };
+
+};
+
+// ########### Helper to make gang names clickable ################
+
+GangIdGetter.init = function() {
+
+    GangIdGetter.getGangId = function(gang, cb) {
+        var url = UrlHandler.createGangSearchUrl(gang);
+
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                var t1 = '<table id="hs_bande">';
+                var t2 = '</table>';
+                var table = BaseLib.getStringBetweenTags(req.responseText, t1, t2);
+
+                if (table && table.length) {
+                    var tbody = BaseLib.getStringBetweenTags(table, '<tbody>', '</tbody>');
+                    if (tbody && tbody.length) {
+                        var rest = tbody;
+                        var pos = rest.search('<tr');
+                        rest = rest.substr(pos + 4);
+
+                        while (pos != -1) {
+                            var td = BaseLib.getStringBetweenTags(rest, '<td class="col2">', '</td>');
+                            if (td && td.length) {
+                                var gid = BaseLib.getStringBetweenTags(td, 'bande:', '/"');
+                                t2 = '</a>';
+                                var gn = BaseLib.getStringBetweenTags(td, '">', t2);
+                                // TODO: we probably need to exchange more here ...
+                                gn = gn.replace('&amp;', '&');
+                                gang = gang.replace('&amp;', '&');
+
+                                if (gn == gang) {
+                                    cb(gid, gang);
+                                    return;
+                                }
+                            }
+
+                            pos = rest.search('<tr');
+                            rest = rest.substr(pos + 4);
+                        }
+                    }
+                }
+            }
+        };
+
+        BaseLib.xmlhttpRequest(url, f, true);
+    };
+
+    GangIdGetter.defaultCallback = function(gid, gangname) {
+        var span = document.getElementById("gn to parse " + gangname);
+        if (span) {
+            span.id = "gn parsed " + gangname;
+            span.innerHTML = '<a href="' + UrlHandler.createProfilUrlGang(gid) + '">' + span.innerHTML + '</a>';
+        }
+    };
+
+    GangIdGetter.processGangFight = function() {
+        // use try/catch here, probably dossergame (v3) won't work ...
+        try {
+            var table = BaseLib.getElementsByClassNameForElements('table', 'tieritemA')[0].getElementsByTagName('table')[0];
+            var rows = table.getElementsByTagName('tr');
+            for (var i = 1; i < rows.length; i++) {
+                var col = rows[i].getElementsByTagName('td')[0];
+                var gang = col.innerHTML.trim().replace("&nbsp;", "");
+                col.innerHTML = '&nbsp;<span id="gn to parse ' + gang + '">' + gang + '</div>';
+                GangIdGetter.getGangId(gang, GangIdGetter.defaultCallback);
+            }
+        } catch (e) {
+            Log.console(e);
+            return;
+        }
+    };
+
+    GangIdGetter.processGangFightlog = function() {
+        // use try/catch here, probably dossergame (v3) won't work ...
+        try {
+            var table = BaseLib.getElementsByClassNameForElements('table', 'tieritemA')[0].getElementsByTagName('table')[0];
+            var rows = table.getElementsByTagName('tr');
+            for (var i = 1; i < rows.length; i++) {
+                var col = rows[i].getElementsByTagName('td')[2];
+                var gang = col.innerHTML.trim().replace("&nbsp;", "");
+                col.innerHTML = '&nbsp;<span id="gn to parse ' + gang + '">' + gang + '</span>';
+                GangIdGetter.getGangId(gang, GangIdGetter.defaultCallback);
+            }
+        } catch (e) {
+            Log.console(e);
+            return;
+        }
+    };
+
+    GangIdGetter.processGangPacts = function() {
+        try {
+            var table = BaseLib.getElementsByClassNameForElements('table', 'tieritemA')[0].getElementsByTagName('table')[0];
+            var rows = table.getElementsByTagName('tr');
+            for (var i = 1; i < rows.length; i++) {
+                var col = rows[i].getElementsByTagName('td')[0];
+                var gang = col.innerHTML.trim();
+                col.innerHTML = '<span id="gn to parse ' + gang + '">' + gang + '</span>';
+                GangIdGetter.getGangId(gang, GangIdGetter.defaultCallback);
+            }
+        } catch (e) {
+            Log.console(e);
+            return;
+        }
+    };
+
+    GangIdGetter.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isGangFightUrl()) {
+                GangIdGetter.processGangFight();
+            }
+            if (UrlHandler.isGangFightlogUrl()) {
+                GangIdGetter.processGangFightlog();
+            }
+            if (UrlHandler.isGangPactUrl()) {
+                GangIdGetter.processGangPacts();
+            }
+        }
+    };
+
+};
+
+// ########### Helper object to parse some gang info ###########
+
+GangParser.init = function() {
+
+    GangParser.parseMembers = function(members) {
+        var ret = new Array();
+
+        if (members && members != '') {
+            t1 = '<tr onmouseover';
+            t2 = '</tr>';
+            var pos;
+            while ((pos = members.search(t1)) != -1) {
+                var member = BaseLib.getStringBetweenTags(members, t1, t2);
+
+                var img = BaseLib.getStringBetweenTags(member, '<img src="', '>');
+                var state;
+                if (img.search('coadmin.gif') != -1) {
+                    state = eCoAdmin;
+                } else if (img.search('admin.gif') != -1) {
+                    state = eAdmin;
+                } else {
+                    state = eMember;
+                }
+
+                var a = BaseLib.getStringBetweenTags(member, '<a', '</a>');
+                var id = BaseLib.extractNumber(BaseLib.getStringBetweenTags(a, '/profil/id:', '/'));
+                var name = BaseLib.getStringBetweenTags(a, '>', null);
+
+                var d = BaseLib.getStringBetweenTags(member, 'align="right"', '</td>');
+                var points = BaseLib.extractNumber(BaseLib.getStringBetweenTags(d, '>', '<'));
+
+                ret.push(new Types.GangMember(id, name, state, points));
+
+                members = members.substr(pos + 20);
+            }
+        }
+
+        return ret.sort(function(h1, h2) { return h2.points - h1.points; });
+    };
+
+};
+
+// ########### Gang fights & stuff ###########
+
+GangFights.init = function() {
+
+    GangFights.createBBButton = function(table) {
+        var format =  function() {
+            return BBCode.getHint() + BBCode.encodeTags('<table>'+table.innerHTML+'</table>');
+        };
+
+        var b = BBCode.createBbCodeButtons(format, 'gangFightBbCode');
+        table.parentNode.insertBefore(b, table);
+    };
+
+
+    GangFights.doCreateFightTable = function(span, theirMembers, gangId, heading, finishedFights) {
+        if (!UserInfo.ext.gangMembers) {
+            BaseLib.setTimeoutEx(function () { GangFights.doCreateFightTable(span, theirMembers, gangId, heading, finishedFights); }, 100);
+            return;
+        }
+        var i, j;
+
+        if (!theirMembers || !theirMembers.length || !UserInfo.ext.gangMembers.length) {
+            return;
+        }
+
+        var possibleFights = 0;
+        var nearFights = 0;
+        var myPossibleFights = new Array();
+        var myNearFights = new Array();
+
+        var div = document.createElement('div');
+        div.setAttribute('class', 'settingpoint');
+        span.appendChild(div);
+
+        // add header
+        var head = document.createElement('h1');
+        head.innerHTML = 'Bandenkampftabelle';
+        div.appendChild(head);
+        div.appendChild(document.createElement('br'));
+
+        // add table
+        var borderStyle = 'border: 1px solid #272727; border-collapse: collapse; ';
+        var colStyleNoAlign = 'height: 25px; ' + borderStyle;
+        var colStyle = colStyleNoAlign + 'text-align: center; vertical-align: middle; ';
+        var verticalColStyle = 'height: 150px; ' + borderStyle;
+
+        var row, col;
+
+        var c_green = '#558855'
+        var c_red = '#885555'
+        var c_light_green = '#657755'
+        var c_light_red = '#776555'
+        var c_yellow = '#888855'
+        
+        var newTable = document.createElement('table');
+        newTable.setAttribute('style', borderStyle);
+        div.appendChild(newTable);
+
+        var determineColor = function(mf, yf, dflt) {
+            var sf = 3;
+            if (mf == yf) {
+                return 'background-color: ' + c_yellow + '; ';
+            } else if (mf < (yf - sf)) {
+                return 'background-color: ' + c_red + '; ';
+            } else if ((mf - sf) > yf) {
+                return 'background-color: ' + c_green + '; ';
+            } else if (mf < yf) {
+                return 'background-color: ' + c_light_red + '; ';
+            } else if (mf > yf) {
+                return 'background-color: ' + c_light_green + '; ';
+            }
+
+            return (dflt) ? 'background-color: ' + dflt + ': ' : null;
+        };
+
+        var getBgCol = function(id, header) {
+            if (Config.nutze_lf_werte && header && id != UserInfo.uid) {
+                var f = LetsFight.getLetsFightValueByUID(id);
+                if (f.power) {
+                    var m1 = PennerInfo.calcLetsFight(PennerInfo.state.attBase, PennerInfo.state.defBase);
+                    var r = determineColor(m1, PennerInfo.calcLetsFight(f.power.att, f.power.def));
+                    if (r) return r;
+                }
+            }
+            if (id != UserInfo.uid) return '';
+            return 'background-color: #555555; ';
+        };
+
+        var getTheirBgCol = function(mid, oid) {
+            if (Config.nutze_lf_werte && (mid == UserInfo.uid)) {
+                var f = LetsFight.getLetsFightValueByUID(oid);
+                if (f.power) {
+                    var m1 = PennerInfo.calcLetsFight(PennerInfo.state.attBase, PennerInfo.state.defBase);
+                    var r = determineColor(m1, PennerInfo.calcLetsFight(f.power.att, f.power.def));
+                    if (r) return r;
+                }
+            }
+            return getBgCol(mid);
+        };
+
+
+        // table top: gang id + name
+        if (heading) {
+            row = document.createElement('tr');
+            newTable.appendChild(row);
+            col = document.createElement('td');
+            col.setAttribute('style', colStyle);
+            row.appendChild(col);
+            col = document.createElement('td');
+            col.innerHTML = '<a href="'+UrlHandler.createProfilUrlGang(gangId)+'">' + heading + '</a>';
+            col.setAttribute('style', colStyle);
+            col.setAttribute('colspan', UserInfo.ext.gangMembers.length);
+            row.appendChild(col);
+        }
+
+        // table heading
+        row = document.createElement('tr');
+        newTable.appendChild(row);
+        col = document.createElement('td');
+        col.innerHTML = '&nbsp;';
+        col.setAttribute('style', colStyle);
+        var indicatorField = col;
+        row.appendChild(col);
+
+        for (i = 0; i < UserInfo.ext.gangMembers.length; i++) {
+            myPossibleFights[i] = 0;
+            myNearFights[i] = 0;
+
+            col = document.createElement('td');
+            var d = document.createElement('div');
+            col.appendChild(d);
+            col.setAttribute('style', getBgCol(UserInfo.ext.gangMembers[i].id, true) + 'height: 150px; ' + borderStyle);
+            var f = LetsFight.getLetsFightValueByUID(UserInfo.ext.gangMembers[i].id);
+            if (f.power) {
+                col.setAttribute('title', 'Kampfstaerke: ' + PennerInfo.calcLetsFight(f.power.att, f.power.def) +
+                                          ' gespeichert vor: ' + BaseLib.timestampToDate(f.age * 1000) + ' (hr:mm:ss)');
+            }
+            d.setAttribute('style', '-moz-transform: rotate(270deg); ' +
+                                    '-webkit-transform: rotate(270deg); ' +
+                                    '-moz-transform-origin: 0 0; ' +
+                                    '-webkit-transform-origin: 0 0; ' +
+                                    'position: relative; top: 148px; left: 3px; ' +
+                                    'width: 21px; text-align: right; ' +
+                                    'text-align: center; vertical-align: middle; ');
+            row.appendChild(col);
+            d.innerHTML = '<b><a style="text-decoration: none;" href="' + UrlHandler.createProfilUrlUser(UserInfo.ext.gangMembers[i].id) + '">' + UserInfo.ext.gangMembers[i].name + '</a></b>';
+        }
+
+        // table rows for each member
+        for (i = 0; i < theirMembers.length; i++) {
+            row = document.createElement('tr');
+            col = document.createElement('td');
+            newTable.appendChild(row);
+            row.appendChild(col);
+
+            // first col: user name
+            col.innerHTML = '<b><a style="text-decoration: none;" href="' + UrlHandler.createProfilUrlUser(theirMembers[i].id) + '">' + theirMembers[i].name + '</a></b>';
+
+            // other cols: indicator
+            var p1 = theirMembers[i].points;
+            var i1 = theirMembers[i].id;
+            var n1 = theirMembers[i].name;
+            for (j = 0; j < UserInfo.ext.gangMembers.length; j++) {
+                col = document.createElement('td');
+                row.appendChild(col);
+
+                var p2 = UserInfo.ext.gangMembers[j].points;
+                var min = Math.ceil(p2 * 0.8) + 1;
+                var max = Math.floor(p2 * 1.5) - 1;
+                var min2 = Math.ceil(p2 * 0.8 * 0.9) + 1;
+                var max2 = Math.floor(p2 * 1.5 * 1.1) - 1;
+
+                var img;
+                var cursor = 'default';
+                var fighturl = null;
+                if (p1 > min && p1 < max) {
+                    myPossibleFights[j]++;
+                    possibleFights++;
+                    img = GM_getResourceURL("apply.png");
+                    if (UserInfo.ext.gangMembers[j].id == UserInfo.uid) {
+                        cursor = 'pointer';
+                        fighturl = UrlHandler.createFightToUrl(n1);
+                    }
+                } else if (p1 > min2 && p1 < max) {
+                    myNearFights[j]++;
+                    nearFights++;
+                    img = GM_getResourceURL("possibleDown.png");
+                } else if (p1 > min && p1 < max2) {
+                    myNearFights[j]++;
+                    nearFights++;
+                    img = GM_getResourceURL("possibleUp.png");
+                } else {
+                    img = GM_getResourceURL("cross.png");
+                }
+                    
+                col.setAttribute('style', 'background-image: url('+img+'); '+
+                                 'cursor: '+cursor+'; ' +
+                                 getTheirBgCol(UserInfo.ext.gangMembers[j].id, theirMembers[i].id) +
+                                 'background-repeat: no-repeat; background-position: center; '+
+                                 colStyleNoAlign);
+                if (fighturl) {
+                    var addClick = function(fighturl) {
+                        col.addEventListener('click', function() { UrlHandler.doRedirect(fighturl);  }, true);
+                    }
+                    addClick(fighturl);
+                }
+
+                var h = '';
+                var result;
+                var i2 = UserInfo.ext.gangMembers[j].id;
+                if (finishedFights && finishedFights[i1] && (result = finishedFights[i1][i2])) {
+                    // incoming fight for us
+                    var img;
+                    if (result == eWon) {
+                        img = '1_1';
+                    } else if (result == eLost) {
+                        img = '0_1';
+                    } else if (result == eRermis) {
+                        img = '2_1';
+                    }
+                    if (img) {
+                        h += '<img src="'+UrlHandler.dotsUrl+img+'.gif">';
+                    }
+                }
+                if (finishedFights && finishedFights[i2] && (result = finishedFights[i2][i1])) {
+                    // outgoing fight for us
+                    var img;
+                    if (result == eWon) {
+                        img = '1_0';
+                    } else if (result == eLost) {
+                        img = '0_0';
+                    } else if (result == eRermis) {
+                        img = '2_0';
+                    }
+                    if (img) {
+                        h += '<img src="'+UrlHandler.dotsUrl+img+'.gif">';
+                    }
+                }
+
+                col.innerHTML = h;
+            }
+        }
+
+        // table row with the possible fights of each member
+        row = document.createElement('tr');
+        col = document.createElement('td');
+        col.setAttribute('style', colStyle);
+        newTable.appendChild(row);
+        row.appendChild(col);
+
+        for (j = 0; j < UserInfo.ext.gangMembers.length; j++) {
+            col = document.createElement('td');
+            col.setAttribute('style', getBgCol(UserInfo.ext.gangMembers[j].id) + colStyle);
+            row.appendChild(col);
+            col.innerHTML = '<span style="color: #00ff00"><b>'+myPossibleFights[j]+'</b></span><br>' +
+                            '<span style="color: orange"><b>+'+myNearFights[j]+'</b></span>';
+        }
+
+        // table footing
+        row = document.createElement('tr');
+        newTable.appendChild(row);
+        col = document.createElement('td');
+        col.innerHTML = '&nbsp;';
+        col.setAttribute('style', colStyle);
+        row.appendChild(col);
+
+        for (i = 0; i < UserInfo.ext.gangMembers.length; i++) {
+            col = document.createElement('td');
+            var d = document.createElement('div');
+            col.appendChild(d);
+            col.setAttribute('style', getBgCol(UserInfo.ext.gangMembers[i].id) + 'height: 150px; ' + borderStyle);
+            d.setAttribute('style', '-moz-transform: rotate(90deg); ' +
+                                    '-webkit-transform: rotate(90deg); ' +
+                                    '-moz-transform-origin: 0% 100%; ' +
+                                    '-webkit-transform-origin: 0% 100%; ' +
+                                    'position: relative; top: -10px; left: 6px; ' +
+                                    'width: 21px; text-align: right; ' +
+                                    'text-align: center; vertical-align: middle; ');
+
+            row.appendChild(col);
+            d.innerHTML = '<b><a style="text-decoration: none;" href="' + UrlHandler.createProfilUrlUser(UserInfo.ext.gangMembers[i].id) + '">' + UserInfo.ext.gangMembers[i].name + '</a></b>';
+        }
+
+        // some more info ;-)
+        var possibleMembers = 0;
+        var nearMembers = 0;
+        for (i = 0; i < UserInfo.ext.gangMembers.length; i++) {
+            if (myPossibleFights[i]) {
+                possibleMembers++;
+            } else if (myNearFights[i]) {
+                nearMembers++;
+            }
+        }
+        indicatorField.innerHTML = 'Mögliche Kämpfe:<br>' +
+                                   '<span style="color: #00ff00"><b>' + possibleFights + '</b> (' + possibleMembers + ' Leute)</span><br>' +
+                                   '<span style="color: orange"><b>(+' + nearFights + ')</b> (+' + nearMembers + ' Leute)</span>';
+
+        if (Config.bbcode) GangFights.createBBButton(newTable);
+    };
+
+    // internal method
+    GangFights.createFightTableFromSource = function(span, theirMembers, gid, heading, finishedFights) {
+        GangFights.doCreateFightTable(span, theirMembers, gid, heading, finishedFights);
+    };
+
+    // create a gang fight matrix on the gang profile page
+    GangFights.createFightTable = function() {
+        if (LetsFight.letsfight == null) {
+            LetsFight.initialize(GangFights.createFightTable);
+            return;
+        }
+        if (Config.nutze_lf_werte && PennerInfo.state.attBase == null) {
+            BaseLib.setTimeoutEx(function () { GangFights.createFightTable(); }, 500);
+            return;
+        }
+        var span = document.createElement('span');
+        document.getElementById("content").appendChild(span);
+        var table = BaseLib.getElementsByClassNameForElements('table', 'tieritemA')[0];
+        var gangTable = table.getElementsByTagName('table')[0];
+
+        var theirMembers = GangParser.parseMembers(table.innerHTML);
+        var heading = '<table>' + gangTable.innerHTML + '</table>'
+
+        var gid = BaseLib.extractNumber(BaseLib.getStringBetweenTags(document.URL, 'bande:', '/'));
+
+        GangFights.createFightTableFromSource(span, theirMembers, gid, heading);
+    };
+
+    // create a gang fight matrix on the gang fight page
+    GangFights.createFightViewTable = function() {
+        if (LetsFight.letsfight == null) {
+            LetsFight.initialize(GangFights.createFightViewTable);
+            return;
+        }
+        if (Config.nutze_lf_werte && PennerInfo.state.attBase == null) {
+            BaseLib.setTimeoutEx(function () { GangFights.createFightViewTable(); }, 500);
+            return;
+        }
+
+        var finished = GangFights.parseFinishedFights();
+        var a = new Array();
+        for (var i = 0; i < finished.length; i++) {
+            a.push(JSON.stringify(finished[i]));
+        }
+
+        var params = 'auth=FILLME';
+        params += '&action=set';
+        params += '&gametype='+UrlHandler.configPrefix;
+        params += '&id='+UrlHandler.getGangfightIdFromUrl();
+        params += '&gid='+UserInfo.gang;
+        params += '&stats='+JSON.stringify(a);
+
+        var sortfn = function(s1, s2) {
+            var d1 = BaseLib.getDatetimeWithYear(s1.time);
+            var d2 = BaseLib.getDatetimeWithYear(s2.time);
+            return BaseLib.timestampFromDate(d2) - BaseLib.timestampFromDate(d1);
+        };
+
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                try {
+                    var ret = JSON.parse(req.responseText);
+                    var fights = ret.stats;
+                    var results = new Array();
+                    for (var i = 0; i < fights.length; i++) {
+                        results.push(JSON.parse(fights[i]));
+                    }
+                    results = results.sort(sortfn);
+                    GangFights.replaceResultsTable(results);
+                } catch (e) {
+                    Log.console(e);
+                }
+
+                // now do create the gang fight table ....
+                GangFights.createFightViewTable2();
+            }
+        };
+        // TODO: disable server access for public release
+        // BaseLib.xmlhttpRequest(UrlHandler.gangfightsServer+'?'+params, f, true, 60*60);
+    }
+
+    GangFights.createFightViewTable2 = function() {
+        var span = BaseLib.getElementsByClassNameForElements('span', 'b_name')[1];
+        if (!span) return;
+        var a = span.getElementsByTagName('a')[0];
+        if (!a) return;
+
+        var bname = a.innerHTML;
+        var bid = BaseLib.extractNumber(BaseLib.getStringBetweenTags(a.getAttribute('href'), 'bande:', '/'));
+        if (!bid || !bname) return;
+
+        // parse the fights that have taken place in the gang fight
+        var finishedFights = new Object();
+        var outerTable = document.getElementById('content').getElementsByTagName('table')[0];
+        var fightTable = outerTable.getElementsByTagName('table')[1];
+
+        if (fightTable) {
+            var rows = fightTable.getElementsByTagName('tr');
+            for (var i = 1; i < rows.length; i++) {
+                var cols = rows[i].getElementsByTagName('td');
+
+                var resultColor = cols[0].getAttribute('bgcolor');
+                var result;
+                if (resultColor == '#770000') {
+                    result = eLost;
+                } else if (resultColor == '#007700') {
+                    result = eWon;
+                } else if (resultColor == '#777700') { // ???
+                    result = eRemis;
+                }
+
+                var id1 = BaseLib.extractNumber(BaseLib.getStringBetweenTags(cols[2].getElementsByTagName('a')[0].getAttribute('href'), 'id:', '/'));
+                var id2 = BaseLib.extractNumber(BaseLib.getStringBetweenTags(cols[4].getElementsByTagName('a')[0].getAttribute('href'), 'id:', '/'));
+
+                if (!finishedFights[id1]) {
+                    finishedFights[id1] = new Object();
+                }
+                finishedFights[id1][id2] = result;
+            }
+        }
+
+        // actually create the table
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                var span = document.createElement('span');
+                document.getElementById("content").appendChild(span);
+
+                var t1 = '<table width="100%"  border="0" cellspacing="0" cellpadding="0" style="margin:1px;">';
+                var t2 = '</table>';
+                var t3 = '<table width="100%" border="0" cellspacing="0" cellpadding="0">';
+                var members = BaseLib.getStringBetweenTags(req.responseText, t1, t2);
+                var gangHead = BaseLib.getStringBetweenTags(req.responseText, t3, t2);
+                var theirMembers = GangParser.parseMembers(members);
+
+                GangFights.createFightTableFromSource(span, theirMembers, bid, '<table>'+gangHead+'</table>', finishedFights);
+            }
+        };
+
+        BaseLib.xmlhttpRequest(UrlHandler.createProfilUrlGang(bid), f, true);
+    };
+
+    GangFights.getPossibleFights = function(theirMembers) {
+        if (!UserInfo.ext.gangMembers) {
+            return new Types.GangFightStats(0, 0, 0, 0);
+        }
+
+        var possibleFights = 0;
+        var nearFights = 0;
+        var possibleMembers = 0;
+        var nearMembers = 0;
+
+        var myPossibleFights = new Array();
+        var myNearFights = new Array();
+
+        var i, j;
+
+        for (i = 0; i < UserInfo.ext.gangMembers.length; i++) {
+            myPossibleFights[i] = 0;
+            myNearFights[i] = 0;
+        }
+
+        for (i = 0; i < theirMembers.length; i++) {
+            var p1 = theirMembers[i].points;
+            for (j = 0; j < UserInfo.ext.gangMembers.length; j++) {
+                var p2 = UserInfo.ext.gangMembers[j].points;
+                var min = Math.ceil(p2 * 0.8) + 1;
+                var max = Math.floor(p2 * 1.5) - 1;
+                var min2 = Math.ceil(p2 * 0.8 * 0.9) + 1;
+                var max2 = Math.floor(p2 * 1.5 * 1.1) - 1;
+
+                var img;
+                if (p1 > min && p1 < max) {
+                    possibleFights++;
+                    myPossibleFights[j]++;
+                } else if ((p1 > min2 && p1 < max) || (p1 > min && p1 < max2)) {
+                    nearFights++;
+                    myNearFights[j]++;
+                }
+            }
+        }
+
+        for (i = 0; i < UserInfo.ext.gangMembers.length; i++) {
+            if (myPossibleFights[i]) {
+                possibleMembers++;
+            } else if (myNearFights[i]) {
+                nearMembers++;
+            }
+        }
+
+        return new Types.GangFightStats(possibleFights, nearFights, possibleMembers, nearMembers);
+    };
+
+    GangFights.parseFinishedFights = function() {
+        var finishedFights = new Array();
+        var outerTable = document.getElementById('content').getElementsByTagName('table')[0];
+        var fightTable = outerTable.getElementsByTagName('table')[1];
+
+        if (fightTable) {
+            var rows = fightTable.getElementsByTagName('tr');
+            for (var i = 1; i < rows.length; i++) {
+                var cols = rows[i].getElementsByTagName('td');
+
+                var resultColor = cols[0].getAttribute('bgcolor');
+                var result;
+                if (resultColor == '#770000') {
+                    result = eLost;
+                } else if (resultColor == '#007700') {
+                    result = eWon;
+                } else if (resultColor == '#777700') { // ???
+                    result = eRemis;
+                }
+
+                var a1 = cols[2].getElementsByTagName('a')[0];
+                var a2 = cols[4].getElementsByTagName('a')[0];
+                var id1 = BaseLib.extractNumber(BaseLib.getStringBetweenTags(a1.getAttribute('href'), 'id:', '/'));
+                var id2 = BaseLib.extractNumber(BaseLib.getStringBetweenTags(a2.getAttribute('href'), 'id:', '/'));
+                var n1 = a1.innerHTML;
+                var n2 = a2.innerHTML;
+                var t = cols[1].innerHTML.trim().replace("&nbsp;", "");
+
+                finishedFights.push(new Types.GangFightResult(t, result, id1, n1, id2, n2));
+            }
+        }
+
+        return finishedFights;
+    };
+
+    GangFights.replaceResultsTable = function(results) {
+        var finishedFights = new Array();
+        var outerTable = document.getElementById('content').getElementsByTagName('table')[0];
+        var fightTable = outerTable.getElementsByTagName('table')[1];
+        var standingTable = outerTable.getElementsByTagName('table')[0];
+
+        if (!fightTable) {
+            return;
+        }
+
+        // remove old entries
+        while (true) {
+            var rows = fightTable.getElementsByTagName('tr');
+            if (rows.length <= 1) {
+                break;
+            }
+            var r = rows[rows.length - 1];
+            r.parentNode.removeChild(r);
+        }
+
+        // create new entries
+        for (var i = 0; i < results.length; i++) {
+            var r = results[i];
+            var tr = document.createElement('tr');
+            tr.setAttribute('style', '-moz-border-radius: 2px 2px 2px 2px;');
+            fightTable.appendChild(tr);
+
+            var td = document.createElement('td');
+            if (r.result == eLost) {
+                td.setAttribute('bgcolor', '#770000');
+            } else if (r.result == eWon) {
+                td.setAttribute('bgcolor', '#007700');
+            } else if (r.result == eRemis) { // ???
+                td.setAttribute('bgcolor', '#777700');
+            }
+            td.innerHTML = '&nbsp;';
+            tr.appendChild(td);
+
+            td = document.createElement('td');
+            td.innerHTML = '&nbsp;'+r.time;
+            tr.appendChild(td);
+
+            td = document.createElement('td');
+            var a = document.createElement('a');
+            a.innerHTML = r.fromName;
+            a.setAttribute('href', UrlHandler.createProfilUrlUser(r.fromId));
+            td.appendChild(a);
+            tr.appendChild(td);
+
+            td = document.createElement('td');
+            td.innerHTML = 'vs';
+            tr.appendChild(td);
+
+            td = document.createElement('td');
+            var a = document.createElement('a');
+            a.innerHTML = r.toName;
+            a.setAttribute('href', UrlHandler.createProfilUrlUser(r.toId));
+            td.appendChild(a);
+            tr.appendChild(td);
+        }
+
+        // update the number of fights
+        var div = BaseLib.getParentByTagName('div', fightTable);
+        if (!div) return;
+        var strong = div.getElementsByTagName('strong')[0];
+        if (!strong) return;
+        var txt = 'Die letzten ' + results.length + ' bekannten Kämpfe';
+
+        if (standingTable) {
+            try {
+                var tr = standingTable.getElementsByTagName('tr')[1];
+                var td1 = tr.getElementsByTagName('td')[0];
+                var td2 = tr.getElementsByTagName('td')[2];
+                var sp1 = td1.getElementsByTagName('span')[0];
+                var sp2 = td2.getElementsByTagName('span')[0];
+                var p1 = BaseLib.extractNumber(sp1.innerHTML);
+                var p2 = BaseLib.extractNumber(sp2.innerHTML);
+                txt += ' (insgesamt ' + (p1+p2) + ' Kämpfe)';
+            } catch (e) {
+                Log.console(e);
+            }
+        }
+
+        strong.innerHTML = txt;
+    };
+
+    GangFights.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isProfileGangUrl()) {
+                GangFights.createFightTable();
+            }
+            if (UrlHandler.isGangFightViewUrl()) {
+                GangFights.createFightViewTable();
+            }
+        }
+    };
+
+};
+
+LetsFight.init = function() {
+
+    LetsFight.letsfight = null;
+
+    LetsFight.getLetsFightValueByUID = function(uid) {
+        if (!LetsFight.letsfight) return 0;
+        for (var i=0; i<LetsFight.letsfight.length; i++) {
+            var f = LetsFight.letsfight[i];
+            if (f.uid == uid) {
+                return f;
+            }
+        }
+        return {};
+    };
+
+    LetsFight.getLetsFightValues = function(cb) {
+        
+        // TODO: disable server access for public release
+        cb({});
+        return;
+         
+        if (!Config.nutze_lf_werte) {
+            cb({});
+            return;
+        }
+        var authString = Base64.decodeString(Config.nutze_lf_werte_pw);
+        var params = [ 'mode=letsfight',
+                       'auth=' + authString,
+                       'gametype=' + UrlHandler.configPrefix,
+                       'gid=' + UserInfo.gang,
+                       'uid=' + UserInfo.uid,
+                       'age=' + GameType.maxLetsFightAge ].join('&');
+
+        var oobj = this;
+        var f = function(req) {
+            if (req.readyState == 4) {
+                if (req.status == 200) {
+                    try {
+                        var v = JSON.parse(req.responseText);
+                        if (v.letsfight != null) {
+                            cb(v.letsfight);
+                            return;
+                        }
+                    } catch (e) {}
+                }
+            }
+            cb({});
+        };
+        BaseLib.xmlhttpRequest(UrlHandler.configServer + "?" + params, f, true, 60 * 60);
+    };
+
+    LetsFight.initialize = function(cb) {
+        var f = function(v) {
+            LetsFight.letsfight = v;
+            if (cb) cb();
+        }
+        LetsFight.getLetsFightValues(f);
+    };
+
+};

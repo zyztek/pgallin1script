@@ -1,0 +1,658 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root>
+    <description>
+        [sio]
+        Legale Scriptsammlung fuer Pennergame (und Ableger)
+        [/sio]
+        [mio]
+        Scriptsammlung fuer Pennergame (und Ableger) mit nuetzlichen Erweiterungen ;-)
+        [/mio]
+        [aio]
+        Scriptsammlung fuer Pennergame (und Ableger) mit voll automatischen Kampf-, Flaschen- und Weiterbildungsbots
+        [/aio]
+    </description>
+    <features>
+        <feature>Pulldown-Menue zum schnellen Erreichen vieler Funktionen</feature>
+        <feature>Sidebar mit vielen Funktionen (Freundesliste, Knoepfe zum Betrinken, Waschen, etc.)</feature>
+        <feature>Automatische Erkennung (und Neuladen) von Fehlerseiten</feature>
+        <feature>Erweiterte Informationsanzeige mit Weiterbildungen, einkommenden Kaempfen, Spenden, Bandenkaempfen, etc.</feature>
+        <feature>Wechseln von Plunder, Stadtteil, Waffe und Eigenheim auf Knopfdruck</feature>
+        [aio]
+        <feature>Flaschenbot, Kampfbot (inkl. Bandenkampfmodus), Weiterbildungsbot</feature>
+        [/aio]
+        [!sio]
+        <feature>Werbeblocker</feature>
+        <feature>Automatisches Bearbeiten der Tagesaufgabe</feature>
+        <feature>Automatisches Verkaufen von Pfandflaschen</feature>
+        [/!sio]
+        <feature>Pfandflaschenrechner</feature>
+        <feature>Viele Erweiterungen der Profilseiten</feature>
+        [!sio]
+        <feature>Erweiterte Moeglichkeiten der Suche von Kampfgegnern: SuperSearch (tm)</feature>
+        [/!sio]
+        <feature>Viele Erweiterungen der Highscore-Tabellen</feature>
+        <feature>Kampfstatistik</feature>
+        <feature>Anzeige der herrschenden Bande in den Stadtteilen</feature>
+        <feature>Liste der noch nicht freigeschalteten Haustiere, Waffen, etc.</feature>
+        <feature>Anzeige der Voraussetzungen bei Weiterbildungen</feature>
+        <feature>Erweiterter BB-Code-Editor, inkl. Smilies</feature>
+        <feature>Nachrichten fuer mehrere Empfaenger gleichzeitig</feature>
+        <feature>Tabelle fuer moegliche Kaempfe beim Bandenkampf</feature>
+        <feature>Tabelle mit den Einzahlungen der Bandenmitglieder</feature>
+        <feature>Kleinkram ;-)</feature>
+    </features>
+    <changelog>
+        <current>
+            <script>
+                <version>1.7.1</version>
+                <date>23.02.2011</date>
+                <changes>
+                    <change>Support für Google Chrome repariert</change>
+                    [!sio]
+                    <change>Tagesaufgabe Sende eine Nachricht repariert</change>                    
+                    [/!sio]
+                </changes>
+            </script>
+        </current>
+        <history>
+            <script>
+                <version>1.7.0</version>
+                <date>14.02.2011</date>
+                <changes>
+                    [aio]
+                    <change>SuperSearch: Sortierung nach Siege verbessert</change>                    
+                    [/aio]
+                    <change>Hoffentlich wird Wut jetzt besser erkannt und rausgerechnet</change>
+                    <change>Verbesserungen beim Plunderwechsel</change>
+                    <change>Intern: Aufteilung für mehrere Spiele</change>
+                    <change>Intern: Bilder sind jetzt richtige Bilder</change>
+                    <change>Kleinere Fixes</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.6.11</version>
+                <date>21.01.2011</date>
+                <changes>
+                    [sio]
+                    <change>Hochkämpfer und Runterkämpfer repariert</change>
+                    [/sio]
+                    [aio]
+                    <change>Hochkämpfer- und Runterkämpferbots repariert</change>
+                    [/aio]
+                    <change>Sortiere die Hochkämpfer und Runterkämpfer</change>
+                    <change>Mammut bei den Tieren hinzugefügt</change>
+                    [aio]
+                    <change>Regenmantel im Bumrise</change>
+                    <change>Bots sollten beim Spenden nicht mehr dazwischenfunken</change>
+                    [/aio]
+                    <change>Intern: Neue init-Struktur Teil 3</change>
+                    <change>Zusenden des Tagebuchs repariert</change>
+                    <change>Kleinere Fixes</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.6.10</version>
+                <date>11.01.2011</date>
+                <changes>
+                    [!sio]
+                    <change>Blende die Knastvögel Werbung aus dem Hintergrundbild aus</change>
+                    [/!sio]
+                    <change>Runterkämpfer und Hochkämpfer im Highscore-Menü</change>
+                    [aio]
+                    <change>Kampfbot kann Runterkampf und Hochkampf</change>
+                    [/aio]
+                    <change>Intern: Neue init-Struktur Teil 2</change>
+                    <change>Bugfix: Wetter geht wieder</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.6.9</version>
+                <date>10.01.2011</date>
+                <changes>
+                    <change>Lose kaufen</change>
+                    [aio]
+                    <change>Bevorzugte Opfer in Tabellen</change>
+                    [/aio]
+                    <change>Intern: Neue init-Struktur</change>
+                    <change>Bugfix: Gangfight-Matrix, wenn Script-Nutzer in gegn. Bande</change>
+                    <change>Bugfix: Job-Zählung bei Tabellen</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.6.8</version>
+                <date>05.01.2011</date>
+                <changes>
+                    <change>Bugfix: lade nicht neu, wenn das Script deaktiviert ist</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.6.7</version>
+                <date>04.01.2011</date>
+                <changes>
+                    <change>Firefox 4 Fixes (Beta 8)</change>
+                    <change>Rücksetzen der Einstellungen gefixt</change>
+                    [aio]
+                    <change>Bevorzugte Opfer werden auch angegriffen, wenn der Flaschenbot läuft</change>
+                    <change>Spenden-Vorhang</change>
+                    <change>Pennerari-Schlitten ist ein Jetpack</change>
+                    [/aio]
+                    [!sio]
+                    <change>DailyTask-Bot-Bot-Kollisionen gefixt</change>
+                    <change>DailyTask-Bot nutzt auch Seife</change>
+                    [/!sio]
+                    <change>Kleinere Fixes</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.6.6</version>
+                <date>15.12.2010</date>
+                <changes>
+                    <change>Anzeige von gespeicherten Kampfwerten anderer Scriptnutzer (nur eigene Bande)</change>
+                    <change>Kalender der Bandenliga im Menue</change>
+                    <change>Fehlercheck verbessert (vielleicht)</change>
+                    <change>Spendenhinweis kann nun weggeklickt werden</change>
+                    [aio]
+                    <change>Dose Dr. Penner im Bumrise gefixt</change>
+                    [/aio]
+                    <change>Kleinere Fixes</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.6.5</version>
+                <date>07.12.2010</date>
+                <changes>
+                    <change>Unterstuetzung fuer Firefox 4.0 (Beta 7 oder neuer)</change>
+                    <change>Ergebnisse der Bandenkaempfe werden auf dem Server gespeichert, dadurch sieht man mehr als 20 letzte Kaempfe</change>
+                    <change>Kleinere Verbesserungen der Bandenkampftabelle</change>
+                    [aio]
+                    <change>Beschriftung der Bot-Buttons geaendert</change>
+                    [/aio]
+                    <change>Kleinere Fixes</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.6.4</version>
+                <date>02.12.2010</date>
+                <changes>
+                    <change>Der Cache fuer Requests funktioniert wieder</change>
+                    <change>Auch die Profilseiten ohne ID werden jetzt richtig erkannt</change>
+                    <change>Elemente der Sidebar sind jetzt zuklappbar und verschiebbar</change>
+                    <change>Verbesserungen bei der Bandenkampftabelle</change>
+                    <change>Knopf zum alle Nachrichten als gelesen markieren</change>
+                    <change>Blende MotD aus und auf Knopfdruck wieder ein</change>
+                    [aio]
+                    <change>Der Bot springt nicht mehr zwischen Tabs</change>
+                    <change>Der Kampfbot kann jetzt bevorzugte Opfer speichern und zuerst angreifen</change>
+                    [/aio]
+                    <change>Kleinere Fixes</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.6.3</version>
+                <date>19.11.2010</date>
+                <changes>
+                    <change>Verbesserte Berechnung der Plunder fuer Hoch- und Downfightbuttons</change>
+                    <change>Vereinheitliche Smilies</change>
+                    <change>Fixe verschiedene Haenger beim Laden von Seiten im Hintergrund</change>
+                    <change>Erweiterte Darstellung von Punkten in den Tabellen</change>
+                    <change>Bandenliga ins Menue aufgenommen</change>
+                    [aio]
+                    <change>Fix beim Nutzen des Musikgeldes im Weiterbildungsbot</change>
+                    <change>Benutze Regenmantel im Kampfbot</change>
+                    [/aio]
+                    [!sio]
+                    <change>Fixe endlose Haustierkaempfe</change>
+                    <change>Loesche Tagesaufgabe gleich wieder aus der Shoutbox, falls Admin</change>
+                    [/!sio]
+                    <change>Kleinere Fixes</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.6.2</version>
+                <date>20.10.2010</date>
+                <changes>
+                    <change>Alle Grafiken sind nun eingebettet (muessen nicht erst heruntergeladen werden)</change>
+                    <change>Fix fuer das bestimmen des besten Kampfplunders</change>
+                    <change>Fix fuer die letzten Aenderungen beim Layout (Menues wieder sichtbar)</change>
+                    [aio]
+                    <change>Tagesaufgaben behindern andere Bots nicht mehr</change>
+                    <change>Flaschenbot legt Dose erst beim Wagenleeren an</change>
+                    [/aio]
+                    <change>Kleinere Fixes</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.6.1</version>
+                <date>07.10.2010</date>
+                <changes>
+                    <change>Unterstuetzung fuer die Halloween Speedwelt</change>
+                    [aio]
+                    <change>Nutze Musikgeld im Skill-Bot</change>
+                    [/aio]
+                    <change>Kleinere Fixes</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.6.0</version>
+                <date>05.10.2010</date>
+                <changes>
+                    [sio]
+                    <change>Initiales Release des pgSomeInOneScript</change>
+                    [/sio]
+                    [aio]
+                    <change>Flaschen-Bot kann mit Verbrechen umgehen</change>
+                    [/aio]
+                    [!sio]
+                    <change>Fast alle Tagesaufgaben werden nun erledigt (auslaendische Versionen nicht vollstaendig)</change>
+                    <change>Falls du nicht von Wut/WiWu profitierst, wird das auch so angezeigt</change>
+                    <change>Unterstuetzung fuer Firefox 4.0 verbessert</change>
+                    <change>Tagebuch ins Kontrollzentrum gewandert</change>
+                    <change>Fix fuer Bandennachrichten</change>
+                    <change>Anzahl der angezeigten Bandenkaempfe einstellbar</change>
+                    <change>Kleinere Fixes</change>
+                    [/!sio]
+                </changes>
+            </script>
+[!sio]
+            <script>
+                <version>1.5.12</version>
+                <date>16.09.2010</date>
+                <changes>
+                    <change>Buttons fuer Up- und Downfight eingebaut</change>
+                    <change>Option zum Senden von Nachrichten an mehrere Empfaenger</change>
+                    <change>Filtere auch die Daily Task Nachrichten</change>
+                    <change>Loesche Kronkorken Spam</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.5.11</version>
+                <date>10.09.2010</date>
+                <changes>
+                    <change>Fix im BB Code Editor (schliessende Tags waren falsch)</change>
+                    <change>Verbessere Kronkorken Spam Erkennung</change>
+                    <change>Fixe fehlende Tabelle auf Bandenkampfseite falls noch nicht gekaempft wurde</change>
+                    <change>Kleinere Fixes</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.5.10</version>
+                <date>09.09.2010</date>
+                <changes>
+                    <change>Fixes in der Kampfstatistik</change>
+                    <change>Mehr Aktionen fuer den Daily Task Bot</change>
+                    <change>Fixes fuer die neue Highscore mit Millionen und so</change>
+                    <change>Einstellungen fuer das Script sind jetzt einklappbar</change>
+                    <change>Zeige nicht mehr das Symbol fuer ungelesene Nachrichten, falls es nur wieder Kronkorken Spam ist</change>
+                    <change>Fix zum Starten des Bandenkampfes</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.5.9</version>
+                <date>03.09.2010</date>
+                <changes>
+                    <change>Doppelklick auf Smilies macht den Smilie-Editor zu</change>
+                    <change>BB Code kann nun direkt in die Zwischenablage kopiert werden</change>
+                    <change>BB Code Fixes und Erweiterungen</change>
+                    <change>Bandenkampf-Matrix auch auf der Bandenkampf-Seite</change>
+                    <change>Menue an letzte Aenderungen angepasst</change>
+                    <change>Tagesaufgabe: Einzahlung</change>
+                    [aio]
+                    <change>Fix beim Haustier-Skillbot</change>
+                    [/aio]
+                </changes>
+            </script>
+            <script>
+                <version>1.5.8</version>
+                <date>31.08.2010</date>
+                <changes>
+                    <change>Parallelisiere Kampfstatistik</change>
+                    <change>Zeige Anzahl moeglicher Kaempfe auf der Stadtteil-Seite</change>
+                    [aio]
+                    <change>Feintuning fuers Captcha Knacken</change>
+                    [/aio]
+                </changes>
+            </script>
+            <script>
+                <version>1.5.7</version>
+                <date>30.08.2010</date>
+                <changes>
+                    <change>Bandenkampf-Matrix</change>
+                    <change>DailyTaskBot erledigt erste Aufgaben</change>
+                    <change>BBCode Erweiterung</change>
+                    <change>BBCode Editor</change>
+                    [aio]
+                    <change>weniger Plunderswitches beim Fl.sammelbot</change>
+                    [/aio]
+                </changes>
+            </script>
+            <script>
+                <version>1.5.6</version>
+                <changes>
+                    <change>Fix ManyInOneScript</change>
+                    <change>CopyToClipboard fuers Log</change>
+                    <change>BB-Code fuer ausgehende Kaempfe</change>
+                    <change>Stadteil uebernehemen Knopp nur wenn (Co-)Admin</change>
+                    <change>Malle Auszeichnungen in Tabellen</change>
+                    <change>Fight Plunder Buttons immer</change>
+                    <change>Config Fix</change>
+                    [aio]
+                    <change>Wagen muss nun ueberall geleert werden</change>
+                    [/aio]
+                </changes>
+            </script>
+            <script>
+                <version>1.5.5</version>
+                <changes>
+                    <change>Fixes fuer Malle</change>
+                    <change>BB-Code fuer eingehende Kaempfe</change>
+                    [aio]
+                    <change>Botzustaende nun pro Browser,pro Game und pro User</change>
+                    <change>Max. zu erreichendes Def-Level laesst sich nun einstellen</change>
+                    <change>der wagen muss nur manchmal geleert werden</change>
+                    [/aio]
+                </changes>
+            </script>
+            <script>
+                <version>1.5.4</version>
+                <changes>
+                    <change>Weitere Verbesserungen fuer Malle</change>
+                    <change>Knopf zum Auffuellen der Lebensenergie in Malle</change>
+                    <change>Heile-Welt-Bot :)</change>
+                    <change>Logger inkl. eMail-Versand</change>
+                    <change>BB-Code der Kampfstatistik</change>
+                    <change>serserionline fixes</change>
+                    <change>dossergame fixes</change>
+                    [aio]
+                    <change>Spenden-Knopf waescht nun automatisch</change>
+                    <change>Fix fuer das Problem dass manchmal alle Flaschen vom Weiterbildungsbot verkauft worden</change>
+                    <change>Skill-Bot fixes</change>
+                    <change>Option um immer laut Plan zu skillen</change>
+                    [/aio]
+                </changes>
+            </script>
+            <script>
+                <version>1.5.3</version>
+                <changes>
+                    <change>Support fuer Pennergame Malle (getestet ;))</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.5.2</version>
+                <changes>
+                    <change>Support fuer Pennergame Malle (ungetestet!)</change>
+                    <change>Chrome-Unterstuetzung weiter verbessert</change>
+                    <change>Support fuer Firefox 4.0</change>
+                    <change>Spare Geld beim Waschen</change>
+                    <change>Anschreiben direkt aus der Buddy-Liste</change>
+                    <change>Neue Waffen und Eigenheime</change>
+                    <change>Kleinere Fixes und Verbesserungen</change>
+                    [aio]
+                    <change>Mofamotor, Lexikon und Co. im Bumrise</change>
+                    <change>Teste bei Haustier-Skillbot ob Geld da ist</change>
+                    <change>Ignoriere Gewitter beim Sammelbot</change>
+                    [/aio]
+                </changes>
+            </script>
+            <script>
+                <version>1.5.1</version>
+                <changes>
+                    <change>Button zum Starten von Vorherrschaftskaempfen</change>
+                    <change>Anzeige der vorherrschenden Bande im Chrome gefixt</change>
+                    <change>Fix fuer Bandenkampfseite - die Banden sind jetzt immer anklickbar</change>
+                    <change>Anzeige der laufenden Weiterbildungen</change>
+                    <change>Neue Waffen, Eigenheime, Instrumente und Schnorrplaetze</change>
+                    <change>Kleinere Fixes</change>
+                    [aio]
+                    <change>Benutze Minibrunnen + Co. alle 6 statt 3 Stunden</change>
+                    [/aio]
+                </changes>
+            </script>
+            <script>
+                <version>1.5.0</version>
+                <changes>
+                    <change>Neues Versionierungsschema: Umstellung auf 3 Stellen + Revision</change>
+                    <change>Unterstuetzung fuer Google Chrome (Beta!)</change>
+                    <change>Knoepfe zum schnellen Benutzen von "Jetpack", "2. schwarzes Loch", "Partytime" etc.</change>
+                    <change>Schnelles Wechseln zwischen Stadtteilen</change>
+                    <change>Zeige Voraussetzungen fuer naechste Weiterbildungsstufe</change>
+                    <change>Neue Waffen, Eigenheime, Instrumente und Schnorrplaetze</change>
+                    <change>Interne Aenderungen</change>
+                    <change>Kleinere Fixes</change>
+                    [aio]
+                    <change>Benutze Minibrunnen + Co. beim Spenden</change>
+                    <change>Haustier-Skillbot gefixt</change>
+                    <change>Kampf-Bot in Bumrise verbessert</change>
+                    <change>Knacken der Captchas beschleunigt</change>
+                    [/aio]
+                </changes>
+            </script>
+            <script>
+                <version>1.4.2.3/1.4.2.4</version>
+                <changes>
+                    <change>Kennzeichne geloeschte Spieler und erlaube keine Angriffe gegen sie</change>
+                    <change>Infobereich weter verbessert, jetzt mit Waffe und Eigenheim und schoenerem Hintergrund</change>
+                    <change>Neue Waffen, Eigenheime, Instrumente und Schnorrplaetze</change>
+                    <change>Interne Verbesserungen und Fixes</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.4.2.2</version>
+                <changes>
+                    <change>Neue Infoanzeige mit PowerChecker (tm) ;)</change>
+                    <change>mehr Tiere in Muenchen</change>
+                    <change>Eigenheime, Instrumente und Schnorrplaetze fuer alle Versionen</change>
+                    <change>verzoegertes Ein- und Ausblenden des Menues</change>
+                    <change>Plunderverkauflinks fuer (alle) und (alle-1)</change>
+                    [aio]
+                    <change>Bot-Status in Remote-Config</change>
+                    <change>Fixe Fight-Bot in nicht DE-Versionen</change>
+                    <change>WB-Bot beachtet nun auch WB in der Warteschlange</change>
+                    [/aio]
+                </changes>
+            </script>
+            <script>
+                <version>1.4.2.1</version>
+                <changes>
+                    <change>Doppelte Highscore Eintraege gefixt</change>
+                    <change>Flaschenbot bei 0 Cent gefixt</change>
+                    <change>Smilie-Div zum Klappen</change>
+                    <change>mehr Tiere in Muenchen</change>
+                    <change>Tiere werden mit ihren Kosten angegeben</change>
+                    <change>Redirect auf Spenden-Seiten gefixt</change>
+                    [aio]
+                    <change>WB-Bot skillt nun im E-Fall unabhaengig vom Att/Def Verhaeltnis</change>
+                    [/aio]
+                </changes>
+            </script>
+            <script>
+                <version>1.4.2.0</version>
+                <changes>
+                    <change>viele bunte smarties, aehh smilies ;) </change>
+                    <change>reload-problem auf geposteten seiten gefixt</change>
+                    <change>konzi-bug per einstellungen einblendbar</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.4.1.9</version>
+                <changes>
+                    <change>Flaschenverkaufbuttons</change>
+                    <change>Flaschenverkaufbot</change>
+                    <change>Bier und Brotbuttom verkaufen im Notfall Flaschen</change>
+                    <change>Pennerinfo-Update erst wenn Maus 1 Sek. darueber</change>
+                    <change>Konzi-Bug auskommentiert</change>
+                    <change>ErrorChecker ueberarbeitet</change>
+                    <change>mehr Tiere in Muenchen</change>
+                    <change>einige, vom Script geladene, Seiten werden nun intern gecacht</change>
+                    <change>zeige Sammelmarken und Zustand der aktuellen Aufgabe</change>
+                    <change>zeige Info-Seite nach Script-Update</change>
+                    [aio]
+                    <change>WB-Bot legt nun Brille statt Stab an</change>
+                    <change>WB-Bot verkauft Flaschen</change>
+                    <change>WB-Bot unterstuetzt 2 gleiche WB in Muenchen</change>
+                    <change>Blacklist wird remote gespeichert</change>
+                    <change>lege keinen Plunder an, der schon dran ist</change>
+                    [/aio]
+                </changes>
+            </script>
+            <script>
+                <version>1.4.1.8</version>
+                <changes>
+                    <change>[aio]Spenden mit Runden, [/aio]Auto-(Re)Login, ErrorChecker von BL auf WL, BierButtons kaufen Bier</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.4.1.7</version>
+                <changes>
+                    <change>[aio]Spenden mit Plunder, [/aio]Tuerkei (serserionline) Support, Fixes...</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.4.1.6</version>
+                <changes>
+                    <change>[aio]Spenden gefixt, [/aio]Dossergame v4 support, schnelles Menue, Fixes...</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.4.1.5</version>
+                <changes>
+                    <change>muenchen fixes</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.4.1.4</version>
+                <changes>
+                    <change>muenchen-vorbereitung, Sortiere nach siegen, Remove-Cfg, Konzi-Warner, Fixes...</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.4.1.3</version>
+                <changes>
+                    <change>plunder erkennung gefixt[aio], integrierter hitfaker[/aio], kommende tiere, fixes...</change>
+                </changes>
+            </script>
+[/!sio]
+[aio]
+            <script>
+                <version>1.4.1.2</version>
+                <changes>
+                    <change>verschobene Bilder, Konzi-Umschalter-Fixes, cErr-Vermeiden</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.4.1.1</version>
+                <changes>
+                    <change>bumrise.com, Wetter Updates, Konzentration umschalten, Fixes</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.4.1.0</version>
+                <changes>
+                    <change>Weiterbildungsbot, Bunte Knoeppe, Fixes</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.4.0.9</version>
+                <changes>
+                    <change>Wiwu/Wut-Anzeige, 3-stufige Blacklist, alternative Highscore (dg)</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.4.0.8</version>
+                <changes>
+                    <change>Ausbildungswarner gefixt</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.4.0.7</version>
+                <changes>
+                    <change>Ausbildungswarner, - viele Fixes (Bot, Warner, 2010-Problem)</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.4.0.6</version>
+                <changes>
+                    <change>Unterstuetzung fuer Firefox 3.6, 7-Meilen-Stiefel durch Prozente ersetzt</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.4.0.5</version>
+                <changes>
+                    <change>Bk-Links, Kein Angriff Verbuendeter, GotYa Verbesserung, ControlCenter, viele Fixes</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.4.0.4</version>
+                <changes>
+                    <change>Bk-Warner, GotYa-Update, History-Bot, viele Fixes</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.4.0.3</version>
+                <changes>
+                    <change>Zwischen-Release</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.4.0.2</version>
+                <changes>
+                    <change>Sammelbeschleunigungsplunder, Fixes: Awards, Geld-Anzeige + Plunder</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.4.0.1</version>
+                <changes>
+                    <change>Waschen und Saufen im Hintergrund, id-Highscore, kleinere Fixes...</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.4.0.0</version>
+                <changes>
+                    <change>Script als FF-Addon</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.3.4.7</version>
+                <changes>
+                    <change>Blacklist, Fixes und GotYa Verbesserung, Ignorieren alter Kaempfe...</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.3.4.6</version>
+                <changes>
+                    <change>4.0 fuer Berlin, kleinere Bugfixes</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.3.4.5</version>
+                <changes>
+                    <change>Stadtteile in allen Tabellen, Verbesserungen bei den Bots, kleinere Bugfixes</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.3.4.4</version>
+                <changes>
+                    <change>Volle PGv4-Unterstuetzung</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.3.4.3</version>
+                <changes>
+                    <change>Viele Features fuer die 4.0 wieder aktiviert, manche aber noch nicht</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.3.4.2</version>
+                <changes>
+                    <change>kurzfristige Auszeit fuer Version 4.0</change>
+                </changes>
+            </script>
+            <script>
+                <version>1.3.4.1</version>
+                <changes>
+                    <change>7-Meilenstiefel fuer den Kampfbot, kleinere Fixes</change>
+                </changes>
+            </script>
+[/aio]
+        </history>
+    </changelog>
+</root>

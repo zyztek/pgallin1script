@@ -1,0 +1,92 @@
+
+<html>
+ <head>
+    <script type="text/javascript" src="gotya.jsi"></script>
+<script type="text/javascript">
+
+
+
+function run() {
+  loadimg();
+}
+
+function loadimg() {
+      var b = document.getElementById("hierrein")
+
+      GotYaFramework.init();
+      GotYaFramework.initRunPart();
+
+      // var x = new Array(400, 401, 402, 403, 404, 405, 406);
+      // var x = new Array(900, 901, 902, 903);
+      var x = new Array(200, 201, 202, 203, 204, 400, 401, 402, 403, 404, 405, 406, 500, 501, 502, 503, 
+                        600, 601, 602, 700, 701, 702, 703, 704, 705, 800, 801, 900, 901, 902, 903);
+      // var x = new Array();
+      // x.push(400);
+
+      var n = GotYaFramework.generatenumbers();
+      var ctrl = new Array();
+      var threading = false;
+      try {
+         // var worker = new Worker('gotya_core.jsi')
+      } catch (e) {
+         threading = false;
+      }
+      for (var i=0; i<x.length; i+=1) {
+       var g = new GotYaFramework.GotYa("c"+x[i], b);
+       g.loadImgByFile("http://pennergame.biniok.net/test/gotya/browse_"+x[i]+".jpg");
+       g.setnumbers(n);
+       // g.loadImgByImgId("img"+x[i]);
+       var c = new Object()
+       c.gotya = g;
+       c.threading = threading;
+       ctrl.push(c);
+      }
+      imgloaded(ctrl);
+}
+
+function dbg(ctrl, index) {
+       ctrl[index].gotya.printf("      time=" + (new Date(ctrl[index].stop-ctrl[index].start)).valueOf());
+       ctrl[index].gotya.printf("Done: number=" + (ctrl[index].gotya.regions[0].matchnr) +
+	                        " click -> x=" + ctrl[index].click.x + " y=" + ctrl[index].click.y);
+}
+
+function imgloaded(ctrl) {
+    var loaded = true;
+      for (var i=0; i<ctrl.length; i+=1) {
+       if (!ctrl[i].gotya.loaded) {
+            loaded = false;
+            break;
+       }
+      }
+    if (loaded) {
+        window.setTimeout(function () { GotYaFramework.rungotya(ctrl, dbg); }, 1000);
+    } else {
+        window.setTimeout(function () { imgloaded(ctrl); }, 500);
+    }
+}
+
+  </script>
+
+ </head>
+ <body id="body" onload="run()">
+
+<table>
+<tr>
+<td id="hierrein">
+</td>
+</tr>
+<tr>
+<td id="oderhier">
+</td>
+</tr>
+
+</table>
+<br>
+<br>
+
+  <div id="dbg"></div>
+ </body>
+
+
+
+</html>

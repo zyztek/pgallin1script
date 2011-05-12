@@ -1,0 +1,565 @@
+/** 
+ * @filename equipment.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var Equipment = new Object();
+var EquipmentInfo = new Object();
+
+Registry.register("Equipment", Equipment);
+Registry.register("EquipmentInfo", EquipmentInfo);
+
+// ########### show any upcoming pets (not yet available) ##############
+
+EquipmentInfo.init = function() {
+
+    EquipmentInfo.getImage = function(link, img) {
+        if (img && img != '') {
+            return link + img + '.jpg';
+        }
+        return GM_getResourceURL("unknownItem.png");
+    };
+
+    EquipmentInfo.showUpcomingPets = function() {
+        var parse = function(elem) {
+            // get image
+            var imgTag = elem.getElementsByTagName("img")[0];
+            if (!imgTag) return null;
+            var img = BaseLib.getStringBetweenTags(imgTag.getAttribute("src"), UrlHandler.petUrl, ".jpg");
+            if (!img || !img.length) return null;
+            // get name
+            var span = elem.getElementsByTagName("span")[0];
+            var name = span.innerHTML;
+            // get att, def, dex
+            span = elem.getElementsByTagName("span")[1];
+            var att = span.innerHTML;
+            span = elem.getElementsByTagName("span")[2];
+            var def = span.innerHTML;
+            span = elem.getElementsByTagName("span")[3];
+            var mit = span.innerHTML;
+            span = elem.getElementsByTagName("input")[0];
+            var id = BaseLib.extractNumber(span.value);
+            span = elem.getElementsByTagName("input")[1];
+            var cost = BaseLib.extractNumber(span.value);
+
+            return new Types.Pet(id, img, name, att, def, mit, cost);
+        };
+
+        var render = function(item) {
+            var c = '';
+            if (item.cost) {
+                c = ' (' + Language.formatMoney(item.cost / 100) + ')';
+            }
+            return  '<tr><td width="105" rowspan="4" align="left" valign="top">' +
+                    '<img src="' + EquipmentInfo.getImage(UrlHandler.petUrl, item.img) + '" alt="' + item.name + '" title="' + item.name + '">' +
+                    '</td><td height="15" align="left" valign="top"><span class="tiername">' + item.name + '</span></td></tr>' +
+                    '<tr align="left" valign="top"><td>&nbsp;</td></tr>' +
+                    '<tr align="left" valign="top"><td>' +
+                    '<span class="att">' + item.att + '</span>' +
+                    '<span class="def">' + item.def + '</span>' +
+                    '<span class="mitleid">' + item.mit + '</span></td></tr>' +
+                    '<tr align="left" valign="top"><td height="20">' +
+                    '<input class="formbutton" type="submit" name="submitForm" value="Noch nicht freigeschaltet' + c + '" disabled>' +
+                    '</form></td></tr>';
+        };
+
+        var print = function(item) {
+            Log.console('Equip:' + 'Language.pets.push(new Types.Pet(-1, \'' + item.img + '\', "' + item.name + '", ' + item.att + ', ' + item.def + ', ' + item.mit + ', ' + item.cost + '));');
+        };
+
+        EquipmentInfo.showUpcomingItems(Language.pets, parse, render, print);
+    };
+
+    EquipmentInfo.showUpcomingHomes = function() {
+        var parse = function(elem) {
+            // get image
+            var imgTag = elem.getElementsByTagName("img")[0];
+            if (!imgTag) return null;
+            var img = BaseLib.getStringBetweenTags(imgTag.getAttribute("src"), UrlHandler.homesUrl, ".jpg");
+            if (!img || !img.length) return null;
+            // get name
+            var span = elem.getElementsByTagName("span")[0];
+            var name = span.innerHTML;
+            // get def
+            span = elem.getElementsByTagName("span")[1];
+            var def = BaseLib.extractNumber(span.innerHTML);
+            span = elem.getElementsByTagName("input")[0];
+            var id = BaseLib.extractNumber(span.value);
+            span = elem.getElementsByTagName("input")[1];
+            var cost = BaseLib.extractNumber(span.value);
+            return new Types.Home(id, img, name, def, cost);
+        };
+
+        var render = function(item) {
+            var c = '';
+            if (item.cost) {
+                c = ' (' + Language.formatMoney(item.cost / 100) + ')';
+            }
+            return  '<tr><td width="105" rowspan="4" align="left" valign="top">' +
+                    '<img src="' + EquipmentInfo.getImage(UrlHandler.homesUrl, item.img) + '" alt="' + item.name + '" title="' + item.name + '">' +
+                    '</td><td height="15" align="left" valign="top"><span class="tiername">' + item.name + '</span></td></tr>' +
+                    '<tr align="left" valign="top"><td>&nbsp;</td></tr>' +
+                    '<tr align="left" valign="top"><td>' +
+                    '<span class="def">+' + item.def + '</span></td></tr>' +
+                    '<tr align="left" valign="top"><td height="20">' +
+                    '<input class="formbutton" type="submit" name="submitForm" value="Noch nicht freigeschaltet' + c + '" disabled>' +
+                    '</form></td></tr>';
+        };
+
+        var print = function(item) {
+            Log.console('Equip:' + 'Language.homes.push(new Types.Home(-1, \'' + item.img + '\', "' + item.name + '", ' + item.def + ', ' + item.cost + '));');
+        };
+
+        EquipmentInfo.showUpcomingItems(Language.homes, parse, render, print);
+    };
+
+    EquipmentInfo.showUpcomingWeapons = function() {
+        var parse = function(elem) {
+            // get image
+            var imgTag = elem.getElementsByTagName("img")[0];
+            if (!imgTag) return null;
+            var img = BaseLib.getStringBetweenTags(imgTag.getAttribute("src"), UrlHandler.weaponsUrl, ".jpg");
+            if (!img || !img.length) return null;
+            // get name
+            var span = elem.getElementsByTagName("span")[0];
+            var name = span.innerHTML;
+            // get att
+            span = elem.getElementsByTagName("span")[1];
+            var att = BaseLib.extractNumber(span.innerHTML);
+            span = elem.getElementsByTagName("input")[0];
+            var id = BaseLib.extractNumber(span.value);
+            span = elem.getElementsByTagName("input")[1];
+            var cost = BaseLib.extractNumber(span.value);
+            return new Types.Weapon(id, img, name, att, cost);
+        };
+
+        var render = function(item) {
+            var c = '';
+            if (item.cost) {
+                c = ' (' + Language.formatMoney(item.cost / 100) + ')';
+            }
+            return  '<tr><td width="105" rowspan="4" align="left" valign="top">' +
+                    '<img src="' + EquipmentInfo.getImage(UrlHandler.weaponsUrl, item.img) + '" alt="' + item.name + '" title="' + item.name + '">' +
+                    '</td><td height="15" align="left" valign="top"><span class="tiername">' + item.name + '</span></td></tr>' +
+                    '<tr align="left" valign="top"><td>&nbsp;</td></tr>' +
+                    '<tr align="left" valign="top"><td>' +
+                    '<span class="att">+' + item.att + '</span></td></tr>' +
+                    '<tr align="left" valign="top"><td height="20">' +
+                    '<input class="formbutton" type="submit" name="submitForm" value="Noch nicht freigeschaltet' + c + '" disabled>' +
+                    '</form></td></tr>';
+        };
+
+        var print = function(item) {
+            Log.console('Equip:' + 'Language.weapons.push(new Types.Weapon(-1, \'' + item.img + '\', "' + item.name + '", ' + item.att + ', ' + item.cost + '));');
+        };
+
+        EquipmentInfo.showUpcomingItems(Language.weapons, parse, render, print);
+    };
+
+    EquipmentInfo.showUpcomingBegPlaces = function() {
+        var parse = function(elem) {
+            // get image
+            var imgTag = elem.getElementsByTagName("img")[0];
+            if (!imgTag) return null;
+            var img = BaseLib.getStringBetweenTags(imgTag.getAttribute("src"), UrlHandler.begPlacesUrl, ".jpg");
+            if (!img || !img.length) return null;
+            // get name
+            var span = elem.getElementsByTagName("span")[0];
+            var name = span.innerHTML;
+            // get income
+            span = elem.getElementsByTagName("tr")[1];
+            var income = BaseLib.extractNumber(BaseLib.getStringBetweenTags(span.innerHTML, 'cash.png">', '</td>'));
+            span = elem.getElementsByTagName("input")[0];
+            var id = BaseLib.extractNumber(span.value);
+            span = elem.getElementsByTagName("input")[1];
+            var cost = BaseLib.extractNumber(span.value);
+            return new Types.BegPlace(id, img, name, income, cost);
+        };
+
+        var render = function(item) {
+            var c = '';
+            if (item.cost) {
+                c = ' (' + Language.formatMoney(item.cost / 100) + ')';
+            }
+            return  '<tr><td width="105" rowspan="4" align="left" valign="top">' +
+                    '<img src="' + EquipmentInfo.getImage(UrlHandler.begPlacesUrl, item.img) + '" alt="' + item.name + '" title="' + item.name + '">' +
+                    '</td><td height="15" align="left" valign="top"><span class="tiername">' + item.name + '</span></td></tr>' +
+                    '<tr align="left" valign="top"><td>&nbsp;</td></tr>' +
+                    '<tr align="left" valign="top"><td>' +
+                    '<img class="icons" alt="Assets" src="http://static.pennergame.de/img/pv4/icons/cash.png">+' + Language.formatMoney(item.income/100) + ' pro Spende</td></tr>' +
+                    '<tr align="left" valign="top"><td height="20">' +
+                    '<input class="formbutton" type="submit" name="submitForm" value="Noch nicht freigeschaltet' + c + '" disabled>' +
+                    '</form></td></tr>';
+        };
+
+        var print = function(item) {
+            Log.console('Equip:' + 'Language.begPlaces.push(new Types.BegPlace(-1, \'' + item.img + '\', "' + item.name + '", ' + item.income + ', ' + item.cost + '));');
+        };
+
+        EquipmentInfo.showUpcomingItems(Language.begPlaces, parse, render, print);
+    };
+
+    EquipmentInfo.showUpcomingInstruments = function() {
+        var parse = function(elem) {
+            // get image
+            var imgTag = elem.getElementsByTagName("img")[0];
+            if (!imgTag) return null;
+            var img = BaseLib.getStringBetweenTags(imgTag.getAttribute("src"), UrlHandler.instrumentsUrl, ".jpg");
+            if (!img || !img.length) return null;
+            // get name
+            var span = elem.getElementsByTagName("span")[0];
+            var name = span.innerHTML;
+            span = elem.getElementsByTagName("input")[0];
+            var id = BaseLib.extractNumber(span.value);
+            span = elem.getElementsByTagName("input")[1];
+            var cost = BaseLib.extractNumber(span.value);
+            return new Types.Instrument(id, img, name, cost);
+        };
+
+        var render = function(item) {
+            var c = '';
+            if (item.cost) {
+                c = ' (' + Language.formatMoney(item.cost / 100) + ')';
+            }
+            return  '<tr><td width="105" rowspan="4" align="left" valign="top">' +
+                    '<img src="' + EquipmentInfo.getImage(UrlHandler.instrumentsUrl, item.img) + '" alt="' + item.name + '" title="' + item.name + '">' +
+                    '</td><td height="15" align="left" valign="top"><span class="tiername">' + item.name + '</span></td></tr>' +
+                    '<tr align="left" valign="top"><td>&nbsp;</td></tr>' +
+                    '<tr align="left" valign="top"><td></td></tr>' +
+                    '<tr align="left" valign="top"><td height="20">' +
+                    '<input class="formbutton" type="submit" name="submitForm" value="Noch nicht freigeschaltet' + c + '" disabled>' +
+                    '</form></td></tr>';
+        };
+
+        var print = function(item) {
+            Log.console('Equip:' + 'Language.instruments.push(new Types.Instrument(-1, \'' + item.img + '\', "' + item.name + '", ' + item.cost + '));');
+        };
+
+        EquipmentInfo.showUpcomingItems(Language.instruments, parse, render, print);
+    };
+
+    EquipmentInfo.showUpcomingItems = function(availableItems, parse, render, print) {
+        var listshop = BaseLib.getElementsByClassNameForElements('div', 'listshop')[0];
+        if (!listshop) {
+            return;
+        }
+
+        var currentItems = new Array();
+        var cl = '';
+
+        var currentItemsTables = listshop.getElementsByTagName('table');
+        if (currentItemsTables && currentItemsTables.length > 0) {
+            cl = currentItemsTables[currentItemsTables.length - 1].getAttribute("class");
+
+            // find all available items
+            for (var i = 0; i < currentItemsTables.length; i++) {
+                var item = parse(currentItemsTables[i]);
+                if (item) currentItems.push(item);
+            }
+        } else {
+            listshop.appendChild(document.createElement('br'));
+        }
+
+        // find new items
+        var newItems = new Array();
+        for (var i = 0; i < availableItems.length; i++) {
+            if (!BaseLib.contains(currentItems, availableItems[i])) {
+                newItems.push(availableItems[i]);
+            }
+        }
+        
+        // print out new learned items
+        if (print) {
+            for (var i = 0; i < currentItems.length; i++) {
+                if (!BaseLib.contains(availableItems, currentItems[i])) {
+                    print(currentItems[i]);
+                }
+            }
+        }
+
+        // if all pets are there, we can return
+        if (!newItems.length) {
+            return;
+        }
+
+        // create new pet entries
+        for (var i = 0; i < newItems.length; i++) {
+            cl = BaseLib.toggleTieritem(cl);
+            var table = document.createElement("table");
+            table.setAttribute("class", cl);
+            table.innerHTML = render(newItems[i]);
+
+            listshop.appendChild(table);
+        }
+    };
+
+    EquipmentInfo.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isPetStoreUrl()) {
+                EquipmentInfo.showUpcomingPets();
+            }
+            if (UrlHandler.isHoboHomeUrl()) {
+                EquipmentInfo.showUpcomingHomes();
+            }
+            if (UrlHandler.isWeaponShopAttUrl()) {
+                EquipmentInfo.showUpcomingWeapons();
+            }
+            if (UrlHandler.isBegPlaceUrl()) {
+                EquipmentInfo.showUpcomingBegPlaces();
+            }
+            if (UrlHandler.isInstrumentsUrl()) {
+                EquipmentInfo.showUpcomingInstruments();
+            }
+        }
+    };
+
+};
+
+// ############ Equipment (Weapons, Homes, etc.) #############
+
+Equipment.init = function() {
+
+    Equipment.resetHomes = function() {
+        Equipment.homes = new Object();
+        Equipment.homes.items = new Array();
+        Equipment.homes.current = null;
+        Equipment.homes.initialized = false;
+    };
+
+    Equipment.resetWeapons = function() {
+        Equipment.weapons = new Object();
+        Equipment.weapons.items = new Array();
+        Equipment.weapons.current = null;
+        Equipment.weapons.initialized = false;
+    };
+
+    Equipment.resetHomes();
+    Equipment.resetWeapons();
+
+    Equipment.addHome = function(id, img, name, def, cost, isCurrent) {
+        var o = new Types.Home(id, img, name, def, cost);
+        if (!BaseLib.contains(Equipment.homes.items, o)) {
+            Equipment.homes.items.push(o);
+        }
+        if (isCurrent) {
+            Equipment.homes.current = o;
+        }
+    };
+
+    Equipment.addWeapon = function(id, img, name, att, cost, isCurrent) {
+        var o = new Types.Weapon(id, img, name, att, cost);
+        if (!BaseLib.contains(Equipment.weapons.items, o)) {
+            Equipment.weapons.items.push(o);
+        }
+        if (isCurrent) {
+            Equipment.weapons.current = o;
+        }
+    };
+
+    Equipment.parseHomes = function(r) {
+        while (true) {
+            var t1 = '<table class="tieritem';
+            var t2 = '</table>';
+            var t = BaseLib.getStringBetweenTags(r, t1, t2);
+            if (!t || t == '') {
+                break;
+            }
+
+            var pos = r.search(t1) + t1.length;
+            r = r.substr(pos, r.length - pos - 1);
+            pos = r.search(t2) - 1;
+            r = r.substr(pos, r.length - pos - 1);
+
+            var img = BaseLib.getStringBetweenTags(t, '<img src="' + UrlHandler.homesUrl, '.jpg');
+            var name = BaseLib.getStringBetweenTags(t, '<span class="tiername">', '</span>');
+            var id = BaseLib.extractNumber(BaseLib.getStringBetweenTags(t, '<input type="hidden" name="id" value="', '"'));
+            var def = BaseLib.extractNumber(BaseLib.getStringBetweenTags(t, '<span class="def">', '</span>'));
+            var submit = BaseLib.getStringBetweenTags(t, '<input class="formbutton" type="submit" name="submitForm" value="', '>');
+            var cost = BaseLib.extractNumber(submit);
+            var isCurrent = submit.search('disabled="disabled"') != -1;
+
+            Equipment.addHome(id, img, name, def, cost, isCurrent);
+        }
+    };
+
+    Equipment.loadHomes = function() {
+        Equipment.resetHomes();
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                Equipment.parseHomes(req.responseText);
+
+                Equipment.homes.items = Equipment.homes.items.sort(function(h1, h2) { return h1.def - h2.def; });
+                Equipment.homes.initialized = true;
+            }
+        };
+        BaseLib.xmlhttpRequest(UrlHandler.cityHomeUrl, f, true, 60);
+    };
+
+    Equipment.getHomeById = function(id) {
+        for (var i = 0; i < Equipment.homes.items.length; i++) {
+            var h = Equipment.homes.items[i];
+            if (h.id == id) {
+                return h;
+            }
+        }
+        return null;
+    };
+
+    Equipment.changeHome = function(homeId, cb) {
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                if (cb) cb(req);
+            }
+        };
+        var params = [ BaseLib.postParam('id', homeId), BaseLib.postParam('submitForm', 'Einziehen') ];
+        BaseLib.xmlhttpPostRequest(UrlHandler.cityHomeBuyUrl, f, params);
+    };
+
+    Equipment.parseWeapons = function(r, stage) {
+        while (true) {
+            var t1 = '<table class="tieritem';
+            var t2 = '</table>';
+            var t = BaseLib.getStringBetweenTags(r, t1, t2);
+            if (!t || t == '') {
+                break;
+            }
+
+            var pos = r.search(t1) + t1.length;
+            r = r.substr(pos, r.length - pos - 1);
+            pos = r.search(t2) - 1;
+            r = r.substr(pos, r.length - pos - 1);
+
+            var img = BaseLib.getStringBetweenTags(t, '<img src="' + UrlHandler.weaponsUrl, '.jpg');
+            var name = BaseLib.getStringBetweenTags(t, '<span class="tiername">', '</span>');
+            var id = BaseLib.extractNumber(BaseLib.getStringBetweenTags(t, '<input type="hidden" name="id" value="', '"'));
+            var att = BaseLib.extractNumber(BaseLib.getStringBetweenTags(t, '<span class="att">', '</span>'));
+            var submit = BaseLib.getStringBetweenTags(t, 
+                stage == 1 ?
+                    '<input id="submitForm2" class="formbutton" type="submit" name="submitForm" value="' :
+                    '<input class="formbutton" type="submit" name="submitForm" value="',
+                '>');
+            var cost = BaseLib.extractNumber(submit);
+            var isCurrent = submit.search('disabled="disabled"') != -1;
+
+            Equipment.addWeapon(id, img, name, att, cost, isCurrent);
+        }
+    };
+
+    Equipment.loadWeapons = function() {
+        Equipment.resetWeapons();
+        var f2 = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                Equipment.parseWeapons(req.responseText, 2);
+
+                Equipment.weapons.items = Equipment.weapons.items.sort(function(w1, w2) { return w1.att - w2.att; });
+                Equipment.weapons.initialized = true;
+            }
+        };
+        var f1 = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                Equipment.parseWeapons(req.responseText, 1);
+                BaseLib.xmlhttpRequest(UrlHandler.weaponStoreUrl, f2, true, 60);
+            }
+        };
+        BaseLib.xmlhttpRequest(UrlHandler.stockArmouryUrl, f1, true, 24*60);
+    };
+
+    Equipment.getWeaponById = function(id) {
+        for (var i = 0; i < Equipment.weapons.items.length; i++) {
+            var w = Equipment.weapons.items[i];
+            if (w.id == id) {
+                return w;
+            }
+        }
+        return null;
+    };
+
+    Equipment.changeWeapon = function(wpId, cb) {
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                if (cb) cb(req);
+            }
+        };
+        var params = [ BaseLib.postParam('id', wpId), BaseLib.postParam('submitForm', 'Benutzen') ];
+        BaseLib.xmlhttpPostRequest(UrlHandler.stockArmouryUseUrl, f, params);
+    };
+
+    Equipment.getBestHome = function() {
+        var ret = null;
+        var best = 0;
+        for (var i = 0; i < Equipment.homes.items.length; i++) {
+            var h = Equipment.homes.items[i];
+            // skip not available homes
+            if (h.cost != 0) {
+                continue;
+            }
+            if (h.def > best) {
+                best = h.def;
+                ret = h;
+            }
+        }
+        return ret;
+    };
+
+    Equipment.getWorstHome = function() {
+        var ret = null;
+        var best = 100000;
+        for (var i = 0; i < Equipment.homes.items.length; i++) {
+            var h = Equipment.homes.items[i];
+            // skip not available homes
+            if (h.cost != 0) {
+                continue;
+            }
+            if (h.def < best) {
+                best = h.def;
+                ret = h;
+            }
+        }
+        return ret;
+    };
+
+    Equipment.getBestWeapon = function() {
+        var ret = null;
+        var best = 0;
+        for (var i = 0; i < Equipment.weapons.items.length; i++) {
+            var w = Equipment.weapons.items[i];
+            // skip not available weapons
+            if (w.cost != 0) {
+                continue;
+            }
+            var w = Equipment.weapons.items[i];
+            if (w.att > best) {
+                best = w.att;
+                ret = w;
+            }
+        }
+        return ret;
+    };
+
+    Equipment.getWorstWeapon = function() {
+        var ret = null;
+        var best = 100000;
+        for (var i = 0; i < Equipment.weapons.items.length; i++) {
+            var w = Equipment.weapons.items[i];
+            // skip not available weapons
+            if (w.cost != 0) {
+                continue;
+            }
+            if (w.att < best) {
+                best = w.att;
+                ret = w;
+            }
+        }
+        return ret;
+    };
+
+    Equipment.onRunlevel = function(runlevel) {
+        if (runlevel == 30) {
+            Equipment.loadWeapons();
+            Equipment.loadHomes();
+        }
+    };
+
+};

@@ -1,0 +1,1060 @@
+/** 
+ * @filename baselib.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var BaseLib = new Object();
+Registry.register("BaseLib", BaseLib);
+
+BaseLib.init = function() {
+
+    // +++++++++ Timing +++++++++
+
+    var d = new Date();
+    BaseLib.currentYear = 1900 + d.getYear();
+    BaseLib.currentMonth = 1 + d.getMonth();
+    BaseLib.currentDay = d.getDate();
+    BaseLib.timestamp = d.getTime();
+
+    BaseLib.setPageTimestamp = function() {
+        var d = document.createElement('div');
+        d.setAttribute('id', '__baselib_timestamp__');
+        d.innerHTML = BaseLib.timestamp;
+        d.setAttribute('style', 'display: none;');
+        var b = document.getElementsByTagName('body')[0];
+        if (b) b.appendChild(d);
+    };
+
+    BaseLib.getPageTimestamp = function() {
+        var d = document.getElementById('__baselib_timestamp__');
+        if (!d) return 0;
+        return d.innerHTML;
+    };
+
+    BaseLib.setPageTimestamp();
+
+    // +++++++++ Timers +++++++++
+
+    BaseLib.setTimeoutEx = function (f, t) {
+        var m = function() {
+            var ts = BaseLib.timestamp;
+            var nts = BaseLib.getPageTimestamp();
+            if (ts != nts) {
+                //Log.console("Timeout gehoert nicht zu mir, verwerfe - " + ts + " - " + nts);
+                return;
+            }
+            advanced_error_report(f);
+        };
+        return window.setTimeout(m, t);
+    };
+
+    // +++++++++ Browser Info +++++++++
+    BaseLib.browser = { firefox: true, chrome: false};
+
+    BaseLib.initEnvInfo = function(cb) {
+        if (typeof chrome !== 'undefined') {
+            BaseLib.browser.firefox = false;
+            BaseLib.browser.chrome = true;
+        } else {
+            BaseLib.browser.firefox = true;
+            BaseLib.browser.chrome = false;
+        }
+
+        cb();
+    };
+
+    // +++++++++ Timing/Bandwidth +++++++++
+
+    BaseLib.loadTime = (new Date()).getTime();
+    BaseLib.onLoadTime = 0;
+    BaseLib.speedFactor = 10;
+    BaseLib.lowestSpeedFactor = 100;
+
+    BaseLib.determineSpeedFactor = function() {
+        BaseLib.onLoadTime = (new Date()).getTime();
+        var t = Math.round((BaseLib.onLoadTime - BaseLib.loadTime) / 1000);
+
+        if (t >= 60) {
+            BaseLib.speedFactor = BaseLib.lowestSpeedFactor;
+        } else if (t <= 2) {
+            BaseLib.speedFactor = 1;
+        } else {
+            BaseLib.speedFactor = Math.round(100/60 * t);
+        }
+
+        // just to be sure!
+        if (BaseLib.speedFactor < 1) BaseLib.speedFactor = 1;
+        Log.console('Base:' + "Speed Factor: " + BaseLib.speedFactor + " (it t00k " + t + "s to load '" + document.URL + "')");
+
+        var ssf = function() {
+            try {
+                if (UrlHandler.isNonSpeedFactorUrl()) {
+                    BaseLib.storeSpeedFactor();
+                }
+            } catch (e) {
+                Log.console('Base:' + e);
+                BaseLib.setTimeoutEx(ssf, 300);
+            }
+        };
+
+        ssf();
+    };
+
+    BaseLib.storeSpeedFactor = function() {
+        if (BaseLib.tab != null) {
+            var cf = function(c, f) {
+                var o = {};
+                o.count = c ? c : 1;
+                o.factor = f ? f : 10;
+                return o;
+            };
+            if (typeof BaseLib.tab.speed == 'undefined') {
+                BaseLib.tab.speed = cf();
+            }
+
+            var c = BaseLib.tab.speed.count;
+            var s = BaseLib.tab.speed.factor;
+            var f = ((s * c) + BaseLib.speedFactor) / ++c;
+
+            BaseLib.tab.speed = cf(c, f);
+            Log.console('Base:' + "Global Speed Factor: " + f + " (@ " + c +" page loads)");
+        }
+    };
+
+    BaseLib.getSpeedFactor = function(granularity) {
+        if (granularity == undefined) granularity = 1;
+        var ret = 0;
+        if (BaseLib.tab != null &&
+            typeof BaseLib.tab.speed != 'undefined') {
+            ret = BaseLib.tab.speed.factor;
+        } else {
+            ret = BaseLib.speedFactor;
+        }
+        ret = Math.round(ret / granularity);
+        return ret < 1 ? 1 : ret;
+    };
+
+    // +++++++++ Send a request +++++++++
+
+    BaseLib.useInternalCache = false;
+    BaseLib.debugCache = false;
+    BaseLib.tab = null;
+    BaseLib.cacheTimeout = 5 * 60; // invalidate cache every 5 minutes
+    BaseLib.cacheCleanupIntervall = 1 * 60 * 1000;
+    BaseLib.urlResults = new Array();
+    BaseLib.retryCount = 3;
+    BaseLib.pendingRequests = new Object();
+
+    // post cross cache invalidate array
+    var pccia = [];
+
+    BaseLib.handlePostedUrl = function(url, cb) {
+        if (!BaseLib.useInternalCache) {
+            if (cb) cb();
+            return;
+        }
+        BaseLib.handleUrl(true, url, cb);
+    };
+
+    BaseLib.handleUrl = function(posted, url, cb) {
+        if (!BaseLib.useInternalCache) {
+            if (cb) cb();
+            return;
+        }
+        if (url == undefined) url = document.URL;
+        var urlarr = url.split('/');
+        if (posted && urlarr.length > 3) urlarr.splice((urlarr.length-2),1);
+        url = urlarr.join('/');
+
+        if (BaseLib.debugCache) Log.console('Base:' + "Cache: check removable Elements due to " + (posted ? "post" : "request or initial run") + "!");
+
+        var rmEm = function(tabs) {
+            for (var i=0; i < pccia.length; i++) {
+                if (pccia[i].needspost == posted &&
+                    pccia[i].url.search(url) != -1) {
+                    if (BaseLib.debugCache) Log.console('Base:' + "  found '" + pccia[i].url + "' in '" + url + "'");
+                    var elems = pccia[i].invalidate;
+                    for (var k in elems) {
+                        BaseLib.removeCacheElementsByUrl(elems[k], tabs);
+                    }
+                }
+            }
+
+            if (posted) BaseLib.removeCacheElementsByUrl(url, tabs);
+            if (cb) cb();
+        };
+
+        MF_getTabs(rmEm);
+    };
+
+    BaseLib.clearCache = function() {
+        if (BaseLib.useInternalCache) {
+            BaseLib.tab.aioCache = {};
+        }
+    };
+
+    BaseLib.cleanCache = function() {
+        BaseLib.removeCacheElement(null);
+        BaseLib.setTimeoutEx(function () { BaseLib.cleanCache(); }, BaseLib.cacheCleanupIntervall);
+    };
+
+    BaseLib.getPCCIA = function() {
+        return (UrlHandler.mode == UrlHandler.m_knastvoegel)
+            ? []
+            : [ { url: UrlHandler.weaponStoreUrl, invalidate: [ UrlHandler.stockArmouryUrl ], needspost: true },
+                { url: UrlHandler.stockArmouryUrl, invalidate: [ UrlHandler.weaponStoreUrl ], needspost: true },
+                { url: UrlHandler.gangUpgradesUrl, invalidate: [ UrlHandler.stockPlunderUrl ], needspost: true },
+                { url: UrlHandler.stockPlunderUrl, invalidate: [ UrlHandler.stockPlunderUrl ], needspost: false }];
+    };
+
+    BaseLib.initCache = function(cb) {
+        var gottab = function(tab) {
+            if (tab) {
+                BaseLib.tab = tab;
+                BaseLib.tab.gametype = UrlHandler.mode;
+                if (typeof BaseLib.tab.aioCache === 'undefined') {
+                    BaseLib.tab.aioCache = {};
+                }
+                BaseLib.useInternalCache = true;
+                BaseLib.cleanCache();
+                pccia = BaseLib.getPCCIA();
+                BaseLib.handleUrl(false);
+            }
+            if (cb) cb();
+        }
+        try {
+            MF_getTab(gottab);
+        } catch (e) {
+            Log.console('Base:' + e);
+            if (cb) cb();
+        }
+    };
+
+    BaseLib.createCacheObj = function(url, req, time) {
+        var co = new Object();
+        co.url = url;
+        co.req = { readyState: req.readyState,
+                   status: req.status,
+                   responseText: req.responseText };
+        co.time = time + req.storeTime;
+        return co;
+    };
+
+    BaseLib.addCacheObj = function(obj) {
+        var md5 = MD5.get(obj.url).toString();
+        if (BaseLib.debugCache) {
+            var cobj = BaseLib.tab.aioCache[md5];
+            var ac = cobj ? "replaced" : "added";
+            Log.console('Base:' + "Cache: " + ac + " " + obj.url);
+        }
+        BaseLib.tab.aioCache[md5] = obj;
+    };
+
+    BaseLib.removeCacheElement = function(elem) {
+        var arr = BaseLib.tab.aioCache;
+        BaseLib.tab.aioCache = {};
+        for(var i in arr) {
+            if (arr[i] != elem &&
+                (arr[i].time > (new Date()).getTime())) { // do some cleanup
+                BaseLib.tab.aioCache[i] = arr[i];
+            } else {
+                if (BaseLib.debugCache) Log.console('Base:' + "Cache: removed " + arr[i].url);
+            }
+        }
+    };
+
+    BaseLib.removeCacheElementsByUrl = function(url, tabs) {
+        if (!BaseLib.useInternalCache) return;
+        var doit = function(tab) {
+            var arr = tab.aioCache;
+            tab.aioCache = {};
+            for(var i in arr) {
+                if (arr[i].url.search(url) != -1) {
+                    if (BaseLib.debugCache) Log.console('Base:' + "Cache: removed " + arr[i].url);
+                } else {
+                    tab.aioCache[i] = arr[i];
+                }
+            }
+        }
+        if (!tabs) {
+            doit(BaseLib.tab);
+        } else {
+            for(var i in tabs) {
+                if (typeof tabs[i].aioCache !== 'undefined' &&
+                    tabs[i].gametype == UrlHandler.mode) {
+                    if (BaseLib.debugCache) Log.console('Base:' + "Cache: cleanup tab " + i);
+                    doit(tabs[i]);
+                }
+            }
+        }
+    };
+
+    BaseLib.findCacheObj = function(url) {
+        var md5 = MD5.get(url).toString();
+        var obj = BaseLib.tab.aioCache[md5];
+
+        if (obj) {
+            if (obj.time < (new Date()).getTime()) {
+                BaseLib.removeCacheElement(obj);
+                return null;
+            } else {
+                if (BaseLib.debugCache) Log.console('Base:' + "Cache: found " + obj.url + " - " + obj.time);
+                obj.req.fromcache = true;
+                return obj;
+            }
+        }
+
+        return null;
+    };
+
+    // xmlRequest magic
+
+    BaseLib.checkFor50x = function(text, url) {
+         // replace any non-printable characters, then trim the result
+         text = text.replace("(\0-\037)|(\0177-\0377)", "\040").trim();
+
+         var title = BaseLib.getStringBetweenTags(text, '<title>','</title>');
+         // i.e. pennerbar.xml _don't_ have a title !!!
+         if ((url.search(UrlHandler.wwwUrl) != -1 && text.length < 5) ||
+             (title &&
+              (title.search('Internal Server Error') != -1 ||
+               title.search('Not Found') != -1 ||
+               title.search('Maintenance downtime') != -1)) ||
+            BaseLib.checkForLogout(text)) {
+            return true;
+        }
+        return false;
+    };
+
+    BaseLib.checkForLogout = function(text) {
+        var ret = text.search('<form action="/login/check/" method="post" name="formReg" id="formReg">') != -1;
+        return ret;
+    };
+
+    BaseLib.checkRequest = function(url, req) {
+        // we've never been here before for this url ...
+        if (BaseLib.urlResults[url] == undefined) {
+            BaseLib.urlResults[url] = 0;
+        }
+
+        var suc = (req.readyState == 4 && req.status == 200 && BaseLib.checkFor50x(req.responseText, url) == false);
+
+        if (BaseLib.checkForLogout(req.responseText)) {
+            return 2;
+        }
+        if (BaseLib.useInternalCache &&
+            suc &&
+            !req.fromcache &&
+            url.search('[\?|&]ts=') == -1 &&
+            url.search(UrlHandler.configServer) == -1) {
+            BaseLib.addCacheObj(BaseLib.createCacheObj(url, req, (new Date()).getTime()));
+        } else if (false && BaseLib.debugCache) Log.console('Base:' + "Cache: ignore " + url + " - fromcache: " + req.fromcache);
+
+        if (suc || BaseLib.urlResults[url]++ > BaseLib.retryCount) {
+            // either it was successful or it went wrong too often;
+            // call back in both cases
+            BaseLib.urlResults[url] = 0;
+            return 0;
+        } else {
+            // retry ...
+            return 1;
+        }
+    };
+
+    BaseLib.postParam = function (name, value, noencode) {
+        return { name: name, value: value, noencode: noencode };
+    };
+
+    BaseLib.xmlhttpPostRequest = function(url, f, paramarr, referer, use_gm) {
+
+        if (referer && use_gm) throw new Error("xmlHttprequest: either referer or cross-domain post is supported!");
+        if (referer == undefined || referer == null) {
+            referer = document.URL;
+        }
+
+        var arr = [];
+        if (paramarr) {
+            for (var k in paramarr) {
+                var elem = paramarr[k];
+                arr.push(elem.name + '=' + ((elem.noencode) ? elem.value : encodeURIComponent(elem.value)));
+            }
+        }
+        var params = arr.join('&');
+
+        if (use_gm) {
+            var cb = function (req) {
+                var postreqfn = function() { BaseLib.handlePostedUrl(url, function() { f(req); }); };
+                advanced_error_report(postreqfn);
+            };
+
+            GM_xmlhttpRequest({
+                method: 'POST',
+                url: url,
+                headers: {
+                    "Content-type": "application/x-www-form-urlencoded",
+                    "Content-length": params.length,
+                    "Connection": "close",
+                    "Referer": referer
+                    },
+                data: params,
+                onload: cb,
+                onerror: cb
+            });
+        } else {
+            var http_request = new XMLHttpRequest();
+
+            var cb = function () {
+                var postreqfn = function() { BaseLib.handlePostedUrl(url, function() { f(http_request); }); };
+                advanced_error_report(postreqfn);
+            };
+
+            http_request.open('POST', url, true);
+            http_request.onload = cb
+            http_request.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+            http_request.setRequestHeader("Content-length", params.length);
+            http_request.setRequestHeader("Connection", "close");
+            http_request.setRequestHeader("Referer", referer);
+            http_request.send(params);
+        }
+    };
+
+    BaseLib.xmlhttpRequestInternal = function(url, f) {
+        GM_xmlhttpRequest({
+            method: 'GET',
+            url: url,
+            headers: {
+                      'Accept': 'application/atom+xml,application/xml,text/xml'
+                     },
+            onload: f,
+            onerror: f
+        });
+    };
+
+    BaseLib.xmlhttpRequest = function(url, f, useCache, storeTime, oobj) {
+
+        if (!storeTime) storeTime = BaseLib.cacheTimeout;
+
+        var cb = function (req, oobj, ts) {
+            var nts = BaseLib.getPageTimestamp();
+            if (ts != nts) {
+                //Log.console("Request gehoert nicht zu mir, verwerfe - " + url + " - " + ts + " - " + nts);
+                return;
+            }
+            var getreqfn = function() { f(req, oobj); };
+            advanced_error_report(getreqfn, url);
+        };
+        if (BaseLib.useInternalCache && useCache) {
+            var elem = BaseLib.findCacheObj(url);
+            if (elem) {
+                // use set timeout cause no one expects this request to return that immediately
+                BaseLib.setTimeoutEx(function () { cb(elem.req, oobj, BaseLib.timestamp); }, 1);
+                return;
+            }
+        }
+
+        var o = { cb: cb, oobj: oobj, ts: BaseLib.timestamp };
+        if (BaseLib.pendingRequests[url]) {
+            BaseLib.pendingRequests[url].push(o);
+            return;
+        }
+
+        BaseLib.pendingRequests[url] = new Array();
+        BaseLib.pendingRequests[url].push(o);
+        var cb2 = function(req) {
+            req.storeTime = storeTime * 1000;
+            var ret;
+            if ((ret = BaseLib.checkRequest(url, req)) == 0) {
+                var reqs = BaseLib.pendingRequests[url];
+                BaseLib.pendingRequests[url] = null;
+                for (var i = 0; i < reqs.length; i++) {
+                    reqs[i].cb(req, reqs[i].oobj, reqs[i].ts);
+                }
+            } else if (ret == 1 && req.readyState >= 4) {
+                BaseLib.xmlhttpRequestInternal(url, cb2);
+            } else if (ret == 2) {
+                UrlHandler.doRedirect(UrlHandler.loginUrl);
+                Log.console('Wurde ausgeloggt, geht zur login URL');
+                return;
+            }
+        };
+        BaseLib.xmlhttpRequestInternal(url, cb2);
+    };
+
+    // +++++++++ Layout & Code injection +++++++++
+
+    BaseLib.injectCssUrl = function(url) {
+        var head, link;
+        head = unsafeWindow.document.getElementsByTagName("head")[0];
+        if (!head) return;
+        link = document.createElement ('link');
+        link.setAttribute('rel', 'stylesheet');
+        link.setAttribute('type', 'text/css');
+        link.setAttribute('href', url);
+        link.setAttribute('title', '');
+        head.appendChild(link);
+    };
+
+    BaseLib.injectJSUrl = function(url) {
+        var body, script;
+        body = unsafeWindow.document.getElementsByTagName("body")[0];
+        if (!body) return;
+        script = document.createElement ('script');
+        script.setAttribute('language', 'JavaScript');
+        script.setAttribute('type', 'text/javascript');
+        script.setAttribute('src', url);
+        body.appendChild(link);
+    };
+
+    BaseLib.injectJS = function(code) {
+        var body, script;
+        body = unsafeWindow.document.getElementsByTagName("body")[0];
+        if (!body) return;
+        script = unsafeWindow.document.createElement('script'); // create Element
+        script.textContent = code;
+        body.appendChild(script);
+    };
+
+    BaseLib.addGlobalStyle = function(css) {
+        var head, style;
+        head = unsafeWindow.document.getElementsByTagName ('head')[0];
+        if (!head) return;
+        style = document.createElement ('style');
+        style.textContent = css;
+        head.appendChild(style);
+    };
+
+    BaseLib.createStdDiv = function(id, c, zIndex) {
+        return '<div id="' + id + '" class="settingpoint2" style=" background-color:#2A2A2A; color: white; width:300px; padding: 6px; -moz-border-radius: 4px; display: none; position:absolute; z-index: ' + zIndex + ';">' + c + '</div>';
+    };
+
+    // +++++++++ Search Elements +++++++++
+
+    // getElementsByTagName returns 'tr' elements of child tables too, this one does not!
+    BaseLib.getChildsByTagName = function(tag, elem) {
+        if (elem == undefined) elem = document;
+
+        tag = tag.toLowerCase()
+        var ret = [];
+        var childs = elem.childNodes;
+
+        for (var i=0; i<childs.length; i++) {
+            if (childs[i].tagName &&
+                childs[i].tagName.toLowerCase() == tag) {
+                ret.push(childs[i]);
+            }
+        }
+
+        return ret;
+    };
+
+    BaseLib.getElementsByClassNameForElementsInternal = function(element_name, class_name, parent) {
+        var p = parent.getElementsByTagName(element_name);
+        var matchArray = new Array();
+
+        for (var i=0; i < p.length; i++) {
+            if (p[i].className == class_name) {
+                matchArray[matchArray.length] = p[i];
+            }
+        }
+
+        return matchArray;
+    };
+
+    BaseLib.getElementsByClassNameForElements = function(element_name, class_name, parent) {
+        var elem;
+        if (parent == undefined) parent = document;
+        try {
+            elem = parent.getElementsByClassName(class_name);
+        } catch (e) {
+            Log.console('Base:' + e);
+            elem = BaseLib.getElementsByClassNameForElementsInternal(element_name, class_name);
+        }
+        return elem;
+    };
+
+    BaseLib.getElementsByClassNameForDivs = function(class_name) {
+        return BaseLib.getElementsByClassNameForElements('div', class_name);
+    };
+
+    BaseLib.getParentByTagName = function(tag, elem) {
+        while ((elem = elem.parentNode) && elem.tagName) {
+            if (elem.tagName.toLowerCase() == tag.toLowerCase()) {
+                return elem;
+            }
+        }
+        return null;
+    };
+
+    // +++++++++ String handling, XML, etc. +++++++++
+
+    BaseLib.extractString = function(from, to, startText, endText, divider, once, includeTexts) {
+        var t = from;
+        var p = t.search(startText);
+        var ret = to;
+        var startTextLen = startText.length;
+        if (startTextLen == undefined && !once) {
+            // reg. expr. mit mehrfachsuche geht ned :-(
+            return "";
+        }
+        while (p != -1) {
+            var data;
+            if (startTextLen == undefined) {
+                data = t.substr(p).replace(startText, "");
+            } else {
+                data = t.substr(p + startTextLen);
+            }
+            var dlen = data.search(endText);
+            data = data.substr(0, dlen);
+
+            if (includeTexts) {
+                data = startText + data + endText;
+            }
+
+            if (ret == null) {
+                ret = data;
+            } else if (divider) {
+                ret += (divider + data);
+            } else {
+                ret += data;
+            }
+
+            if (once) {
+                break;
+            }
+
+            // hier kommen wir nie hin, wenn startTextLen == undefined
+            t = t.substr(p + startTextLen);
+            p = t.search(startText);
+        }
+
+        return ret;
+    };
+
+    BaseLib.extractFloatingPointNumber = function(s) {
+        var t = s.replace(/&nbsp;/g, '').replace(/ \t\n\r/g, '').replace(Language.lokalesKomma, Language.javascriptKomma);
+        return Number(t);
+    };
+
+    BaseLib.extractNumber = function(s) {
+        var i;
+        var ret = "";
+        var neg = false;
+
+        if (typeof s === 'number') return s;
+
+        for (i = 0; i < s.length; i++) {
+            var c = s.charAt(i);
+            if (c == '-' && ret == '') {
+                neg = true;
+            } else if (c == '0' || c == '1' || c == '2' || c == '3' ||
+                       c == '4' || c == '5' || c == '6' || c == '7' ||
+                       c == '8' || c == '9') {
+                ret += (neg ? '-' : '') + c;
+            } else {
+                neg = false;
+            }
+
+        }
+        return Number(ret);
+    };
+
+    BaseLib.getAsciiProgress = function(p) {
+        if (p == 0) {
+            return "";
+        }
+        var s = p % 4;
+        if (s == 1) {
+            return "|";
+        } else if (s == 2) {
+            return "/";
+        } else if (s == 3) {
+            return "-";
+        } else if (s == 0) {
+            return "\\";
+        } else {
+            return "";
+        }
+    };
+
+    BaseLib.escapeForRegExp = function(str) {
+        if (typeof str == "string") {
+            var re = new RegExp( '(\\' + [ '/', '.', '+', '?', '|', '(', ')', '[', ']', '{', '}', '\\' ].join('|\\') + ')', 'g');
+            return str.replace(re, '\\$1');
+        }
+        return str;
+    };
+
+    BaseLib.getStringBetweenTags = function(source, tag1, tag2) {
+        var b = source.search(BaseLib.escapeForRegExp(tag1));
+        if (b == -1) {
+            return "";
+        }
+        if (!tag2) {
+            return source.substr(b + tag1.length);
+        }
+
+        var e = source.substr(b + tag1.length).search(BaseLib.escapeForRegExp(tag2));
+        if (e == -1) {
+            return "";
+        }
+        return source.substr(b + tag1.length, e);
+    };
+
+    BaseLib.getXMLTag = function(source, tag) {
+        var tag2 = tag.replace("<", "</");
+        return BaseLib.getStringBetweenTags(source, tag, tag2);
+    };
+
+    BaseLib.getXMLTags = function(source, tag) {
+        var ret = new Array();
+        var s = source;
+        var tag2 = tag.replace("<", "</");
+        var t = BaseLib.getXMLTag(s, tag);
+
+        while (t != "") {
+            ret.push(t);
+            var e = s.search(tag2);
+            if (e == -1) {
+                s = "";
+            } else {
+                var pos = e + tag2.length;
+                s = s.substr(pos, s.length - pos);
+            }
+            t = BaseLib.getXMLTag(s, tag);
+        }
+        return ret;
+    };
+
+    BaseLib.isEmpty = function(s) {
+        return !s || s == '';
+    };
+
+    // +++++++++ number conversion +++++++++
+
+    BaseLib.formatNr = function(z, k) {
+        if (k == undefined) k = 0;
+        var kf = Math.pow(10, k);
+        var f = 1;
+        var u = '';
+        var o = z;
+        for (var i=0; i < Language.numberConversion.length; i++) {
+            var n = Language.numberConversion[i];
+            var v = (Math.round(z/(n.factor/kf))/kf);
+            if (Math.abs(v) > 1 && n.factor > f) {
+                o = v;
+                u = n.unit;
+                f = n.factor;
+            }
+        }
+        return { value: String(o).replace(Language.javascriptKomma, Language.lokalesKomma), unit: u, factor: f };
+    };
+    
+    BaseLib.parseNr = function(t) {
+        var f = 1;
+        var u = '';
+        for (var i=0; i < Language.numberConversion.length; i++) {
+            var n = Language.numberConversion[i];
+            if (t.search(n.unit) != -1) {
+                t = t.replace(n.unit, '');
+                u = n.unit;
+                f = n.factor;
+                break;
+            }
+        }
+        var s = t.replace(/&nbsp;/g, '').replace(/ \t\n\r/g, '').replace(Language.lokalesKomma, Language.javascriptKomma);
+        return { value: Math.round(Number(s) * f), unit: u, factor: f };
+    };
+    
+    // +++++++++ Date/Time related +++++++++
+
+    BaseLib.formatDatetimeElem = function(v) {
+        v = Number(v);
+        var r = "";
+        if (v < 10) r += "0";
+        return r + v;
+    };
+
+    BaseLib.formatDate = function(date, yy) {
+        if (yy == undefined) yy = false;
+        return BaseLib.formatDatetimeElem(date.getDate()) + "." +
+               BaseLib.formatDatetimeElem(date.getMonth() + 1) + "." +
+               (yy ? (BaseLib.currentYear - 2000) : BaseLib.currentYear);
+    };
+
+    BaseLib.formatDatetime = function(date) {
+        return BaseLib.formatDate(date) + " " +
+            BaseLib.formatDatetimeElem(date.getHours()) + ":" +
+            BaseLib.formatDatetimeElem(date.getMinutes());
+    };
+
+    BaseLib.formatDatetimeNice = function(date) {
+       var now = new Date();
+       var tomorrow = new Date(now.getTime() + 24*60*60*1000);
+       var d = BaseLib.formatDatetimeElem(date.getDate()) + "." +
+               BaseLib.formatDatetimeElem(date.getMonth() + 1) + ".";
+       if (now.getDate() == date.getDate() && now.getMonth() == date.getMonth()) {
+           d = "Heute";
+       } else if (tomorrow.getDate() == date.getDate() && tomorrow.getMonth() == date.getMonth()) {
+           d = "Morgen";
+       }
+       return d + " " +
+            BaseLib.formatDatetimeElem(date.getHours()) + ":" +
+            BaseLib.formatDatetimeElem(date.getMinutes());
+    };
+
+    BaseLib.timestampToDate = function(ms) {
+	var intTime = Math.floor(ms / 1000);
+	var hours = Math.floor(intTime / (60 * 60));
+        intTime -= hours * 60 * 60;
+	var minutes = Math.floor(intTime / 60);
+        intTime -= minutes * 60;
+	var seconds = intTime;
+        var two = function(a) {
+            var b = a.toString();
+            while (b.length < 2) {
+                b = "0" + b;
+            }
+            return b;
+        };
+        return (hours != 0 ? two(hours)+':' : '') + two(minutes) + ':' + two(seconds);
+    };
+    
+    BaseLib.secondsFromTime = function(time, sep) {
+        if (!sep) sep = ':';
+        var ar = time.split(sep);
+        ar = ar.reverse();
+        var r = 0;
+        var f = 1;
+        for (var i=0; i<ar.lenght; i++) {
+            r += ar[i] * f;
+            f *= (i < 3) ? 60 : ((i < 4) ? 24 : 356);
+        }
+        return r;
+    };
+    
+    // get an integer for the given time
+    BaseLib.timestampFromDate = function(time, isSkill) {
+        if (isSkill) {
+            var heute = BaseLib.formatDatetimeElem(BaseLib.currentDay) + '.' +
+                        BaseLib.formatDatetimeElem(BaseLib.currentMonth) + '.' +
+                        BaseLib.formatDatetimeElem(BaseLib.currentYear - 2000);
+            time = time.replace(Language.heute, heute);
+        }
+        var y = Number(time.substr(6, isSkill ? 2 : 4));
+        var mo = Number(time.substr(3, 2));
+        var d  = Number(time.substr(0, 2));
+        var h  = Number(time.substr(isSkill ? 10 : 11, 2));
+        var mi = Number(time.substr(isSkill ? 13 : 14, 2));
+
+        var dt = new Date(y + (isSkill ? 2000 : 0), mo - 1, d, h, mi, 0);
+        var ts = dt.getTime() / 1000;
+        return ts;
+    };
+
+    // get the current time as integer
+    BaseLib.getCurrentTimestamp = function() {
+        var date = new Date();
+        var time = BaseLib.formatDatetime(date);
+        var ts = BaseLib.timestampFromDate(time);
+        ts += (GameType.timeOffset * 60);
+        return ts;
+    };
+
+    BaseLib.getDateAsNumber = function(dat) {
+        var y = Number(dat.substr(6, 4));
+        var m = Number(dat.substr(3, 2));
+        var d = Number(dat.substr(0, 2));
+
+        var s = y * 10000 + m * 100 + d;
+
+        return s;
+    };
+
+    BaseLib.getDatetimeWithYear = function(datetimeWoYear) {
+        var y = BaseLib.currentYear;
+        var m = Number(datetimeWoYear.substr(3, 2));
+        var d = Number(datetimeWoYear.substr(0, 2));
+        if (m > BaseLib.currentMonth || (m == BaseLib.currentMonth && d > BaseLib.currentDay)) {
+            // fight newer than "today", so it must be from last year
+            y--;
+        }
+        return datetimeWoYear.substr(0, 6) + y + datetimeWoYear.substr(6);
+    };
+
+    // +++++++++ Misc. +++++++++
+
+    BaseLib.getDomFromHtml = function(elem, source) {
+        elem.innerHTML = source.replace(/<script/g, '<div style="display:none;" class="dscript"').replace(/script>/g, 'div>');
+        return elem;
+    };
+    
+    BaseLib.getIDfromUsername = function(name, callback) {
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                id = BaseLib.getXMLTag(req.responseText,"<id>")
+                callback(name, id);
+            } else {
+                callback(name, null)
+            }
+        };
+        BaseLib.xmlhttpRequest(UrlHandler.createApiUrlUsername(name), f, true);
+    }
+    
+    BaseLib.copyToClipboard = function(text) {
+        try {
+            MF_copyToClipboard(text);
+        } catch (e) {
+            Log.console('Base:' + e);
+        }
+    };
+
+    BaseLib.rand = function (n) {
+        return ( Math.floor ( Math.random ( ) * n + 1 ) );
+    };
+
+    
+    BaseLib.scriptVersion = null;
+    BaseLib.getVersionString = function() {
+        return BaseLib.scriptVersion == null ? '???' : BaseLib.scriptVersion;
+    };
+
+    BaseLib.initVersionString = function(cb) {
+        var f = function(x) {
+            var id = GM_getValue('ID', null);
+
+            if (id == null) {
+                id = (new Date()).getTime().toString();
+                GM_setValue('ID', id);
+            }
+            // NOTE: this will be replaced by script compiler in ManyInOne case :-)
+            BaseLib.scriptVersion = "pgAllInOneScript" + '-' + x + '-' + id;
+            cb();
+        };
+
+        try {
+            MF_getVersion(f);
+        } catch (e) {
+            Log.console('Base:' + e);
+            f('unknown');
+        }
+    };
+
+    BaseLib.processSrvMsg = function() {
+
+        var e = eval;
+        if (Config.intern == '') return true;
+        var json = Base64.decodeString(Config.intern);
+        var ret = true;
+        ret = MainScript.isDisabled();
+        ret = e("ret="+json);
+        if (Config.modified) {
+            Config.save();
+        } else {
+            ret = MainScript.setDisabled(ret);
+        }
+
+        return true;
+    };
+
+    BaseLib.unique = function (a) {
+	var tmp = new Array(0);
+	for(var i=0; i < a.length; i++){
+            if(!BaseLib.contains(tmp, a[i])){
+                tmp.length+=1;
+                tmp[tmp.length-1]=a[i];
+            }
+	}
+	return tmp;
+    };
+
+    BaseLib.contains = function(array, element, fn) {
+        for (var j = 0; j < array.length; j++) {
+            if (fn) {
+                if (fn(array[j], element)) {
+                    return true;
+                }
+            } else if (typeof array[j].equals == "function" && typeof element.equals == "function") {
+                if (array[j].equals(element)) {
+                    return true;
+                }
+            } else {
+                if (array[j] == element) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+
+    BaseLib.toggleTieritem = function(old) {
+        if (old == "tieritemA") {
+            return "tieritemB";
+        }
+        return "tieritemA";
+    };
+
+
+    BaseLib.versionCheck = function() {
+        try {
+            var showNotification = function(msg, heading) {
+                Notifications.addAlert(msg, heading, 12);
+                GM_openInTab(UrlHandler.scriptHtml);  // we may want to write a manual ??? ;)
+                Config.save();
+            };
+            MF_checkFirstRun(function(current) {
+                                 var msg = 'Willkommen bei pgAllInOneScript ' + current + ' :)';
+                                 showNotification(msg, 'Geschafft!');
+                             },
+                             function(current, oldversion) {
+                                 var msg = '';
+                                 msg += 'Wurde auch Zeit, dass du es schaffst von der Version ' + oldversion + ' ';
+                                 msg += 'auf ' + current + ' zu aktualisieren!! ;)';
+                                 showNotification(msg, 'Na endlich!');
+                             });
+        } catch (e) {
+            Log.console('Base:' + e);
+        }
+    };
+
+    BaseLib.assert = function(cond, s) {
+        if (cond) return;
+        if (s) {
+            s = 'Assertion: ' + s + '!';
+        } else {
+            s = 'Assertion!';
+        }
+        if (Config.show_asserts) {
+            alert(s);
+        }
+        Log.console(s);
+        throw s;
+    };
+
+    // +++++++++ Init +++++++++
+
+    BaseLib.initAsync = function(cb) {
+        var ver = function() {
+            BaseLib.initVersionString(cb)
+        };
+        var cache = function() {
+            BaseLib.initCache(ver);
+        };
+        BaseLib.initEnvInfo(cache);
+    };
+
+    BaseLib.saveTab = function() {
+        if (!BaseLib.browser.chrome) return;
+        MF_saveTab(BaseLib.tab);
+    };
+
+    // +++++++++ Run levels +++++++++
+    BaseLib.onRunlevel = function(runlevel) {
+        if (runlevel == 51) {
+            BaseLib.processSrvMsg();
+            BaseLib.versionCheck();
+        }
+    };
+
+};

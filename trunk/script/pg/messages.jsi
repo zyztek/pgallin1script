@@ -1,0 +1,360 @@
+/** 
+ * @filename messages.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var Messages = new Object();
+var Shoutbox = new Object();
+
+Registry.register("Messages", Messages);
+Registry.register("Shoutbox", Shoutbox);
+
+Messages.init = function() {
+
+    Messages.messages = new Array();
+
+    Messages.getMessages = function(page, cb) {
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                var t = req.responseText;
+                var s1 = '<tr class="msglist"'
+                var s2 = '</tr>'
+                var pos;
+
+                while ((pos = t.search(s1)) != -1) {
+                    var msg = BaseLib.getStringBetweenTags(t, s1, s2);
+                    t = t.substr(pos + s1.length);
+                    if (!msg || msg == '') {
+                        continue;
+                    }
+
+                    var id = BaseLib.extractNumber(BaseLib.getStringBetweenTags(msg, 'messages/read/', '/'));
+
+                    var readImg = BaseLib.getStringBetweenTags(msg, '<img', '>');
+                    var unread = readImg.search('unread') != -1;
+
+                    var col1 = BaseLib.getStringBetweenTags(msg, '<td width="336"', '</td>');
+                    var subject = BaseLib.getStringBetweenTags(col1, '<strong>', '</strong>');
+                    var from1 = BaseLib.getStringBetweenTags(col1, '<span style', 'pan>');
+                    var from;
+                    if (from1.search('<a href=') == -1) {
+                        from = BaseLib.getStringBetweenTags(from1, '">', '</s').trim().replace('&nbsp;', '');
+                    } else {
+                        from = BaseLib.getStringBetweenTags(from1, '<a href=', 'a>');
+                        from = BaseLib.getStringBetweenTags(from, '">', '</');
+                    }
+
+                    Messages.messages.push(new Types.Message(id, unread, subject, from));
+                }
+
+                if (cb) cb();
+            }
+        };
+
+        if (!page) page = 1;
+        BaseLib.xmlhttpRequest(UrlHandler.messagesUrl + page + '/', f);
+    };
+
+    Messages.deleteMessage = function(id, cb) {
+        if (!cb) cb = UrlHandler.doReload;
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                cb();
+            }
+        };
+        BaseLib.xmlhttpRequest(UrlHandler.messageDeleteUrl + id + '/', f);
+    };
+
+    // NOTE: currently, this is not used to determine the content of the message;
+    // it just marks the message as read
+    // feel free to add this later ;-)
+    Messages.readMessage = function(id, cb) {
+        if (!cb) cb = UrlHandler.doReload;
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                cb();
+            }
+        };
+        BaseLib.xmlhttpRequest(UrlHandler.messageReadUrl + id + '/', f);
+    };
+
+    Messages.getUnreadMessages = function(removeKronkorken, cb) {
+        Messages.messages = new Array();
+        var f = function() {
+            var newMsg = 0;
+
+            for (var i = 0; i < Messages.messages.length; i++) {
+                var m = Messages.messages[i];
+                if (!m.unread) {
+                    continue;
+                }
+                if (removeKronkorken &&
+                    ((m.subject.search(Language.kostenloseKronkorken) != -1 &&
+                      m.from.search(Language.pennergameSupport) != -1) ||
+                    m.subject == Messages.getDailyTaskString())) {
+                    Log.console('Loesche Kronkorken Nachricht: id='+m.id+', subject:"'+m.subject+'", from:"'+m.from+'"');
+                    Messages.deleteMessage(m.id, function() { } );
+                    continue;
+                }
+                newMsg++;
+            }
+
+            if (cb) {
+                cb(newMsg);
+            }
+        };
+        Messages.getMessages(1, f);
+    };
+
+    Messages.markAllRead = function(page, cb) {
+        if (!cb) cb = UrlHandler.doReload;
+
+        var f = function() {
+            var cnt = 0;
+
+            var f2 = function() {
+                if (--cnt == 0) {
+                    cb();
+                }
+            };
+
+            cnt++;
+            for (var i = 0; i < Messages.messages.length; i++) {
+                var m = Messages.messages[i];
+                if (m.unread) {
+                    cnt++;
+                    Messages.readMessage(m.id, f2);
+                }
+            }
+            if (--cnt == 0) {
+                cb();
+            }
+        };
+
+        Messages.getMessages(page, f);
+    };
+
+    Messages.sendMessage = function(to, subject, text, cb, div) {
+        var d = document.createElement('div');
+        if (div) div.appendChild(d);
+        d.innerHTML = 'Sende Nachricht an ' + to + ' ... ';
+        var mcb = function() {
+            d.innerHTML += 'fertig';
+            if (cb) cb();
+        };
+        Actions.sendMessage(to, subject, text, mcb);
+    };
+
+    Messages.sendMultipleMessages = function(toArray, subject, text, cb, div) {
+        var sendTimeout = toArray.length < 10 ? 1100 : 12500;
+        if (!cb) {
+            cb = UrlHandler.doReload
+        }
+
+        var f = function() {
+            if (!toArray.length) {
+                cb();
+                return;
+            }
+
+            Messages.sendMessage(toArray.shift(), subject, text,
+                                 function() { BaseLib.setTimeoutEx(f, toArray.length ? sendTimeout : 1); },
+                                 div);
+        };
+
+        f();
+    };
+
+    Messages.createMultipleRecipients = function() {
+        var f = document.getElementById('f_toname');
+        var sb = document.getElementById('submit');
+        if (!f || !sb || f.type == "hidden") return;
+
+
+        var write = function() {
+            sb.setAttribute('disabled', 'disabled');
+            var ta = document.getElementById('new_text_ta');
+            var to = ta.value.split('\n');
+            if (ta.value == '' || !to.length) {
+                alert("Bitte gib einen oder mehrere Empfänger ein!");
+                return;
+            }
+
+            var subject = document.getElementById('f_subject').value;
+            var text = document.getElementById('f_text').value;
+            var div = document.createElement('div');
+            sb.parentNode.parentNode.appendChild(div);
+
+            var cb = function() {
+                UrlHandler.doRedirect(UrlHandler.messagesUrl);
+            };
+
+            Messages.sendMultipleMessages(to, subject, text, cb, div);
+        };
+
+        var change = function() {
+            var ta = document.createElement('textarea');
+            ta.innerHTML = f.getAttribute('value');
+            ta.setAttribute('cols', 40);
+            ta.setAttribute('rows', 5);
+            ta.setAttribute('id', 'new_text_ta');
+            f.parentNode.insertBefore(ta, f);
+            f.parentNode.removeChild(f);
+
+            var b = document.getElementById('btn_more_recipients');
+            b.parentNode.removeChild(b);
+
+            sb.setAttribute('type', 'button');
+            sb.addEventListener('click', function() { write(); }, true);
+        };
+
+        var b = document.createElement('input');
+        b.setAttribute('type', 'button');
+        b.setAttribute('id', 'btn_more_recipients');
+        b.setAttribute('value', 'Mehrere Empfänger');
+        f.parentNode.appendChild(b);
+        b.addEventListener('click', change, true);
+    };
+
+    Messages.createMarkAllReadButton = function() {
+        var page = UrlHandler.getInboxPageFromUrl();
+
+        var forms = document.getElementsByTagName('form');
+        var form = null;
+        for (var i = 0; i < forms.length; i++) {
+            var a = forms[i].getAttribute('action');
+            if (a && a.search('\/messages\/delete_all\/') != -1) {
+                form = forms[i];
+                break;
+            }
+        }
+        if (!form) return;
+
+        var btn = document.createElement('input');
+        btn.setAttribute('type', 'button');
+        btn.setAttribute('value', 'Alle Nachrichten als gelesen markieren');
+        form.appendChild(btn);
+
+        var f = function() {
+            btn.setAttribute('disabled', 'disabled');
+            Messages.markAllRead(page);
+        };
+        btn.addEventListener('click', f, true);
+    };
+
+    Messages.getDailyTaskString = function() {
+        var s = Language.tagesaufgabe != Language.unbekannt ? Language.tagesaufgabe : '...';
+        return '***'+s+'***';
+    };
+
+    Messages.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isMessageWriteUrl()) {
+                Messages.createMultipleRecipients();
+            }
+            if (UrlHandler.isMessageInboxUrl()) {
+                Messages.createMarkAllReadButton();
+            }
+        }
+    };
+
+};
+
+Shoutbox.init = function() {
+
+    Shoutbox.entries = new Array();
+
+    Shoutbox.deleteMessage = function(id, cb) {
+        if (!cb) cb = UrlHandler.doReload;
+
+        if (id <= 0) {
+            cb();
+            return;
+        }
+
+        Log.console("Loesche shoutbox message " + id);
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                BaseLib.removeCacheElementsByUrl(UrlHandler.gangUrl);
+                cb();
+            }
+        }
+        BaseLib.xmlhttpRequest(UrlHandler.wwwUrl + 'gang/shoutbox/delete/'+id+'/', f);
+    };
+
+    Shoutbox.deleteMessages = function(ids, cb) {
+        if (!cb) cb = UrlHandler.doReload;
+
+        if (!ids.length) {
+            cb();
+            return;
+        }
+
+        var id = ids.pop();
+        Shoutbox.deleteMessage(id, function() { Shoutbox.deleteMessages(ids, cb); } );
+    };
+
+    Shoutbox.getEntries = function(force, cb) {
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                Shoutbox.entries = new Array();
+
+                var t = req.responseText;
+                var s1 = '<table width=\'100%\'  border=\'0\' cellspacing=\'0\' cellpadding=\'0\' style="margin-bottom:10px">';
+                var s2 = '</table>'
+                var pos;
+
+                while ((pos = t.search(s1)) != -1) {
+                    var msg = BaseLib.getStringBetweenTags(t, s1, s2);
+                    t = t.substr(pos + s1.length);
+                    if (!msg || msg == '') {
+                        continue;
+                    }
+
+                    var from = BaseLib.getStringBetweenTags(msg, "<a href='/profil", "a>");
+                    from = BaseLib.getStringBetweenTags(from, '">', '</').trim();
+
+                    var id = BaseLib.getStringBetweenTags(msg, "<a href='/gang/shoutbox/delete/", "/'>");
+                    if (id && id != "") {
+                        id = BaseLib.extractNumber(id);
+                    } else {
+                        id = -1;
+                    }
+
+                    var content = BaseLib.getStringBetweenTags(msg, '<td colspan="3" style="padding:2px;"> <p>', '</p> </td>');
+
+                    Shoutbox.entries.push(new Types.ShoutboxPost(id, from, content));
+                }
+
+                if (cb) cb();
+            }
+        };
+        
+        BaseLib.xmlhttpRequest(UrlHandler.gangUrl, f, !force, force ? 0 : 120);
+    };
+
+    Shoutbox.deleteDailyTask = function(force, cb) {
+        var f = function() {
+            var ids = new Array();
+
+            for (var i = 0; i < Shoutbox.entries.length; i++) {
+                var se = Shoutbox.entries[i];
+                if (se.id > 0 && se.content == Messages.getDailyTaskString()) {
+                    ids.push(se.id);
+                }
+            }
+
+            Shoutbox.deleteMessages(ids, cb);
+        };
+
+        Shoutbox.getEntries(force, f);
+    };
+
+    Shoutbox.onRunlevel = function(runlevel) {
+        if (runlevel == 80) {
+            Shoutbox.deleteDailyTask(false, function() {  });
+        }
+    };
+};

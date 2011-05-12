@@ -1,0 +1,61 @@
+
+AuthUserFile /home/strato/www/bi/www.biniok.net/htdocs/.htpasswd
+AuthGroupFile /dev/null
+AuthName "Please enter your credentials!"
+AuthType Basic
+<Files *.php>
+require user allin1script
+</Files>
+<Files *.crx>
+require user allin1script
+</Files>
+<Files pgManyInOneScrip*.crx>
+require user manyin1script
+</Files>
+<Files *.xpi>
+require user allin1script
+</Files>
+<Files pgManyInOneScrip*.xpi>
+require user manyin1script
+</Files>
+<Files pgSomeInOneScrip*.xpi>
+require user somein1script
+</Files>
+<Files pgSomeInOneScrip*.crx>
+require user somein1script
+</Files>
+<Files *.exe>
+require user allin1script
+</Files>
+<Files getdonations.php>
+Order deny,allow
+Satisfy Any
+Allow from all
+</Files>
+<Files config.php>
+Order deny,allow
+Satisfy Any
+Allow from all
+</Files>
+<Files sendmail.php>
+Order deny,allow
+Satisfy Any
+Allow from all
+</Files>
+<Files *.config>
+require user allin1script
+</Files>
+<Files smilies.php>
+Order deny,allow
+Satisfy Any
+Allow from all
+</Files>
+<Files gangfights.php>
+Order deny,allow
+Satisfy Any
+Allow from all
+</Files>
+
+Redirect /aio.xpi http://pennergame.biniok.net/06d0e2f6befa8487ab6f1bc07f94dbb0/xpi/pgAllInOneScript.xpi
+Redirect /mio.xpi http://pennergame.biniok.net/bfed9f742d922a5a1e1cadab34a5c611/xpi/pgManyInOneScript.xpi
+Redirect /sio.xpi http://pennergame.biniok.net/85c70d553e4b005f11e926475853553a/xpi/pgSomeInOneScript.xpi

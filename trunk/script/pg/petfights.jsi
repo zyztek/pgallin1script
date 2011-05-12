@@ -1,0 +1,83 @@
+/** 
+ * @filename petfights.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var PetFights = new Object();
+
+Registry.register("PetFights", PetFights);
+
+PetFights.init = function() {
+
+    PetFights.startPetFight = function(money, time, attitude, risk, tries, cb) {
+        if (!money) money = 1;
+        if (time != 20 && time != 30 && time != 40 && time != 60) time = 20;
+        if (attitude != ePetFightAggressive && attitude != ePetFightDefensive && attitude != ePetFightNeutral) attitude = ePetFightNeutral;
+        if (!risk || risk < 1 || risk > 20) risk = 10;
+        if (!cb) cb = UrlHandler.doReload;
+
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                // add 1 to tries because we always need one initial try ...
+                PetFights.performPage(req.responseText, money, time, attitude, risk, tries + 1, cb);
+            }
+        };
+        BaseLib.xmlhttpRequest(UrlHandler.petFightsUrl, f);
+    };
+
+    PetFights.startPetFightSimple = function(tries, cb) {
+        PetFights.startPetFight(null, null, null, null, tries, cb);
+    }
+
+    PetFights.performPage = function(txt, money, time, attitude, risk, tries, cb) {
+        var isForm = txt.search('<form action="/fight/pet/" method="post">') != -1;
+        var isFightAvailable = txt.search(/<a href="\/fight\/pet\/[0-9]*\/"/) != -1;
+
+        if (isFightAvailable) {
+            Log.console("Haustierkämpfe verfügbar ...");
+            var t = BaseLib.getStringBetweenTags(txt, '<tr style="font-size: 11px;">', '</tr>');
+            var id = BaseLib.getStringBetweenTags(t, '<a href="/fight/pet/', '/">');
+            if (id != "") {
+                var url = UrlHandler.petFightsUrl + id + '/';
+                var f = function(req) {
+                    if (req.readyState == 4 && req.status == 200) {
+                        cb();
+                    }
+                };
+                BaseLib.xmlhttpRequest(url, f);
+                return;
+            } else {
+                Log.console("Hier ist was falsch, probiere nochmal");
+            }
+        }
+
+        if (!tries--) {
+            Log.console("Keine Haustierkämpfe verfügbar, gebe auf.");
+            cb();
+            return;
+        }
+
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                PetFights.performPage(req.responseText, money, time, attitude, risk, tries, cb);
+            }
+        };
+
+        if (isForm) {
+            Log.console("Aktiviere Haustierkämpfe ...");
+            params = [
+                BaseLib.postParam('einsatz', money),
+                BaseLib.postParam('ttl', time),
+                BaseLib.postParam('verhalten', attitude),
+                BaseLib.postParam('risiko', risk)
+            ];
+            BaseLib.xmlhttpPostRequest(UrlHandler.petFightsUrl, f, params);
+        } else {
+            Log.console("Keine Haustierkämpfe verfügbar, versuche in 1 Sec. nochmal (noch " + tries + " Versuche)");
+            BaseLib.setTimeoutEx(function () { BaseLib.xmlhttpRequest(UrlHandler.petFightsUrl, f); }, 500);
+        }
+    };
+
+};

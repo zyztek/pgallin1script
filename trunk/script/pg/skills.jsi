@@ -1,0 +1,330 @@
+/** 
+ * @filename skills.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var Skills = new Object();
+
+Registry.register("Skills", Skills);
+
+Skills.init = function() {
+
+    /* ----------- Determine Skills ----------------- */
+
+    Skills.mySkills = new Object();
+    Skills.petSkills = new Object();
+
+    /* private */
+    Skills.createSkillObject = function(sName, sLevel, cost, isPet) {
+        var type = eUnknown;
+        if (sName.search(Language.skillAttack) != -1) {
+            type = eAtt;
+        } else if (sName.search(Language.skillDefense) != -1) {
+            type = eDef;
+        } else if (sName.search(Language.skillDexterity) != -1 || sName.search(Language.skillDexterityPet) != -1 || sName.search(Language.skillDexterityPet2) != -1) {
+            type = eDex;
+        } else if (sName.search(Language.skillSpeech) != -1) {
+            type = eSpeech;
+        } else if (sName.search(Language.skillEducation) != -1) {
+            type = eEducation;
+        } else if (sName.search(Language.skillMusic) != -1) {
+            type = eMusic;
+        } else if (sName.search(Language.skillNetworking) != -1) {
+            type = eNetworking;
+        } else if (sName.search(Language.skillConcentration) != -1) {
+            type = eConcentration;
+        } else if (sName.search(Language.skillPickpocketing) != -1) {
+            type = ePickpocketing;
+        } else if (sName.search(Language.skillSurvivalTraining) != -1) {
+            type = eSurvivalTraining;
+        }
+
+        return new Types.Skill(type, sLevel, cost, isPet);
+    };
+
+    /* private */
+    Skills.getSetupForm = function(responseText) {
+        var t = responseText;
+        var t1 = 'function setupForm';
+        var t2 = 'function';
+        var s = BaseLib.getStringBetweenTags(t, t1, t2);
+
+        if (!s) {
+            s = BaseLib.getStringBetweenTags(t, t1);
+        }
+
+        if (!s) return null;
+
+        return 'function ' + s;
+    };
+    
+    Skills.getSkillsFromPage = function(responseText, isPet) {
+        var queue = new Array();
+        var skills = new Array();
+        var conc, att, def, dex;
+
+        var pos;
+
+        // find currently running skills
+        var t = responseText;
+
+        var s0 = 'id="content"';
+        if (t.search(s0) == -1) {
+            return new Object();
+        }
+
+        var s1 = '<div class="box_text_small">';
+        while ((pos = t.search(s1)) != -1) {
+            t = t.substr(pos + s1.length);
+            var s = BaseLib.getStringBetweenTags(t, '<span class="style_skill"', ']');
+            if (!s) {
+                Log.console("Unable to determine currently running skills!");
+                break;
+            }
+            var sName = BaseLib.getStringBetweenTags(s, '>', '</span').trim();
+            var p = s.search('\\[');
+            var sLevel = BaseLib.extractNumber(s.substr(p).trim());
+
+            var skill = Skills.createSkillObject(sName, sLevel, 0, isPet);
+            queue.push(skill);
+        }
+
+        // find the end date, if any
+        var nowTime = new Date().getTime();
+        var endTime = 0;
+        var endTimes = new Array();
+        t = responseText;
+        var s1 = '<span class="style_skill">';
+        if ((pos = t.search(s1)) != -1) {
+            t = t.substr(pos + s1.length);
+            if ((pos = t.search(s1)) != -1) {
+                var t1 = BaseLib.getStringBetweenTags(t, s1, '</div>');
+                var t1 = BaseLib.getStringBetweenTags(t1, 'counter', '</script>');
+                if (t1 && t1.length) {
+                    t1 = BaseLib.extractNumber(t1);
+                    endTime = nowTime+(t1*1000);
+                }
+                t = t.substr(pos + s1.length);
+            }
+        }
+        /* Log.dbg(endTime ?
+            ((isPet ? 'Pet' : 'Penner') + ' Skill end time: ' + endTime + ' -> ' + new Date(endTime)) :
+            ((isPet ? 'Pet' : 'Penner') + ' Skill has no end time!')); */
+        endTimes.push(endTime);
+
+        // find the second end time (-> queue), if any
+        while ((pos = t.search(s1)) != -1) {
+            t = t.substr(pos + s1.length);
+            if ((pos = t.search(s1)) != -1) {
+                var endTimeAdd = BaseLib.getStringBetweenTags(t, s1, '</span>');
+                endTimeAdd = BaseLib.timestampFromDate(endTimeAdd, true) * 1000;
+                endTimes.push(endTimeAdd);
+                t = t.substr(pos + s1.length);
+            }
+        }
+
+        // find additional skills in queue -> "kronkorken" ;-)
+        var t = responseText;
+        s1 = '<td colspan="4" style="padding-top:1px; padding-bottom:4px;">';
+        if ((pos = t.search(s1)) != -1) {
+            t = BaseLib.getStringBetweenTags(t, s1, '</table>');
+            s1 = '<tr>';
+            var i = 0;
+            while ((pos = t.search(s1)) != -1) {
+                t = t.substr(pos + s1.length);
+                if (++i == 0) {
+                    continue;
+                }
+                var sName = BaseLib.getStringBetweenTags(t, '<td width="120">', '</td>').trim();
+                var sLevel = BaseLib.extractNumber(BaseLib.getStringBetweenTags(t, '<td width="130">', '</td>').trim());
+
+                var skill = Skills.createSkillObject(sName, sLevel, 0, isPet);
+                queue.push(skill);
+
+                var endTimeAdd = BaseLib.getStringBetweenTags(t, '<td width="110"><div align="right">', '</div></td>').trim();
+                endTimeAdd = BaseLib.timestampFromDate(endTimeAdd, true) * 1000;
+                endTimes.push(endTimeAdd);
+            }
+        }
+
+        // find all skills and their current level
+        t = responseText;
+        s1 = '<td width="120" height="19"';
+        while ((pos = t.search(s1)) != -1) {
+            t = t.substr(pos + s1.length);
+            var sName = BaseLib.getStringBetweenTags(t, '<strong>', '</strong>').trim();
+            var sLevel = BaseLib.getStringBetweenTags(t, '<td width="108">', '<').trim();
+            var sCost = BaseLib.getStringBetweenTags(t, Language.nextLevel, '<br').trim();
+            var p = sLevel.search("/");
+            if (p != -1) {
+                sLevel = sLevel.substr(0, p);
+            }
+            sLevel = BaseLib.extractNumber(sLevel);
+            sCost = BaseLib.extractNumber(sCost);
+
+            var skill = Skills.createSkillObject(sName, sLevel, sCost, isPet);
+
+            skills.push(skill);
+
+            if (skill.type == eAtt) {
+                att = skill;
+            } else if (skill.type == eDef) {
+                def = skill;
+            } else if (skill.type == eDex) {
+                dex = skill;
+            } else if (skill.type == eConcentration) {
+                conc = skill;
+            }
+        }
+
+        // find out the completion progress
+        var progress = null;
+        if (endTime) {
+            var startTime = BaseLib.getStringBetweenTags(responseText, 'var start = ', ';');
+            if (startTime && startTime != '') {
+                startTime *= 1000;
+                var wholeTime = endTime - startTime;
+                var runningTime = nowTime - startTime;
+                progress = runningTime / wholeTime;
+                if (progress < 0) progress = 0;
+                if (progress > 1) progress = 1;
+            }
+        }
+
+        return new Types.Skills(queue, skills, endTimes, progress, conc, att, def, dex);
+    };
+
+    /* private */
+    Skills.getMySkills = function() {
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                Skills.mySkills = Skills.getSkillsFromPage(req.responseText, false);
+                if (!Skills.mySkills.initialized) {
+                    BaseLib.setTimeoutEx(function() { Skills.getMySkills(); }, 100);
+                }
+            }
+        };
+
+        BaseLib.xmlhttpRequest(UrlHandler.skillsUrl, f);
+    };
+
+    /* private */
+    Skills.getPetSkills = function() {
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                Skills.petSkills = Skills.getSkillsFromPage(req.responseText, true);
+                if (!Skills.petSkills.initialized) {
+                    BaseLib.setTimeoutEx(function() { Skills.getPetSkills(); }, 100);
+                }
+            }
+        };
+
+        BaseLib.xmlhttpRequest(UrlHandler.petSkillsUrl, f);
+    };
+
+
+    /* public */
+    Skills.getSkills = function() {
+        Skills.getMySkills();
+        Skills.getPetSkills();
+    };
+
+    Skills.showPrerequisits = function() {
+        //alert("huhu");
+        var tables = BaseLib.getElementsByClassNameForElements('table', 'cbox mbottom');
+        for (var i = 0; i < tables.length; i++) {
+            var td = tables[i].getElementsByTagName('td')[0];
+            var a = td.getElementsByTagName('a')[0];
+            if (!a) continue;
+            Skills.showPrerequisits0(tables[i], a.href);
+        }
+    };
+
+    Skills.showPrerequisits0 = function(table, href) {
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+                var td = table.getElementsByTagName('tr')[1].getElementsByTagName('td')[1];
+
+                var t1 = '<td><strong>';
+                var t2 = '</table>';
+                var t = BaseLib.getStringBetweenTags(req.responseText, t1, t2);
+                if (!t || t == '') return;
+                t = '<table class="tieritemB" style="width: 100px;"><tr align="left" valign="top">' + t1 + t;
+                var div = document.createElement('div');
+                div.innerHTML = t;
+                div.setAttribute('style', 'width: 100px;');
+                td.appendChild(div);
+            }
+        };
+        BaseLib.xmlhttpRequest(href, f);
+    };
+
+    /* ----------- Concentration bug ----------------- */
+    Skills.createConcentrationBugElements = function() {
+        if (!Skills.mySkills.initialized) {
+            BaseLib.setTimeoutEx(function () { Skills.createConcentrationBugElements(); }, 100);
+            return;
+        }
+
+        // only useful if we do have concentration skill ;-)
+        if (!Skills.mySkills.conc || !Skills.mySkills.conc.level) {
+            return;
+        }
+
+        var searchClass = 'cbox';
+
+        var tables = BaseLib.getElementsByClassNameForElements('table', searchClass);
+        var table;
+        for (var i = 0; i < tables.length; i++) {
+            var r = tables[i].getElementsByTagName('tr')[0];
+            if (r && r.innerHTML.search(Language.activityConcentration) != -1) {
+                table = tables[i];
+                break;
+            }
+        }
+        
+        if (!table) {
+            return;
+        }
+
+        var tb = table.getElementsByTagName('tbody')[0];
+        var rows = tb.getElementsByTagName('tr');
+        var newRow = document.createElement('tr');
+        tb.insertBefore(newRow, rows[rows.length - 1]);
+
+        newRow.innerHTML = '<td valign="top" height="15" align="left" colspan="2"><hr size="1"></td>';
+        
+        rows = tb.getElementsByTagName('tr');
+        newRow = document.createElement('tr');
+        tb.insertBefore(newRow, rows[rows.length - 1]);
+        
+        var t = '<td valign="top" align="left" colspan="2">' +
+                '<form method="post" action="' + UrlHandler.wwwUrl + 'activities/concentrate/" name="konzentration">' +
+                '<b>Erzwinge Konzentration:</b> (Achtung, Bug-Using!)<br>' +
+                'Nebenbeschäftigung:&nbsp;<select onchange="Konzentration(this.value)" class="dropdown" name="mode" style="width:150px">' +
+                '<option value="1">Keine</option>' +
+                (Skills.mySkills.conc.level >= 2 ? '<option value="2">Kämpfen</option>' : '') +
+                (Skills.mySkills.conc.level >= 2 ? '<option value="3">Pfandflaschensammeln</option>' : '') +
+                '</select>&nbsp;' +
+                '<input type="button" value="Konzentration starten" onclick="javascript:setupForm(\'' + UrlHandler.wwwUrl + 'activities/concentrate/\')" name="Submit2" class="button_skill">' +
+                '</form>' +
+                '</td>';
+        newRow.innerHTML = t;
+    };
+
+    Skills.onRunlevel = function(runlevel) {
+        if (runlevel == 30) {
+            Skills.getSkills();
+        } else if (runlevel == 60) {
+            if (UrlHandler.isSkillsUrl()) {
+                Skills.showPrerequisits();
+            }
+            if (Config.show_conci_bug && UrlHandler.isActivitiesUrl()) {
+                Skills.createConcentrationBugElements();
+            }
+        }
+    };
+
+};

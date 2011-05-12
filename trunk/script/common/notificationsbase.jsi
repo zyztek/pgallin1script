@@ -1,0 +1,38 @@
+/** 
+ * @filename notificationsbase.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var NotificationsBase = function() {
+
+    this.authString = 'FILLME';
+    
+    this.addAlert = function (msg, title, time) {
+        // TODO:!!
+    };
+    
+    this.sendMail = function(mailaddr, subject, text) {
+        var params = [ BaseLib.postParam('auth', this.authString, true),
+                       BaseLib.postParam('mail', escape(mailaddr), true),
+                       BaseLib.postParam('subject', escape(subject), true),
+                       BaseLib.postParam('text', escape(text), true) ];
+        var url = UrlHandler.notifyServer;
+        var oobj = this;
+        var f = function(req) {
+            if (req.readyState == 4 &&
+                req.status == 200 &&
+                req.responseText.search("NOT sent!") == -1) {
+                Log.console("Notifications: mail sent to " + mailaddr);
+                oobj.addAlert("Mail wurde an " + mailaddr + " gesendet.");
+            } else {
+                Log.console("Notifications: sending mail to " + mailaddr + " failed!");
+                oobj.addAlert("Mailversand an " + mailaddr + " fehlgeschlagen!");
+            }
+        };
+
+        // TODO: disable server access for public release
+        // BaseLib.xmlhttpPostRequest(url, f, params, null, true);
+    };
+};

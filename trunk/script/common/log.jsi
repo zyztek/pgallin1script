@@ -1,0 +1,138 @@
+/** 
+ * @filename log.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var Log = new Object();
+
+Registry.register("Log", Log);
+
+Log.init = function() {
+
+    Log.entryCnt = 3000;
+    Log.cleanInterval = 5; // clean every 5 min
+    
+    Log.reinit = function() {
+        // everything is loaded
+        Log.entryCnt = Config.debug_entry_count;
+        // initalize cleaner fred
+        Log.cleaner();
+    };
+
+    Log.cfgKey = function() {
+        return UrlHandler.configPrefix + "_log"
+    };
+
+    Log.dbg = function(msg) {
+        Log.addEntry(msg);
+    };
+
+    Log.console = function(msg) {
+        GM_log(msg);
+        Log.addEntry(msg);
+    };
+
+    Log.addEntry = function(e) {
+        var v = Log.readEntries();
+        v.push((new Date) + "::" + e);
+        Log.writeEntries(v);
+    };
+
+    Log.sendMail = function(text) {
+        Notifications.sendMail(Config.debug_mail,
+                               UrlHandler.configPrefix + '-Tagebuch: ' + (new Date),
+                               text);
+    };
+
+    Log.cleanEntries = function() {
+        var o = Log.readEntries();
+        if (o.length > Log.entryCnt) {
+            var n = [];
+            if (Config != undefined &&
+                Config.debug_sendmail &&
+                Config.debug_mail != '') {
+                Log.sendMail(Log.print());
+            } else {
+                var s = o.length - Log.entryCnt;
+                for (var i=s; i<o.length; i++) {
+                    n.push[o[i]];
+                }
+            }
+            Log.writeEntries(n);
+        }
+    };
+
+    Log.print = function() {
+        var v = Log.readEntries();
+        var s = '';
+        for (var i in v) {
+            s += v[i] + '\n';
+        }
+        return s;
+    };
+
+    Log.printHTML = function() {
+        var v = Log.readEntries();
+        var s = '';
+        for (var i in v) {
+            s += v[i] + '<br>';
+        }
+        return s;
+    };
+
+    Log.createMgmtButtons = function(elem, dou) {
+        var btnSM = UIHelpers.createSidebarImgButton(GM_getResourceURL("debug.png"), GM_getResourceURL("debug.png"), 'Sende Mail', false, 'log_SendMail');
+      
+        var fSM = function() {
+            Log.entryCnt = 0;
+            Log.cleanEntries();
+            Log.reinit();
+            dou.parentNode.removeChild(dou);
+        };
+        btnSM.addEventListener('click', fSM, true);
+
+        var table = document.createElement('table');
+        var tr, td;
+        tr = document.createElement("tr");
+        table.appendChild(tr);
+        td = document.createElement("td");
+        td.setAttribute("style", "width:100%");
+        tr.appendChild(td);
+        td.appendChild(btnSM);
+
+        elem.appendChild(table);
+    };
+    
+    Log.readEntries = function() {
+        try {
+            var v = GM_getValue(Log.cfgKey(), '');
+            return JSON.parse(v)
+        } catch (e) {
+            GM_log(e);
+        }
+        return [];
+    };
+
+    Log.writeEntries = function(logs) {
+        try {
+            var v = JSON.stringify(logs)
+            GM_setValue(Log.cfgKey(), v);
+        } catch (e) {
+            GM_log(e);
+        }
+    };
+
+    Log.cleaner = function() {
+        Log.cleanEntries();
+        BaseLib.setTimeoutEx(Log.cleaner, Log.cleanInterval * 60 * 1000);
+    };
+
+    Log.onRunlevel = function(runlevel) {
+        if (runlevel == 50) {
+            Log.reinit();
+        }
+    };
+
+};

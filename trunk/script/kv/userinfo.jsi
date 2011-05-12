@@ -1,0 +1,181 @@
+/** 
+ * @filename userinfo.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var UserInfo = new Object();
+
+Registry.register("UserInfo", UserInfo);
+
+// ########### Information about the current user ###########
+
+UserInfo.init = function() {
+
+    UserInfo.initialized = false;
+
+    UserInfo.uid = 0;
+    UserInfo.values = {}; // power, intelligence, ...
+    UserInfo.donationId = null;
+
+    UserInfo.getUserId = function(cb) {
+        var f = function(req) {
+            if (req.readyState == 4 && req.status == 200) {
+
+                var s1 = 'http://static.streetrivals.de/test/prisongame/closedbeta/';// TODO: !! ;)
+                var s2 = '_';
+                UserInfo.uid = BaseLib.getStringBetweenTags(req.responseText, s1, s2);
+
+                if (UserInfo.uid) {
+                    UserInfo.determine(cb);
+                    return;
+                }
+
+                var rt = Number(UrlHandler.urlGetParam("rt", 1));
+                var url =  UrlHandler.urlSetParam(document.URL, "rt", rt+1);
+                if (rt < 15) {
+                    // reload the page in two ore more minutes. this is better than reloadind now but being logged out
+                    BaseLib.setTimeoutEx(function () { ErrorChecker.reload(rt); }, rt * 1000);
+                } else {
+                    // reloading and hopping to be still logged in failed...
+                    UrlHandler.doRedirect(UrlHandler.loginUrl);
+                }
+            }
+
+            // something went wrong, so skip further stuff
+            cb(true);
+            return;
+        };
+
+        BaseLib.xmlhttpRequest(UrlHandler.statisticsUrl, f, true, 10);
+        // timeout 10 seconds, so later userinfo parsing can re-use this response
+    };
+    
+    UserInfo.determine = function(callback) {
+        if (!UserInfo.initialized) {
+            var fs = function(req) {
+                if (UserInfo.initialized) {
+                    if (callback) {
+                        callback();
+                    }
+                    return;
+                }
+                if (req.readyState == 4 && req.status == 200) {
+                    UserInfo.parseProgressBars(req.responseText);
+                    UserInfo.initialized = true;
+
+                    if (callback) {
+                        callback();
+                    }
+                }
+            };
+
+            var fo = function(req) {
+                if (UserInfo.initialized) {
+                    if (callback) {
+                        callback();
+                    }
+                    return;
+                }
+                if (req.readyState == 4 && req.status == 200) {
+                    UserInfo.parseProfile(req.responseText);
+                    BaseLib.xmlhttpRequest(UrlHandler.statisticsUrl, fs);
+                }
+            };
+
+            BaseLib.xmlhttpRequest(UrlHandler.overviewUrl, fo);
+        } else {
+            if (callback) {
+                callback();
+            }
+        }
+    };
+
+    UserInfo.parseProfile = function(txt) {
+        UserInfo.donationId = BaseLib.getStringBetweenTags(txt, UrlHandler.donateUrl + "?k=", '"');
+    };
+
+    UserInfo.parseProgressBars = function(txt) {
+        var extractValueFromJs = function(t) {
+            /* CountDownManager.register('#training_progress .countdown', 51, new ProgressBarCallback('training_progress', 600, function(){}, false));
+               parse this command! 51 is the wanted value */
+            var s = t.split(',');
+            if (s.length < 2) return 0;
+            return BaseLib.extractNumber(s[1]);
+        };
+
+        var pp = [
+            { str: Language.staerke, prop: "power", extrFn: BaseLib.extractFloatingPointNumber},
+            { str: Language.intelligenz, prop: "intelligence", extrFn: BaseLib.extractFloatingPointNumber},
+            { str: Language.gesundheit, prop: "health", extrFn: BaseLib.extractNumber},
+            { str: Language.befriedigung, prop: "satisfaction", extrFn: BaseLib.extractNumber},
+            { str: Language.plundersammelfortschritt, prop: "plunder", extrFn: extractValueFromJs},
+            { str: Language.trainigsfortschritt, prop: "training", extrFn: extractValueFromJs},
+            { str: Language.fortschritt, prop: "mission", extrFn: extractValueFromJs} ];
+
+        /* Note: Language.fortschritt must be the last one to avoid false positives, cause
+           Language.trainigsfortschritt contains this string too. */
+
+        for (var k in pp) {
+            UserInfo.values[pp[k].prop] = 0;
+        }
+
+        var b1 = "<body";
+        var b2 = ">";
+        var be = "</body>";
+        var bt = b1 + BaseLib.getStringBetweenTags(txt, b1, b2) + b2;
+
+        var nodetext = BaseLib.getStringBetweenTags(txt, bt, be)
+                    
+        var nodes = document.createElement('div');
+        nodes = BaseLib.getDomFromHtml(nodes, nodetext);
+
+        var d = nodes.getElementsByClassName('progressbar');
+        for (var i=0; i<d.length; i++) {
+            var handler = null;
+            var cap = d[i].getElementsByClassName('progressbar-caption');
+            if (cap.length == 0) continue;
+            for (var k in pp) {
+                if (cap[0].innerHTML.search(pp[k].str) != -1) {
+                    handler = pp[k];
+                    break;
+                }
+            }
+            if (!handler) continue;
+            var lab = d[i].getElementsByClassName('progressbar-label');
+
+            if (!lab.length) continue;
+
+            var elem = null;
+            var s = lab[0].getElementsByTagName('span');
+            for (var j=0; j<s.length; j++) {
+                c = s[j].getAttribute("class");
+                if (c && c.trim() == "countdown") {
+                    var scs = d[i].parentNode.getElementsByClassName('dscript');
+                    // search for hidden "script" divs in parentNode
+                    for (var k=0; k<scs.length; k++) {
+                        // d[i] was found in script source
+                        if (scs[k].innerHTML.search(d[i].id) != -1) {
+                            elem = scs[k];
+                            break;
+                        }
+
+                    }
+                    break;
+                }
+            }
+
+            if (!elem) elem = lab[0];
+            var t = elem.textContent ? elem.textContent : elem.innerHTML;
+            UserInfo.values[handler.prop] = handler.extrFn(t);
+            // GM_log(handler.prop + ": " + UserInfo.values[handler.prop]);
+        }
+        // cleanup !
+        nodes = null;
+    };
+    
+    UserInfo.onRunlevelAsync = function(runlevel, cb) {
+        cb();
+    };
+};

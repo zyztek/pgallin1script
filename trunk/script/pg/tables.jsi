@@ -1,0 +1,2136 @@
+/** 
+ * @filename tables.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var TableManager = new Object();
+
+Registry.register("TableManager", TableManager);
+
+// ########### Highscore && Profile, Super Search ################
+
+// ++++++++ Super Search ++++++++
+
+var AioMode = function() {
+
+    var Mode = new Object();
+
+    Mode.modeHighscore = 1;
+    Mode.modeSuperSearch = 2;
+    Mode.modeUserProfile = 3;
+    Mode.modeGangProfile = 4;
+    Mode.modeOldFights = 5;
+    Mode.modeIncomingFights = 6;
+    Mode.modeOutgoingFights = 7;
+    Mode.modeSettingsBlacklist = 8;
+    Mode.modeShowById = 9;
+    Mode.modePreferredBums = 10;
+    Mode.modeAllInConfig = 11;
+    Mode.modeDownfighters = 12;
+    Mode.modeUpfighters = 13;
+    Mode.zeige_bandenstats = true;
+    Mode.type = 0;
+
+    Mode.setType = function(type) {
+        this.type = type;
+    };
+
+    Mode.getTable = function() {
+        var table = null;
+
+        if (this.isHighscore() ||
+            this.isSuperSearch() ||
+            this.isShowById() ||
+            this.isPreferredBums() ||
+            this.isAllInConfig() ||
+            this.isDownfighters() ||
+            this.isUpfighters()) {
+
+            table = document.getElementById('highscore').getElementsByTagName('table')[0];
+        } else {
+            table = document.getElementById(this.getTableId());
+        }
+
+        return table;
+    };
+
+    Mode.getTableId = function() {
+        var id = '';
+
+        if (this.isHighscore() ||
+            this.isSuperSearch() ||
+            this.isShowById()) {
+            var table = Mode.getTable();
+            if (table)
+                id = table.id;
+
+        } else if (this.isProfile()) {
+            id = "allin1_profile_table";
+        } else if (this.isOldFights()) {
+            id = "allin1_oldfights_table";
+        } else if (this.isIncomingFights()) {
+            id = "allin1_incomingfights_table";
+        } else if (this.isOutgoingFights()) {
+            id = "allin1_outgoingfights_table";
+        } else if (this.isBlacklist()) {
+            id = "allin1_settings_blacklist_table";
+        }
+
+        return id;
+    };
+
+
+    Mode.isSuperSearch = function() {
+        return (this.type == this.modeSuperSearch);
+    };
+
+    Mode.isHighscore = function() {
+        return (this.type == this.modeHighscore);
+    };
+
+    Mode.isShowById = function() {
+        return (this.type == this.modeShowById);
+    };
+
+    Mode.isProfile = function() {
+        return (this.type == this.modeUserProfile ||
+                this.type == this.modeGangProfile);
+    };
+
+    Mode.isGangProfile = function() {
+        return (this.type == this.modeGangProfile);
+    };
+
+    Mode.isUserProfile = function() {
+        return (this.type == this.modeUserProfile);
+    };
+
+    Mode.isIncomingFights = function() {
+        return (this.type == this.modeIncomingFights);
+    };
+
+    Mode.isOutgoingFights = function() {
+        return (this.type == this.modeOutgoingFights);
+    };
+
+    Mode.isOldFights = function() {
+        return (this.type == this.modeOldFights);
+    };
+
+    Mode.isBlacklist = function() {
+        return (this.type == this.modeSettingsBlacklist);
+    };
+
+    Mode.isPreferredBums = function() {
+        return (this.type == this.modePreferredBums);
+    };
+
+    Mode.isAllInConfig = function() {
+        return (this.type == this.modeAllInConfig);
+    };
+
+    Mode.isDownfighters = function() {
+        return (this.type == this.modeDownfighters);
+    };
+
+    Mode.isUpfighters = function() {
+        return (this.type == this.modeUpfighters);
+    };
+
+    Mode.getSorting = function() {
+        var sort = false;
+
+        if (this.isSuperSearch()) {
+            sort = true;
+        } else {
+            if (this.isProfile() &&
+                Config.bot &&
+                UrlHandler.isProfileGangUrl()) {
+
+                var t = Bot.readState();
+                if (t.gang != 0 &&
+                    t.type == eBotTypeFight) {
+                    sort = "punkte:auf";
+                }
+            } else if (this.isDownfighters() || this.isUpfighters()) {
+                sort = "punkte:ab";
+            }
+        }
+
+        return sort;
+    };
+
+    Mode.getPrefix = function() {
+        if (this.isSuperSearch() ||
+            this.isHighscore() ||
+            this.isShowById() ||
+            this.isPreferredBums() ||
+            this.isAllInConfig() ||
+            this.isDownfighters() ||
+            this.isUpfighters()) {
+            return "hs_";
+        } else if (this.isProfile()) {
+            return "prof_";
+        } else if (this.isOldFights()) {
+            return "old_";
+        } else if (this.isIncomingFights()) {
+            return "inc_";
+        } else if (this.isOutgoingFights()) {
+            return "out_";
+        } else if (this.isBlacklist()) {
+            return "bl_";
+        }
+
+        return "";
+    };
+
+    return Mode;
+};
+
+TableManager.init = function() {
+
+    TableManager.used = false;
+    TableManager.tables = new Array();
+    TableManager.prefix = '';
+
+    TableManager.addTable = function(table) {
+        if (!TableManager.used) {
+            TableManager.prefix = table.mode.getPrefix();
+        }
+        TableManager.used = true;
+        table.id = (new Date()).getTime();
+        TableManager.tables.push(table);
+    };
+
+    TableManager.removeTable = function(table) {
+        var a = new Array();
+        for (var i=0; i < TableManager.tables.length; i++) {
+            if (TableManager.tables[i].id != table.id) {
+                a.push(TableManager.tables[i]);
+            }
+        }
+        TableManager.tables = a;
+    };
+
+    TableManager.getJobCnt = function() {
+        var j = 0;
+        for (var i=0; i < TableManager.tables.length; i++) {
+            j += TableManager.tables[i].jobCnt;
+        }
+        return j;
+    };
+
+    TableManager.isRendering = function() {
+        var h = false;
+        for (var i=0; i < TableManager.tables.length && !h; i++) {
+            h |= TableManager.tables[i].rendering;
+        }
+        return h;
+    };
+
+    TableManager.getAllFinished = function() {
+        return (TableManager.used &&
+                TableManager.tables.length == 0);
+    };
+
+    TableManager.getFirstPrefix = function() {
+        return TableManager.prefix;
+    };
+
+    TableManager.runHighscore = function() {
+        if (UrlHandler.isPreferredAttackUrl()) {
+            var pamode = new AioMode();
+            pamode.setType(pamode.modePreferredBums);
+
+            var patable = new AioTable(pamode);
+            patable.run();
+        } else if (UrlHandler.isAllInConfigUrl()) {
+            var pamode = new AioMode();
+            pamode.setType(pamode.modeAllInConfig);
+
+            var patable = new AioTable(pamode);
+            patable.run();
+        } else if (UrlHandler.isDownfightersAttackUrl()) {
+            var pamode = new AioMode();
+            pamode.setType(pamode.modeDownfighters);
+
+            var patable = new AioTable(pamode);
+            patable.run();
+        } else if (UrlHandler.isUpfightersAttackUrl()) {
+            var pamode = new AioMode();
+            pamode.setType(pamode.modeUpfighters);
+
+            var patable = new AioTable(pamode);
+            patable.run();
+        } else if (Registry.hasObject("AioSuperSearch")) {
+            AioSuperSearch.supersearch = UrlHandler.urlGetParam("supersearch", AioSuperSearch.supersearch);
+            AioSuperSearch.showbyid = UrlHandler.urlGetParam("showbyid", AioSuperSearch.showbyid);
+
+            if (Config.erlaube_supersearch && AioSuperSearch.supersearch) {
+
+                Config.supersearch_suche_geld = Number(UrlHandler.urlGetParam("markmoney", Config.supersearch_suche_geld));
+                Config.supersearch_mpl = Number(UrlHandler.urlGetParam("super_mpl", Config.supersearch_mpl));
+                Config.supersearch_dabei_ab = UrlHandler.urlGetParam("reg_earliest", Config.supersearch_dabei_ab);
+                Config.supersearch_dabei_bis = UrlHandler.urlGetParam("reg_latest", Config.supersearch_dabei_bis);
+
+                var ssmode = new AioMode();
+                ssmode.setType(ssmode.modeSuperSearch);
+
+                var sstable = new AioTable(ssmode);
+                sstable.run();
+            } else if (AioSuperSearch.showbyid) {
+                var idmode = new AioMode();
+                idmode.setType(idmode.modeShowById);
+
+                var idtable = new AioTable(idmode);
+                idtable.run();
+            } else {
+                SuperSearchLinks.addLink();
+
+                var mode = new AioMode();
+                mode.setType(mode.modeHighscore);
+
+                var table = new AioTable(mode);
+                table.run();
+            }
+        } else {
+            var mode = new AioMode();
+            mode.setType(mode.modeHighscore);
+
+            var table = new AioTable(mode);
+            table.run();
+        }
+    };
+
+    TableManager.runProfile = function() {
+        var elems = BaseLib.getElementsByClassNameForElements('a', 'tooltip_pl');
+        if (elems) {
+            for (var i = 0; i < elems.length; i++) {
+                if (elems[i].innerHTML.search(Language.selbsterstelltesHaustier) != -1) {
+                    elems[i].style.display = "inline";
+                    elems[i].style.textDecoration = "none";
+                    elems[i].style.width = "240px";
+                    elems[i].style.paddingLeft = "280px";
+                    elems[i].style.paddingTop = "20px";
+                    elems[i].innerHTML = elems[i].innerHTML.replace("Klicke hier um auch Dir ein eigenes Haustier zu erstellen", "");
+                }
+            }
+        }
+
+        var mode = new AioMode();
+        mode.setType(mode.modeUserProfile);
+
+        var p = document.getElementById("content");
+        var div = document.createElement('div');
+        div.setAttribute('style', 'width: 100%;');
+        div.setAttribute('align', 'center');
+        p.appendChild(div);
+
+        var table = new AioTable(mode,
+                                 Config.zeige_bandenmitglieder ? "Bandenübersicht" : "Pennerdetails",
+                                 div);
+        table.run();
+    };
+
+    TableManager.runGangProfile = function() {
+        if (!Config.zeige_bandenmitglieder) {
+            return;
+        }
+
+        var mode = new AioMode();
+        mode.setType(mode.modeGangProfile);
+        var s = document.createElement('span');
+        document.getElementById("content").appendChild(s);
+
+        var table = new AioTable(mode,
+                                 "Bandenübersicht",
+                                 s);
+        table.run();
+    };
+
+    TableManager.onRunlevel = function(runlevel) {
+        if (runlevel == 60) {
+            if (UrlHandler.isHighscoreUrl()) {
+                TableManager.runHighscore();
+            } else if (UrlHandler.isProfileUserUrl()) {
+                TableManager.runProfile();
+            } else if (UrlHandler.isProfileGangUrl()) {
+                TableManager.runGangProfile();
+            }
+        }
+    };
+
+};
+
+var AioSetter = function(mode, uid) {
+
+    var Setter = new Object();
+
+    Setter.mode = mode;
+    Setter.uid = uid;
+    Setter.prefix = mode.getPrefix();
+
+    Setter.getPetDetails = function(petNo) {
+        return Language.getPetDetailsByImg(petNo);
+    };
+
+    Setter.setPet = function(img, name) {
+        var tablePrefix = this.prefix;
+        var petData = this.getPetDetails(img);
+        var myDiv = document.createElement("div");
+        if (img == null) {
+            myDiv.innerHTML = 'X';
+        } else if (img == '') {
+            myDiv.innerHTML = name;
+        } else if (petData == null) {
+            var imgName = UrlHandler.petUrl + img + ".jpg";
+            myDiv.innerHTML = "<img width=\""+ Config.groesse_tierbild + "px\" height=\"" + Math.round(Config.groesse_tierbild/UrlHandler.haustierFaktor) + "px\" src=\"" + imgName + "\" />";
+        } else {
+            var imgName = UrlHandler.petUrl + img + ".jpg";
+            var img = UIHelpers.createMouseOverImage(imgName, tablePrefix + "pet_details_" + this.uid, Config.groesse_tierbild, Math.round(Config.groesse_tierbild/UrlHandler.haustierFaktor), null);
+            var div = UIHelpers.createInfoDiv(tablePrefix + "pet_details_" + this.uid, imgName, petData.name,
+                                              "<span class=\"att\">" + petData.att + "</span> <span class=\"def\">" + petData.def + "</span> <span class=\"mitleid\">" + petData.mit + "</span>", null);
+
+            myDiv.appendChild(img);
+            myDiv.appendChild(div);
+        }
+        var elem = top.document.getElementById(tablePrefix+'pet_of_'+this.uid);
+        if (elem) {
+            elem.innerHTML = "";
+            elem.appendChild(myDiv);
+        }
+    };
+
+    Setter.setMoney = function(val) {
+        var elem = top.document.getElementById(this.prefix+'sig_'+this.uid);
+        if (elem) {
+            elem.innerHTML = val +' <br>' + elem.innerHTML;
+        }
+    };
+
+    Setter.setRegDate = function(val) {
+        var elem = top.document.getElementById(this.prefix+'name_of_'+this.uid);
+        var span = document.createElement("span");
+        if (elem && val != "") {
+            var color = "7d7d7d";
+            if (BaseLib.getDateAsNumber(Config.markiere_dabei_vor) > BaseLib.getDateAsNumber(val)) {
+                color = "ff7d7d";
+            } else if (BaseLib.getDateAsNumber(Config.markiere_dabei_nach) < BaseLib.getDateAsNumber(val)) {
+                color = "7dff7d";
+            }
+	    val = val.substr(0, 6) + val.substr(8, 2);
+            var s = '&nbsp;<span style="color:#' + color + ';font-size:10px;"><b>' + val + '</b></span>';
+            span.innerHTML = s;
+            elem.appendChild(span);
+        }
+    };
+
+    Setter.setPoints = function(position, val) {
+        var elem = top.document.getElementById(this.prefix+'points_of_'+this.uid);
+        if (elem) {
+            var setSimple = function(val) {
+                var pi = BaseLib.formatNr(val, 3);
+                elem.innerHTML = '<nobr>' + pi.value + ' ' + pi.unit + '</nobr>';
+            };
+
+            var setComparing = function(val, previous) {
+                if (BaseLib.isEmpty(previous)) {
+                    setSimple(val);
+                    return;
+                }
+                var p = BaseLib.parseNr(previous);
+                var pv = BaseLib.formatNr(p.value, 3);
+                var s = '<nobr>' + pv.value + ' ' + pv.unit + '</nobr>';
+                var i = p.value;
+                s = s + '<br>';
+                if (i > val) s = s + '<span style="color:#ff7d7d;font-size:'+Config.schriftgroesse+'px;">';
+                if (i == val) s = s + '<span style="font-size:'+Config.schriftgroesse+'px;">+-';
+                if (i < val) s = s + '<span style="color:#ffff7d;font-size:'+Config.schriftgroesse+'px">+';
+                var pi = BaseLib.formatNr(val-i, 3);
+                s = s + pi.value + ' ' + pi.unit + '</span>';
+                elem.innerHTML = s;
+            };
+
+            var setFull = function(val, previous) {
+                if (BaseLib.isEmpty(previous)) {
+                    setSimple(val);
+                    return;
+                }
+                var p = BaseLib.parseNr(previous);
+                var pv = BaseLib.formatNr(p.value, 3);
+                var s = '<nobr>&nbsp;&nbsp;&nbsp;' + pv.value + ' ' + pv.unit + '</nobr>';
+                var i = p.value;
+                s = s + '<br><nobr>';
+                if (i > val) s = s + '<span style="color:#ff7d7d;font-size:'+Config.schriftgroesse+'px;">&nbsp;';
+                if (i == val) s = s + '<span style="font-size:'+Config.schriftgroesse+'px;">&nbsp;+-';
+                if (i < val) s = s + '<span style="color:#ffff7d;font-size:'+Config.schriftgroesse+'px">&nbsp;+';
+                var pi = BaseLib.formatNr(val-i, 3);
+                s = s + pi.value + ' ' + pi.unit + '</span></nobr>';
+                s += '<br>';
+                var pi = BaseLib.formatNr(val, 3);
+                s += '<nobr>=&nbsp;' + pi.value + ' ' + pi.unit + '</nobr>';
+                elem.innerHTML = s;
+            };
+
+            var setParsing = function(val, show) {
+                var p = BaseLib.extractNumber(position);
+                if (!p) {
+                    setSimple(val);
+                    return;
+                }
+
+                var page = Math.floor(((p - 1) / GameType.usersPerHsPage) + 1);
+                var f = function(req) {
+                    if (req.readyState == 4 && req.status == 200) {
+                        var search = [ "up", "down", "neutral" ];
+                        for (var i = 0; i < search.length; i++) {
+                            var s = BaseLib.getStringBetweenTags(req.responseText, '<td class="col1 ' + search[i] + '">'+p+'.</td>', '</tr>');
+                            if (!BaseLib.isEmpty(s)) break;
+                        }
+                        var previous = BaseLib.getStringBetweenTags(s, '<td class="col5" title="None">', '</td>');
+                        show(val, previous);
+                    }
+                };
+                BaseLib.xmlhttpRequest(UrlHandler.createHighscorePage(page), f, true, 30*60);
+            };
+
+            if (Config.zeige_punkte == "alles") {
+                if (BaseLib.isEmpty(elem.innerHTML)) {
+                    setParsing(val, setFull);
+                } else {
+                    setFull(val, elem.innerHTML);
+                }
+            } else if (Config.zeige_punkte == "normal") {
+                if (BaseLib.isEmpty(elem.innerHTML)) {
+                    setParsing(val, setComparing);
+                } else {
+                    setComparing(val, elem.innerHTML);
+                }
+            } else {
+                setSimple(val);
+            }
+        }
+    };
+
+    Setter.setAwards = function(val) {
+        var elem = top.document.getElementById(this.prefix+'name_of_'+this.uid);
+        var span = document.createElement("span");
+        if (elem) {
+            span.innerHTML = val;
+            elem.appendChild(span);
+        }
+    };
+
+    Setter.setBlacklist = function(blacklisted, rageBlacklisted) {
+        var tablePrefix = this.prefix;
+        var elem = top.document.getElementById(tablePrefix+'blacklist_of_'+this.uid);
+
+        if (!elem) return;
+
+        // create infrastructure
+        elem.innerHTML = "";
+        var table = document.createElement('table');
+        table.setAttribute('style', 'width: 1px; background: none; padding-bottom: 0px;');
+        elem.appendChild(table);
+        var tr = document.createElement('tr');
+        table.appendChild(tr);
+        var td = document.createElement('td');
+        td.setAttribute('style', 'background: none; border: none; padding-bottom: 0px; background: none; padding-top: 0px;');
+        tr.appendChild(td);
+
+        // create blacklist item
+        var newDiv = UIHelpers.createMouseOverDiv(tablePrefix + "profil_blacklist_" + this.uid, null, null, null);
+        td.appendChild(newDiv);
+
+        var newImg = document.createElement("img");
+        newImg.src = blacklisted ? GM_getResourceURL("whitelist.jpg") : GM_getResourceURL("blacklist.jpg");
+        var _uid = this.uid;
+        var txt;
+        if (blacklisted) {
+            newImg.src = GM_getResourceURL("blacklist.jpg");
+            newImg.addEventListener('click', function() { Blacklist.set(_uid, Blacklist.eBlRage, UrlHandler.doReload); }, true);
+            txt = "Der Penner steht auf deiner Blacklist zum Kampf und wird vom Bot nicht berücksichtigt.<br><br>" +
+                  "Klicke auf das Bild, um ihn bei Wut anzugreifen, aber bei Nicht-Wut zu blacklisten.";
+        } else if (rageBlacklisted) {
+            newImg.src = GM_getResourceURL("blacklistRage.jpg");
+            newImg.addEventListener('click', function() { Blacklist.set(_uid, Blacklist.eBlNone, UrlHandler.doReload); }, true);
+            txt = "Der Penner steht auf deiner Blacklist (nur bei Nicht-Wut) zum Kampf und wird vom Bot nicht berücksichtigt.<br><br>" +
+                  "Klicke auf das Bild, um ihn von der Blacklist zu entfernen.";
+        } else {
+            newImg.src = GM_getResourceURL("whitelist.jpg");
+            newImg.addEventListener('click', function() { Blacklist.set(_uid, Blacklist.eBlNormal, UrlHandler.doReload); }, true);
+            txt = "Klicke aufs Bild, um den Penner zur Blacklist zum Kampf hinzuzufügen.<br><br>" +
+                  "Damit wird er vom Bot nicht mehr berücksichtigt.";
+        }
+        newDiv.setAttribute("class", "item_pic");
+        newDiv.setAttribute("style", "text-align: center;");
+        newDiv.appendChild(newImg);
+
+        var popupDiv = UIHelpers.createInfoDiv(tablePrefix + "profil_blacklist_" + this.uid, null, "Kampf Blacklist", txt, null);
+        elem.appendChild(popupDiv);
+
+        // create preferred item
+        if (!Registry.hasObject("BotManager")) {
+            return;
+        }
+
+        tr = document.createElement('tr');
+        table.appendChild(tr);
+        td = document.createElement('td');
+        td.setAttribute('style', 'background: none; border: none; padding-bottom: 0px; background: none; padding-top: 0px;');
+        tr.appendChild(td);
+
+        newDiv = UIHelpers.createMouseOverDiv(tablePrefix + "profil_preferred_" + this.uid, null, null, null);
+        td.appendChild(newDiv);
+        var isNew = !PreferredFights.contains(_uid);
+
+        newImg = document.createElement("img");
+        newImg.src = isNew ? GM_getResourceURL("fightApplySmall.png") : GM_getResourceURL("fightCancelSmall.png");
+        newDiv.setAttribute("class", "item_pic");
+        newDiv.setAttribute("style", "text-align: center;");
+        newDiv.appendChild(newImg);
+        txt = isNew ?
+                    'Als nächstes mit Angreifen <img src="'+UrlHandler.smilies_wink+'">' :
+                    'Aus der Opferliste austragen';
+
+        var handler = isNew ?
+                    function() { PreferredFights.add(_uid); UrlHandler.doReload(); } :
+                    function() { PreferredFights.remove(_uid); UrlHandler.doReload(); };
+        newImg.addEventListener('click', handler, true);
+
+        var popupDiv = UIHelpers.createInfoDiv(tablePrefix + "profil_preferred_" + this.uid, null, "Bevorzugte Opfer", txt, null);
+        elem.appendChild(popupDiv);
+    };
+
+    Setter.setOnline = function(online) {
+        var tablePrefix = this.prefix;
+        var elem = top.document.getElementById(tablePrefix+'onlinestate_of_'+this.uid);
+        var on_img = UrlHandler.icoBuddyOn;
+        var off_img = UrlHandler.icoBuddyOff;
+        var imgName = online ? on_img : off_img;
+        var txt = online ? "online" : "offline";
+        if (elem) {
+            var img = UIHelpers.createMouseOverImage(imgName, tablePrefix + "profil_online_" + this.uid, null, null, null);
+            var div = UIHelpers.createInfoDiv(tablePrefix + "profil_online_" + this.uid, null, txt, null, null);
+
+            elem.innerHTML = "";
+            elem.appendChild(img);
+            elem.appendChild(div);
+        }
+    };
+
+    Setter.setFightStat = function(savedStats) {
+        var tablePrefix = this.prefix;
+        var elem = top.document.getElementById(tablePrefix+'fights_to_'+this.uid);
+        if (elem) {
+            if (savedStats) {
+                var wonInImg = UrlHandler.dotsUrl+'1_1.gif';
+                var wonOutImg = UrlHandler.dotsUrl+'1_0.gif';
+                var wonImg = wonOutImg;
+                var lostInImg = UrlHandler.dotsUrl+'0_1.gif';
+                var lostOutImg = UrlHandler.dotsUrl+'0_0.gif';
+                var lostImg = lostInImg;
+                var remisInImg = UrlHandler.dotsUrl+'2_1.gif';
+                var remisOutImg = UrlHandler.dotsUrl+'2_0.gif';
+                var remisImg = remisOutImg;
+                var evadeImg = UrlHandler.dotsUrl+'evade.gif';
+
+                var newDiv = UIHelpers.createMouseOverDiv(tablePrefix + "profil_fight_stats_" + this.uid, null, null, null);
+                elem.innerHTML = "";
+                elem.appendChild(newDiv);
+
+                var txt = "" +
+                    '<table style="width:100%">' +
+                    '<tr><td><img src="' + wonOutImg + '"></td><td>Gewonnen (Ausgehend): </td><td>' + savedStats.won_out + '</td></tr>' +
+                    '<tr><td><img src="' + wonInImg + '"></td><td>Gewonnen (Einkommend): </td><td>' + savedStats.won_in + '</td></tr>' +
+                    '<tr><td><img src="' + lostOutImg + '"></td><td>Verloren (Ausgehend): </td><td>' + savedStats.lost_out + '</td></tr>' +
+                    '<tr><td><img src="' + lostInImg + '"></td><td>Verloren (Einkommend): </td><td>' + savedStats.lost_in + '</td></tr>' +
+                    '<tr><td><img src="' + remisOutImg + '"></td><td>Unentschieden (Ausgehend): </td><td>' + savedStats.remis_out + '</td></tr>' +
+                    '<tr><td><img src="' + remisInImg + '"></td><td>Unentschieden (Einkommend): </td><td>' + savedStats.remis_in + '</td></tr>' +
+                    '<tr><td><img src="' + evadeImg + '"></td><td>Ausgewichen: </td><td>' + savedStats.evade + '</td></tr>' +
+                    '</table>';
+                var popupDiv = UIHelpers.createInfoDiv(tablePrefix + "profil_fight_stats_" + this.uid, null, "Kampfstatistik", txt, null);
+                elem.appendChild(popupDiv);
+
+                newDiv.innerHTML = "";
+                var won = savedStats.won_out + savedStats.won_in;
+                var lost = savedStats.lost_out + savedStats.lost_in;
+                var remis = savedStats.remis_out + savedStats.remis_in;
+                if (won > 0)   newDiv.innerHTML += '<nobr><img src="' + wonImg   + '">' + won   + '</nobr><br>';
+                if (lost > 0)  newDiv.innerHTML += '<nobr><img src="' + lostImg  + '">' + lost  + '</nobr><br>';
+                if (remis > 0) newDiv.innerHTML += '<nobr><img src="' + remisImg + '">' + remis + '</nobr><br>';
+                if (savedStats.evade > 0 ) newDiv.innerHTML += '<nobr><img src="' + evadeImg + '">' + savedStats.evade + '</nobr><br>';
+            } else {
+                elem.innerHTML = "-/-";
+            }
+        }
+    };
+
+    Setter.setLetsFight = function() {
+        var oobj = this;
+        if (LetsFight.letsfight == null) {
+            LetsFight.initialize(function() { oobj.setLetsFight(); });
+            return;
+        }
+
+        var tablePrefix = this.prefix;
+        var elem = top.document.getElementById(tablePrefix+'letsfight_to_'+this.uid);
+        if (elem) {
+            var f = LetsFight.getLetsFightValueByUID(this.uid);
+            if (f.power) {
+                elem.innerHTML = '<span class="att">' + f.power.att + '</span>' +
+                                 '<br><span class="def">' + f.power.def + '</span>';
+                elem.setAttribute('title', 'Kampfstaerke: ' + PennerInfo.calcLetsFight(f.power.att, f.power.def) +
+                                           ' gespeichert vor: ' + BaseLib.timestampToDate(f.age * 1000) + ' (hr:mm:ss)');
+            } else {
+                elem.innerHTML = '-/-';
+            }
+        }
+    };
+
+    Setter.setPlunder = function(plunderImg, plunderText, plunderData) {
+        var tablePrefix = this.prefix;
+        if (plunderImg == null || plunderText == null) return;
+
+        var elem = top.document.getElementById(tablePrefix+'plunder_of_'+this.uid);
+        if (elem) {
+            var img = UIHelpers.createMouseOverImage(plunderImg, tablePrefix + "profil_plunder_" + this.uid, null, null, "item_pic");
+            var div = UIHelpers.createInfoDiv(tablePrefix + "profil_plunder_" + this.uid, plunderImg, plunderText, plunderData, null);
+
+            elem.innerHTML = "";
+            elem.appendChild(img);
+            elem.appendChild(div);
+        }
+    };
+
+    Setter.setGangDetails = function(bandenid, members, points) {
+        var tablePrefix = this.prefix;
+        var elem = top.document.getElementById(tablePrefix+'gang_of_'+this.uid);
+        if (!elem) return;
+        var s = '';
+        s = elem.innerHTML.replace("&nbsp;", "") + '<br>';
+        s = s + '<span style="font-size:'+Config.schriftgroesse+'px;">';
+        s = s + '<a href="'+UrlHandler.createProfilUrlGang(bandenid)+'">' + members+'Mitgl.</a>';
+        if (points) s = s + '&nbsp;&#216;' + Math.round(points/members);
+        s = s +'</span>&nbsp;';
+        elem.innerHTML = s;
+    };
+
+    Setter.setDeleted = function(deleted) {
+        var elem = top.document.getElementById(this.prefix+'name_of_'+this.uid);
+        if (elem && deleted) {
+            elem.innerHTML = '<span style="color: red; font-weight: bold;">Gelöscht!</span><br>' + elem.innerHTML;
+        }
+        elem = top.document.getElementById(this.prefix+'fight_to_'+this.uid);
+        if (elem && deleted) {
+            this.createNoFightImage(elem, "Der Penner wurde gelöscht!", null);
+        }
+    };
+
+    Setter.createNoFightImage = function(elem, reason, reason2) {
+        var tablePrefix = this.prefix;
+        var img = UIHelpers.createMouseOverImage(UrlHandler.icoMailDel, tablePrefix + "nofight_to_" + this.uid, 16, 16, null);
+        var div = UIHelpers.createInfoDiv(tablePrefix + "nofight_to_" + this.uid, UrlHandler.icoMailDel, "Angreifen nicht erlaubt", reason, reason2);
+        elem.innerHTML = "";
+        elem.appendChild(img);
+        elem.appendChild(div);
+    };
+
+    Setter.checkFightDate = function(savedStats) {
+        var tablePrefix = this.prefix;
+        var elem = top.document.getElementById(tablePrefix+'fight_to_'+this.uid);
+        if (elem && savedStats && savedStats.lastOut) {
+            var now = BaseLib.getCurrentTimestamp();
+            var last = BaseLib.timestampFromDate(savedStats.lastOut);
+            var diff = now - last;
+            var h36 = GameType.fightWaitTime * 60 * 60;
+
+            if (diff < h36) {
+                this.createNoFightImage(elem, "Dein letzter Angriff ist<br>weniger als " + GameType.fightWaitTime + " Stunden her", null);
+            }
+        }
+    };
+
+    Setter.checkFightPoints = function(hisPoints) {
+        var tablePrefix = this.prefix;
+        var elem = top.document.getElementById(tablePrefix+'fight_to_'+this.uid);
+        if (elem && (hisPoints < UserInfo.minPoints || hisPoints > UserInfo.maxPoints)) {
+            this.createNoFightImage(elem, "Der Penner ist nicht in<br>deinem Punktebereich.", "Punkte: " + hisPoints + "<br>Min: " + UserInfo.minPoints + "<br>Max: " + UserInfo.maxPoints);
+        }
+    };
+
+    Setter.checkFightGang = function(hisGang) {
+        var tablePrefix = this.prefix;
+        var elem = top.document.getElementById(tablePrefix+'fight_to_'+this.uid);
+        if (elem && hisGang == UserInfo.gang && UserInfo.gang != 0) {
+            this.createNoFightImage(elem, "Der Penner ist in deiner Bande, du Depp!", null);
+        }
+    };
+
+    Setter.checkFightAlliedGang = function(hisGang) {
+        var tablePrefix = this.prefix;
+        var elem = top.document.getElementById(tablePrefix+'fight_to_'+this.uid);
+        if (!elem) return;
+        for (var i = 0; i < UserInfo.ext.alliedGangs.length; i++) {
+            if (hisGang == UserInfo.ext.alliedGangs[i]) {
+                this.createNoFightImage(elem, "Der Penner ist in einer verbuendeten Bande!", null);
+                return;
+            }
+        }
+    };
+
+    return Setter;
+};
+
+var AioRow = function(mode, uid, callback, callee) {
+
+    var Row = new Object();
+
+    Row.mode = mode;
+    Row.uid = uid;
+    Row.callback = callback;
+    Row.callee = callee;
+    Row.prefix = mode.getPrefix();
+    Row.gid = 0;
+    Row.setter = null;
+
+    Row.init = function() {
+        this.setter = new AioSetter(this.mode, this.uid);
+    };
+
+    Row.setLoading = function() {
+        var elem = top.document.getElementById(this.prefix+'pet_of_'+this.uid);
+        if (elem) {
+            elem.innerHTML = UIHelpers.getImageHtml(GM_getResourceURL("processing.gif"), "Loading...");
+        }
+    };
+
+    Row.getSig = function() {
+        var elem = top.document.getElementById(this.prefix+'sig_'+this.uid);
+        if (elem) {
+            var h = (Config.use_api ? '16' : '30');
+            var t = (Config.use_api ? '-42' : '-25');
+            var i = '<img style="position: relative; top: '+t+'px; left: -121px;" src='+ UrlHandler.sigUrl + this.uid +'.jpg></img>';
+
+            elem.innerHTML = '<div style="align: left; overflow: hidden; width: '+Config.groesse_signatur+'px; height: '+h+'px;">' + i + '</div>';
+        }
+    };
+
+    Row.runProfile = function(callback) {
+
+        var url = UrlHandler.createProfilUrlUser(this.uid);
+
+        if (Config.kein_cache) {
+            url += (url.match(/\?/) == null ? "?" : "&") + "ts=" + (new Date()).getTime();
+        }
+
+        var f = function(req, oobj) {
+            if (req.readyState == 4) {
+                if (req.status == 200) {
+                    var profCnt = 1;
+                    var profCntFin = function() {
+                        if (--profCnt == 0 && callback) {
+                            callback();
+                        }
+                    }
+                    oobj.determinePetNo(req.responseText);
+                    if (oobj.mode.zeige_bandenstats) {
+                        oobj.gid = oobj.determineGangId(req.responseText);
+                        if (Config.use_api) {
+                            profCnt++;
+                            BaseLib.setTimeoutEx(function() { oobj.runGangPageApi(profCntFin); }, 1);
+                        } else {
+                            profCnt++
+                            oobj.runGangPage();
+                            profCntFin();
+                        }
+                    }
+                    profCnt++
+                    BaseLib.setTimeoutEx(function() {oobj.processProfilePage(req.responseText, profCntFin); }, 1);
+                    // remove 1 from init
+                    profCnt--;
+                } else {
+                    if (callback) callback();
+                }
+            }
+        };
+
+        BaseLib.xmlhttpRequest(url, f, true, null, this);
+    };
+
+    Row.runProfileApi = function(callback) {
+        var url = UrlHandler.createApiUrlUser(this.uid);
+        if (Config.kein_cache) {
+            url += (url.match(/\?/) == null ? "?" : "&") + "ts=" + (new Date()).getTime();
+        }
+
+        var f = function(req, oobj) {
+            if (req.readyState == 4 && req.status == 200) {
+                if (Config.use_api) {
+                    oobj.processProfileApiPage(req.responseText, callback);
+                }
+            }
+        };
+
+        BaseLib.xmlhttpRequest(url, f, true, null, this);
+    };
+
+    Row.processProfilePage = function(profileSource, callback) {
+        // deleted?
+        this.setter.setDeleted(profileSource.search('<td id="infotext" class="errmsg">') != -1);
+
+        // awards
+        var custom = '';
+        var custom2 = '';
+        var custom3 = '<a class="tooltip" href="#">';
+        var rest = '';
+        var pc3 = profileSource.search(custom3);
+        if (pc3 != -1) {
+            rest = profileSource.substr(pc3);
+        }
+        custom = '<img src="'+UrlHandler.pgMediaUrl+'img/pv4/'+'icons/awards/';
+        custom2 = '<td width="93%" style="vertical-align:middle;">';
+        var pos = rest.search(custom);
+        var a = '&nbsp;<br><span class="zeileB">';
+        for (var r=0; r < 30 && pos != -1; r++) {
+            // parse description
+            var rest_m = rest.substr(pos);
+            rest_m = custom3 + rest_m;
+            var e = rest_m.search("/a>");
+            var w = rest_m.substr(0, e + 3);
+            // parse main title
+            var e1 = rest_m.search(custom2) + custom2.length;
+            var w1 = rest_m.substr(e1);
+            var e2 = w1.search('</td>');
+            w1 = w1.substr(0, e2);
+            rest = rest.substr(pos + e, rest.length - pos - e);
+            // go on for the next round
+            pos = rest.search(custom);
+            // put everything together
+            var s = w.search('<span>');
+            a += w.substr(0, s + 6).replace('width="50" height="50"', 'width="20" height="20"');
+            a += w1.replace('<span style="font-size: 9px; color: #666">', '').replace('</span>', '');
+            a += '<br/><br/>';
+            a += w.substr(s + 6);
+        }
+        a += "</span>";
+        this.setter.setAwards(a);
+
+        this.setter.setBlacklist(Blacklist.isBlacklisted(this.uid), Blacklist.isRageBlacklisted(this.uid));
+
+        // online state
+        var custom = '<img src="'+UrlHandler.pgMediaUrl + 'img/pv4/'+'icons/on.png" title="Online" alt="Online" />';
+        var online = false;
+        if (profileSource.search(custom) != -1) {
+            online = true;
+        }
+        this.setter.setOnline(online);
+
+        // plunder
+        var plunderSearch = '<div class="tooltip_pl" style="display:block; position: relative; float:left; margin:10px;">';
+        var pos;
+        if ((pos = profileSource.search(plunderSearch)) != -1) {
+            var plunderContent = profileSource.substr(pos);
+            var custom = '<img src="'+UrlHandler.plunderImgUrl;
+            var spos;
+            if ((spos = plunderContent.search(custom)) != -1) {
+                var t = plunderContent.substr(spos);
+                var img = BaseLib.extractString(t, null, "\"", "\"", null, true, false);
+                var txt = BaseLib.extractString(t, null, "<strong>", "</strong>", null, true, false);
+                var pData = BaseLib.extractString(t, pData, "<div id=\"item_stats\">", "</div>", null, false, true);
+                pData = BaseLib.extractString(t, pData, "<div id=\"item_add\">", "</div>", null, false, true);
+
+                this.setter.setPlunder(img, txt, pData);
+            }
+        }
+
+        var savedStats = FightStats.read(this.uid, false);
+        this.setter.setFightStat(savedStats);
+        this.setter.setLetsFight();
+        if (Config.disableFailingFights) {
+            this.setter.checkFightDate(savedStats);
+        }
+        if (callback) callback();
+    };
+
+    Row.processProfileApiPage = function(profileSource, callback) {
+        if (Config.disableAlliedGangFights && !UserInfo.ext.alliedGangs) {
+            var oobj = this;
+            BaseLib.setTimeoutEx(function () { oobj.processProfileApiPage(profileSource, callback); }, 100);
+            return;
+        }
+        // money
+        var w = BaseLib.getXMLTag(profileSource,"<cash>");
+        if (w != '') {
+            var g = w / 100;
+            var s = g + '&#8364;';
+            if (g > Config.markiere_viel_geld) {
+                s = '<span style="color:#7dff7d;font-size:11px;"><b>' + s + '</b></span>';
+                // BaseLib.setTimeoutEx(function () { akt_td.previousSibling.onmouseover(); }, 200);
+            }
+            this.setter.setMoney(s);
+        } else {
+            this.setter.setMoney("X");
+        }
+        // reg date
+        var w = BaseLib.getXMLTag(profileSource,"<reg_since>");
+        this.setter.setRegDate(w);
+        var points = BaseLib.getXMLTag(profileSource,"<points>");
+        var position = BaseLib.getXMLTag(profileSource,"<position>");
+        this.setter.setPoints(position, points);
+
+        if (Config.disableFailingFights) {
+            this.setter.checkFightPoints(points);
+        }
+
+        var gang = BaseLib.getXMLTag(BaseLib.getXMLTag(profileSource, "<gang>"), "<id>");
+        if (Config.disableGangFights) {
+            this.setter.checkFightGang(gang);
+        }
+        if (Config.disableAlliedGangFights) {
+            this.setter.checkFightAlliedGang(gang);
+        }
+        if (callback) callback();
+    };
+
+    Row.determinePetNo = function(profileSource) {
+        var searchstring = '<div style="float:left; margin-top:12px;">';
+        var p = BaseLib.getStringBetweenTags(profileSource, searchstring, "</td>");
+        var petUrl = '<img src="' + UrlHandler.petUrl;
+        var off = petUrl.length;
+        var pos = p.search(petUrl);
+        if (pos == -1) {
+            var custom = BaseLib.getStringBetweenTags(p, Language.selbsterstelltesHaustier + " <b>", "</b>");
+            if (!custom || custom == '') {
+                this.setter.setPet(null, '');
+                return;
+            }
+            var petName = custom.trim();
+            var cp = '';
+            var pet = Language.getPetDetailsBySearchString(petName);
+            if (pet) {
+                cp = pet.img;
+            }
+            this.setter.setPet(cp, petName);
+            return;
+        }
+        var rest = p.substr(pos + off, 16);
+        var pnt = rest.search(/\./);
+        this.setter.setPet(rest.substr(0, pnt), '');
+    };
+
+    Row.determineGangId = function (gangSource) {
+        var custom = '/' + UrlHandler.bandenProfilUrlSuffix;
+        var pos = gangSource.search(custom);
+        if (pos == -1) {
+            return;
+        }
+        var rest_m = gangSource.substr(pos + custom.length, 32);
+        var pnt = rest_m.search(/\//);
+        var bande = rest_m.substr(0, pnt);
+        return bande;
+    };
+
+    Row.runGangPageApi = function(callback) {
+        var url = UrlHandler.createApiUrlGang(Row.gid);
+        if (Config.kein_cache) {
+            url += (url.match(/\?/) == null ? "?" : "&") + "ts=" + (new Date()).getTime();
+        }
+
+        var f = function(req, oobj) {
+            if (req.readyState == 4 && req.status == 200) {
+                oobj.processGangApiPage(req.responseText, callback);
+            }
+        };
+
+        if (this.mode.zeige_bandenstats) {
+            BaseLib.xmlhttpRequest(url, f, true, null, this);
+        } else if (callback) {
+            callback();
+        }
+
+        return '';
+    };
+
+    Row.runGangPage = function() {
+        var url = UrlHandler.createProfilUrlGang(this.gid);
+        if (Config.kein_cache) {
+            url += (url.match(/\?/) == null ? "?" : "&") + "ts=" + (new Date()).getTime();
+        }
+
+        var f = function(req, oobj) {
+            if (req.readyState == 4 && req.status == 200) {
+                if (oobj.mode.zeige_bandenstats) oobj.processGangPage(req.responseText);
+            }
+        };
+
+        BaseLib.xmlhttpRequest(url, f, true, null, this);
+        return '';
+    };
+
+    Row.processGangPage = function(gangSource) {
+        // FIXME: this is crap and will probably not work!
+
+        var custom = Language.mitglieder;
+        var opos = gangSource.search(Language.buendnisse);
+        var rest_0 = '';
+
+        if (opos == -1) {
+            rest_0 = gangSource;
+        } else {
+            rest_0 = gangSource.substr(opos, gangSource.length-opos);
+        }
+
+        var rest_1 = rest_0.substr(opos - 8, 32);
+
+        var opos = rest_0.search(custom);
+        if (opos == -1) {
+            return;
+        }
+        var rest_1 = rest_0.substr(opos - 8, 32);
+
+        var pos = rest_1.search(">");
+        var pnt = 0;
+        var members = 0;
+
+        if (pos != -1) {
+            pnt = rest_1.search(Language.mitglieder);
+            members = rest_1.substr(pos+1, pnt-pos-1);
+        }
+
+        if (!(members > 0 && members < 31)) {
+            opos = opos+custom.length;
+            this.processGangPage(rest_0.substr(opos, rest_0.length-opos));
+            return;
+        }
+
+        var points = 0;
+        var s = rest_0.search("img/bande/admin.gif");
+        var rest = rest_0.substr(s, rest_0.length-s-1);
+
+        for (var i=1; i<members; i++) {
+            s = rest.search("\"right\">");
+            if (s == -1) { return; }
+            rest = rest.substr(s + 8, rest.length - s - 8);
+            pnt = rest.search("<");
+            var p = Number(rest.substr(0, pnt));
+            if (p > 0 && p < 1000000) points += p;
+        }
+        this.setter.setGangDetails(this.gid, Number(members), Number(points));
+    };
+
+    Row.processGangApiPage = function(gangSource, callback) {
+        var members = BaseLib.getXMLTag(gangSource,"<member_count>");
+        var points = BaseLib.getXMLTag(gangSource,"<points>");
+        if (points != '' || members != '') {
+            this.setter.setGangDetails(this.gid, Number(members), Number(points));
+        }
+        if (callback) callback();
+    };
+
+
+    Row.run = function() {
+        var oobj = this;
+        var processRow = function() {
+            var runCnt = 1;
+            var runCntFin = function() {
+                if (--runCnt == 0) {
+                    oobj.finished();
+                }
+            };
+            oobj.init();
+            oobj.getSig();
+            oobj.setLoading();
+            runCnt++;
+            oobj.runProfile(runCntFin);
+            if (Config.use_api) {
+                runCnt++;
+                oobj.runProfileApi(runCntFin);
+            }
+            // remove 1 from init
+            runCnt--;
+        };
+        BaseLib.setTimeoutEx(processRow, 1);
+    };
+
+    Row.finished = function() {
+        if (this.callback) this.callback(this.callee, this.uid);
+    };
+
+    return Row;
+};
+
+var AioTable = function(mode, heading, parent) {
+
+    var Table = new Object;
+
+    Table.mode = mode;
+    Table.table = null;
+    Table.finder = null;
+    Table.parent = (parent != undefined) ? parent : null;
+    Table.heading = heading;
+    Table.jobCnt = 0;
+    Table.rendering = false;
+
+    Table.initialize = function() {
+        this.table = this.mode.getTable();
+        this.sort = this.mode.getSorting();
+
+        if (this.mode.type == undefined) {
+            throw new Error("Spacken Alarm! type cannot be undefined!\nTabelle:" + this.heading);
+        }
+    };
+
+    Table.run = function() {
+        if (!District.initialized) {
+            var oobj = this;
+            BaseLib.setTimeoutEx(function () { oobj.run(); }, 100);
+            return;
+        }
+
+        if (this.mode.isSuperSearch()) {
+            if (Config.supersearch_suche_geld == 0) {
+                UIHelpers.status("### Suche nach:<br>### " + Config.supersearch_nps + " Penner(n)<br>### Datum &gt; " + Config.supersearch_dabei_ab);
+            } else {
+                UIHelpers.status("### Suche nach:<br>### " + Config.supersearch_nps + " Penner(n)<br>### Geld &gt; " + Config.supersearch_suche_geld + "&#8364");
+            }
+
+            var check = new Object();
+
+            check.money = Config.supersearch_suche_geld;
+            check.regdatefrom = Config.supersearch_dabei_ab;
+            check.regdateto = Config.supersearch_dabei_bis;
+            check.positionmin = 0;
+            check.positionmax = 0;
+            check.pointsmin = UrlHandler.urlGetParam(UrlHandler.highscoreMin) == undefined ?
+                                UserInfo.minPoints : Number(UrlHandler.urlGetParam(UrlHandler.highscoreMin));
+            check.pointsmax = UrlHandler.urlGetParam(UrlHandler.highscoreMax) == undefined ?
+                                UserInfo.maxPoints : Number(UrlHandler.urlGetParam(UrlHandler.highscoreMax));
+
+            AioSuperSearch.initialize (this.mode, check, this.finalizeSearch, this);
+            AioSuperSearch.run();
+
+        } else if (this.mode.isShowById()) {
+
+            var check = new Object();
+
+            check.money = 0;
+            check.regdatefrom = null;
+            check.regdateto = null;
+            check.positionmin = 1 << 30;
+            check.positionmax = 0;
+            check.pointsmin = UrlHandler.urlGetParam(UrlHandler.highscoreMin) == undefined ?
+                                UserInfo.minPoints : Number(UrlHandler.urlGetParam(UrlHandler.highscoreMin));
+            check.pointsmax = UrlHandler.urlGetParam(UrlHandler.highscoreMax) == undefined ?
+                                UserInfo.maxPoints : Number(UrlHandler.urlGetParam(UrlHandler.highscoreMax));
+
+            AioSuperSearch.initialize (this.mode, check, this.finalizeShowById, this);
+            AioSuperSearch.run();
+
+        } else if (this.mode.isHighscore()) {
+
+            if (Config.alternate_highscore) {
+
+                var oobj = this;
+                /* finalize find seems to fit... */
+                var ff = function(callee, users) {
+                    users = oobj.finder.extendUserInfoByHiPaInfos(users);
+                    oobj.finalizeFind(callee, users);
+                };
+
+                this.finder = new UserFinder(this.mode, null, ff, this);
+
+                var f = function (users) {
+                    oobj.finder.runHiPa(users.reverse());
+                };
+
+                var min = UrlHandler.urlGetParam(UrlHandler.highscoreMin, 0);
+                var max = UrlHandler.urlGetParam(UrlHandler.highscoreMax, 0);
+
+                if (min && max) {
+                    HighscoreParser.getByPointRangeAndPage(min, max, UrlHandler.getStartPageFromUrl(), f);
+                } else {
+                    HighscoreParser.getByHighscorePage(UrlHandler.getStartPageFromUrl(), f);
+                }
+
+            } else {
+                this.finalizeHighscore();
+            }
+
+        } else if (this.mode.isOldFights() ||
+                   this.mode.isIncomingFights() ||
+                   this.mode.isOutgoingFights()) {
+
+            this.finder = new UserFinder(this.mode, null, this.finalizeFight, this);
+            this.finder.runFight();
+        } else if (this.mode.isBlacklist()) {
+            this.finder = new UserFinder(this.mode, null, this.finalizeBlacklist, this);
+            this.finder.runBlacklist();
+        } else if (this.mode.isPreferredBums()) {
+            this.finder = new UserFinder(this.mode, null, this.finalizeFind, this);
+            this.finder.runPreferredBums();
+        } else if (this.mode.isAllInConfig()) {
+            this.finder = new UserFinder(this.mode, null, this.finalizeFind, this);
+            this.finder.runAllInConfig();
+        } else if (this.mode.isDownfighters()) {
+            this.finder = new UserFinder(this.mode, null, this.finalizeFind, this);
+            this.finder.runDownfighters();
+        } else if (this.mode.isUpfighters()) {
+            this.finder = new UserFinder(this.mode, null, this.finalizeFind, this);
+            this.finder.runUpfighters();
+        } else {
+            if (!this.parent) {
+                this.finished();
+                return;
+            }
+
+            this.createEmptyTable();
+            this.finder = new UserFinder(this.mode, null, this.finalizeFind, this);
+            this.finder.runProfile();
+        }
+    };
+
+    Table.createEmptyTable = function(id) {
+        if (!this.parent)
+            return;
+        if (id == undefined)
+            id = this.mode.getTableId();
+
+        var table = this.parent;
+        var html;
+        var tstyle = "font-size:11px; padding-left:3px; border-style:solid;border-width:1px;border-color: #272727;border-collapse:collapse;table-layout:auto;";
+        html  = "<div class=\"settingpoint\">\n";
+        html += "<h1>" + this.heading + "</h1><br />\n";
+        html += "<table width=\"534\" border=\"1\" class=\"list\" style=\"" + tstyle + "\" id=\"" +id + "\">\n";
+        html += "<thead><tr bgcolor=\"#272727\">\n";
+        html += "<th width=\"61\" align=\"left\" bgcolor=\"#272727\">Platz</th>\n";
+        html += "<th width=\"147\" align=\"left\" bgcolor=\"#272727\">Penner</th>\n";
+        html += "<th width=\"136\" align=\"left\" bgcolor=\"#272727\">Bande</th>\n";
+        html += "<th width=\"80\" align=\"left\" bgcolor=\"#272727\">Stadtteil</th>\n";
+        html += "<th width=\"100\" align=\"left\" bgcolor=\"#272727\">Punkte</th>\n";
+        html += "<th align=\"left\" bgcolor=\"#272727\">&nbsp;</th>\n";
+        html += "<th width=\"20\" align=\"left\" bgcolor=\"#272727\">&nbsp;</th>\n";
+        html += "<th width=\"20\" align=\"left\" bgcolor=\"#272727\">&nbsp;</th>\n";
+        html += "<th width=\"20\" align=\"left\" bgcolor=\"#272727\">&nbsp;</th>\n";
+        html += "<th width=\"20\" align=\"left\" bgcolor=\"#272727\">&nbsp;</th>\n";
+        html += "<th width=\"20\" align=\"left\" bgcolor=\"#272727\">&nbsp;</th>\n";
+        html += "<th width=\"20\" align=\"left\" bgcolor=\"#272727\">&nbsp;</th>\n";
+        html += "<th width=\"20\" align=\"left\" bgcolor=\"#272727\">&nbsp;</th>\n";
+        html += "<th width=\"20\" align=\"left\" bgcolor=\"#272727\">&nbsp;</th>\n";
+        html += "</thead></tr>\n";
+        html += '<tbody><tr><td></td><td>'+UIHelpers.getImageHtml(GM_getResourceURL("processing.gif"), "Loading...")+'</td></tr></tbody>\n';
+        html += "</table>\n";
+        html += "</div>\n";
+
+        var span = document.createElement('span');
+        span.innerHTML += html;
+        table.appendChild(span);
+        this.table = this.mode.getTable();
+    };
+
+    Table.finalizeShowById = function(callee, users) {
+
+        if (callee == undefined)
+            callee = this;
+
+        UIHelpers.hideStatus();
+        callee.fillWithUsers(users);
+
+        var w = users.length ||
+                UrlHandler.urlGetParam(UrlHandler.highscoreMin, 0) ||
+                UrlHandler.urlGetParam(UrlHandler.highscoreMax, 0);
+        SuperSearchLinks.modifyShowByIdLinks(w);
+
+        callee.render(users);
+    };
+
+    Table.finalizeSearch = function(callee, users) {
+
+        if (callee == undefined)
+            callee = this;
+
+        if (callee.sort) {
+            var k = callee.sort.toString().split(':');
+            if (k.length != 2) {
+                users = callee.sortResults(users);
+            } else {
+                users = callee.sortResults(users, k[0], k[1]);
+            }
+        }
+
+        UIHelpers.hideStatus();
+        callee.fillWithUsers(users);
+
+        /* add Weiter button only in case at least one user
+           was found and therefore checked... */
+        SuperSearchLinks.modifySearchLinks(AioSuperSearch.finder.checkedUsers);
+
+        callee.render(users);
+    };
+
+    Table.finalizeFight = function(callee, users) {
+
+        if (callee == undefined) callee = this;
+
+        if (!users.length) {
+            callee.finished();
+            return;
+        }
+
+        if (!callee.parent) {
+            callee.finished();
+            return;
+        }
+
+        callee.createEmptyTable();
+
+        UIHelpers.hideStatus();
+        callee.fillWithUsers(users);
+        callee.render();
+    };
+
+    Table.finalizeFind = function(callee, users) {
+
+        if (callee == undefined)
+            callee = this;
+
+        if (callee.sort) {
+            var k = callee.sort.toString().split(':');
+            if (k.length != 2) {
+                users = callee.sortResults(users);
+            } else {
+                users = callee.sortResults(users, k[0], k[1]);
+            }
+        }
+
+        if (callee.mode.isProfile()) {
+            Config.kein_cache = false;
+            this.mode.zeige_bandenstats = false;
+        }
+
+        UIHelpers.hideStatus();
+        callee.fillWithUsers(users);
+        callee.render();
+    };
+
+    Table.finalizeBlacklist = function(callee, users) {
+
+        if (callee == undefined) callee = this;
+
+        if (!users.length) {
+            callee.finished();
+            return;
+        }
+
+        var tr = document.createElement("tr");
+        var td = document.createElement("td");
+        tr.appendChild(td);
+
+        callee.parent.appendChild(tr);
+        callee.table = td;
+
+        callee.createEmptyTable();
+
+        UIHelpers.hideStatus();
+        callee.fillWithUsers(users);
+        callee.render();
+    };
+
+    Table.finalizeHighscore = function() {
+        UIHelpers.hideStatus();
+        this.render();
+    };
+
+    // function sortSuperSearchResults(s, kriterium, richtung) {
+    Table.sortResults = function(s, kriterium, richtung) {
+
+        var ssSort = function(p1, p2) {
+
+            if (kriterium == undefined)
+                kriterium = Config.supersearch_sortierung;
+
+            if (richtung == undefined)
+                richtung = Config.supersearch_sort_richtung;
+
+            var a = p1;
+            var b = p2;
+
+            if (richtung == 'ab') {
+                a = p2;
+                b = p1;
+            }
+
+            if (kriterium == 'geld') {
+                return a.geld - b.geld;
+            } else if (kriterium == 'punkte') {
+                return a.punkte - b.punkte;
+            } else if (kriterium == 'datum') {
+                return BaseLib.getDateAsNumber(a.reg) - BaseLib.getDateAsNumber(b.reg);
+            } else if (kriterium == 'siegratio' || kriterium == 'siege') {
+                var fs1 = FightStats.read(a.id, true);
+                var fs2 = FightStats.read(b.id, true);
+                var r1 = fs1.won_out + fs1.won_in;
+                var r2 = fs2.won_out + fs2.won_in;
+                if (kriterium == 'siegratio' || r1 == r2) {
+                    r1 -= (fs1.lost_out + fs1.lost_in);
+                    r2 -= (fs2.lost_out + fs2.lost_in)
+                }
+                return r1 - r2;
+            }
+            return 0;
+        };
+
+        s.sort(ssSort);
+        return s;
+    };
+
+    Table.fillWithUsers = function(s) {
+        var table = this.table;
+        var message = '<a href="'+UrlHandler.wwwUrl+'messages/write/?to=__replace__"><img src="'+UrlHandler.icoNewMsg+'" border="0" height="10" width="17"></a>';
+        var fight = '<a href="'+UrlHandler.wwwUrl+'fight/?to=__replace__"><img src="'+ UrlHandler.icoAtt + '" border="0"></a>';
+        var username = '<a href="'+UrlHandler.createProfilUrlUser('__replaceid__')+'" style="text-decoration:none;">__replacename__</a>';
+
+        this.removeUneededColumns();
+
+        var code = '';
+
+        for (var i = 0; i < s.length; i++) {
+            var m = message.replace("__replace__", s[i].id);
+            var f = fight.replace("__replace__", s[i].name);
+            var n = username.replace("__replaceid__", s[i].id).replace("__replacename__", s[i].name);
+            code += '<tr><td class="col1">'+s[i].platz+'</td>';
+            code += '<td class="col2">' + n + '</td>';
+            code += '<td class="col3">' + s[i].bandenname + '</td>';
+            code += '<td class="col4">' + District.getDistrictName(s[i].city) + '</td>';
+            code += '<td class="col5"></td>';
+            code += '<td class="col6">' + f + '</td>';
+            code += '<td>' + m + '</td>';
+            code += '</tr>';
+        }
+
+        var ths = table.getElementsByTagName('thead');
+        var tbs = table.getElementsByTagName('tbody');
+        var trs = table.getElementsByTagName('tr');
+
+        if (ths.length && tbs.length) {
+            tbs[0].innerHTML = code;
+        } else {
+            table.innerHTML = trs[0].innerHTML + code;
+        }
+
+        if (this.mode.isSuperSearch()) {
+            document.title = s.length + " Penner gefunden";
+        }
+    };
+
+    Table.render = function() {
+        this.rendering = true;
+        this.modify();
+        if (this.jobCnt <= 0) {
+            this.finished();
+        }
+    };
+
+    Table.removeUneededColumns = function(count) {
+        var table = this.table;
+        var th = table.getElementsByTagName('th');
+        var remove_head_only = (count != undefined &&
+                                table.getElementsByTagName('tr').lenght > 1 &&
+                                table.getElementsByTagName('tr')[1].getElementsByTagName('td').length < count);
+
+        /* remove debug rows if found */
+        for (var x=0; x < th.length; x++) {
+            if (th[x].innerHTML &&
+                th[x].innerHTML.search('District') != -1) {
+
+                var tbody  = table.tBodies[0];
+                if (table.tHead) {
+                    oneRow = table.tHead.rows[0];
+                    oneRow.deleteCell(x);
+                } else {
+                    th[x].parentNode.removeChild(th[x]);
+                }
+                if (!remove_head_only && x < th.length) {
+                    for (var i = 0; i < tbody.rows.length; i++) {
+                        try {
+                            oneRow = tbody.rows[i];
+                            oneRow.deleteCell(x);
+                        } catch (e) {
+                            Log.console(e);
+                        }
+                    }
+                }
+                break;
+            }
+        }
+    };
+
+    Table.modify = function() {
+        var tablePrefix = this.mode.getPrefix();
+
+        this.jobCnt = 1;
+
+        var table = this.table;
+        /* ignore header if necessary */
+        var tbs = table.getElementsByTagName('tbody');
+        var tb  = (tbs.length) ? tbs[0] : table;
+        var trs = tb.getElementsByTagName('tr');
+        var set_td = function(td, id, html) {
+            var elem = document.createElement('td');
+            elem.id = id;
+            elem.innerHTML =  html;
+            td.parentNode.insertBefore(elem, td);
+        };
+
+        for(var x = 0; x<trs.length; x++){
+            var tr = trs[x];
+
+            var namenode = BaseLib.getElementsByClassNameForElements('td' ,'col2', tr)[0];
+            if (!namenode) continue;
+            var namelink = namenode.getElementsByTagName('a')[0];
+            var uid = namelink.href.replace('http:', '').split(':')[1].replace('\/', '');
+            namenode.setAttribute('id', tablePrefix+'name_of_'+uid);
+            var gangnode = BaseLib.getElementsByClassNameForElements('td' ,'col3', tr)[0];
+            gangnode.setAttribute('id', tablePrefix+'gang_of_'+uid);
+            var pointnode = BaseLib.getElementsByClassNameForElements('td' ,'col5', tr)[0];
+            pointnode.setAttribute('id', tablePrefix+'points_of_'+uid);
+            var fightnode = BaseLib.getElementsByClassNameForElements('td' ,'col6', tr)[0];
+            fightnode.setAttribute('name', tablePrefix+'fight_to_link');
+            fightnode.setAttribute('id', tablePrefix+'fight_to_'+uid);
+
+            // remove the silly menu that appears on click
+            namelink.removeAttribute('class');
+
+            // var gang = gangnode.getElementsByTagName('a')[0].href.replace('http:', '').split(':')[1].replace('\/', '');
+            // var pkt = Number(pointnode.innerHTML);
+            var a = fightnode.getElementsByTagName('a');
+
+            if (!a.length)
+                continue;
+
+            set_td(fightnode, tablePrefix+'sig_'+uid, '');
+            set_td(fightnode, tablePrefix+'blacklist_of_'+uid, '<div style="align: left; overflow: hidden; width: 15px; height: 15px;"></div>');
+            set_td(fightnode, tablePrefix+'onlinestate_of_'+uid, '<div style="align: left; overflow: hidden; width: 15px; height: 15px;"></div>');
+            set_td(fightnode, tablePrefix+'fights_to_'+uid, '<div style="align: left; overflow: hidden; width: 15px; height: 15px;"></div>');
+            set_td(fightnode, tablePrefix+'letsfight_to_'+uid, '<div style="align: left; overflow: hidden; width: 15px; height: 15px;"></div>');
+            set_td(fightnode, tablePrefix+'plunder_of_'+uid, '<div style="align: left; overflow: hidden; width: 15px; height: 15px;">X</div>');
+            set_td(fightnode, tablePrefix+'user_'+uid, ('<div id="'+tablePrefix+'pet_of_'+uid+'" width=\''+Config.groesse_tierbild+'px\' height=\''+Math.round(Config.groesse_tierbild/UrlHandler.haustierFaktor)+'px\' style="align: left; overflow: hidden;">X</div>'));
+
+            this.jobCnt++;
+            var row = new AioRow(this.mode, uid, this.finishedRow, this);
+            row.run();
+        }
+
+        this.jobCnt--;
+    };
+
+    Table.finishedRow = function(callee, uid) {
+        if (callee == undefined)
+            callee = this;
+
+        callee.jobCnt--;
+
+        if (callee.jobCnt <= 0)
+            callee.finished();
+    };
+
+    Table.finished = function() {
+        TableManager.removeTable(this);
+    };
+
+    Table.initialize();
+
+    TableManager.addTable(Table);
+
+    return Table;
+};
+
+var UserFinder = function(mode, check, callback, callee) {
+
+    var Finder = new Object();
+
+    Finder.mode = mode;
+    Finder.checkedUsers = 0;
+    Finder.usersToCheck = new Array();
+    Finder.sufficientUsers = new Array();
+    Finder.callback = callback;
+    Finder.callee = callee;
+    Finder.check = check;
+
+    const maxErrorCount = 10;
+    Finder.errorCount = maxErrorCount;
+
+    Finder.uidCmp = function(e1, e2) {
+        return (!e1 || !e2 || e2.uid == undefined || e2.uid == undefined) ? false : e1.uid == e2.uid;
+    };
+
+    Finder.addUserToCheck = function(uid) {
+        if (!BaseLib.contains(this.usersToCheck, uid, Finder.uidCmp)) {
+            var id = null;
+            var name = null;
+
+            if (BaseLib.extractNumber(uid) == uid) {
+                id = uid;
+            } else {
+                name = uid;
+            }
+
+            this.usersToCheck.push({ uid: id, name: name, running: false, done: false});
+            this.checkedUsers++;
+        }
+    };
+
+    Finder.extendUserInfoByHiPaInfos = function(users) {
+        // add new ranks to array
+        for (var i=0; i<users.length;i++) {
+            var r = HighscoreParser.getRankById(users[i].id);
+            if (r) {
+                users[i].platz_alt = users[i].platz;
+                users[i].platz = r;
+            }
+            var p = HighscoreParser.getPointsById(users[i].id);
+            if (p) {
+                users[i].punkte_alt = users[i].punkte;
+                users[i].punkte = p;
+            }
+        }
+        return users;
+    };
+
+    Finder.createUserInfoFromXML = function(user, req) {
+        var u = new Object();
+        u.id = user;
+        u.platz = Number(BaseLib.getXMLTag(req.responseText,"<position>"));
+        u.name = BaseLib.getXMLTag(req.responseText,"<name>");
+        u.city = BaseLib.getXMLTag(req.responseText,"<city>");
+        u.bandenname = '';
+        var b = BaseLib.getXMLTag(req.responseText,"<gang>");
+        if (b) {
+            var bid = Number(BaseLib.getXMLTag(b, "<id>"));
+            if (isNaN(bid)) bid = 0;
+            if (bid != 0) {
+                u.bandenname = BaseLib.getXMLTag(b, "<name>");
+            }
+        }
+        u.punkte = Number(BaseLib.getXMLTag(req.responseText,"<points>"));
+        u.reg = BaseLib.getXMLTag(req.responseText,"<reg_since>");
+        u.geld = -1;
+
+        var w = BaseLib.getXMLTag(req.responseText,"<cash>");
+        if (w != '') {
+            u.geld = w / 100;
+        }
+
+        return u;
+    };
+
+    Finder.checkUser = function(u) {
+        var matches  = true;
+
+        if (this.check.money &&
+            (u.geld < this.check.money ||
+             u.geld == -1)) {
+            matches = false;
+        }
+
+        if (this.check.regdatefrom &&
+            BaseLib.getDateAsNumber(u.reg) < BaseLib.getDateAsNumber(this.check.regdatefrom)) {
+            matches = false;
+        }
+
+        if (this.check.regdateto &&
+            BaseLib.getDateAsNumber(u.reg) > BaseLib.getDateAsNumber(this.check.regdateto)) {
+            matches = false;
+        }
+
+        if (this.check.pointsmin &&
+            u.punkte < check.pointsmin) {
+            matches = false;
+        }
+
+        if (this.check.pointsmax &&
+            u.punkte > check.pointsmax) {
+            matches = false;
+        }
+
+        if (this.check.positionmax &&
+            u.platz &&
+            u.platz < check.positionmax) {
+            matches = false;
+        }
+
+        if (this.check.positionmin &&
+            (!u.platz ||
+             u.platz > check.positionmin)) {
+            matches = false;
+        }
+
+        if (u.name == '') {
+            matches = false;
+        }
+
+        return matches;
+    };
+
+    Finder.getUsersByShowId = function(id, cnt) {
+        for (var i=0; i<cnt; i++) {
+            this.addUserToCheck(Number(id) + i);
+        }
+        this.usersToCheck.reverse();
+        this.iterateUserToCheck();
+    };
+
+    Finder.extractUsersFromPlainHtml = function(source) {
+        var tag = UrlHandler.userProfilUrlSuffix;
+        tag = 'class="col2"><a href="/' + tag;
+        var s = source;
+        var pos = s.search(tag);
+
+        this.usersToCheck = new Array();
+        while (pos != -1) {
+            s = s.substr(pos + tag.length, s.length - pos - tag.length);
+            var f = s.search(/\//);
+            var u = s.substr(0,f);
+            this.addUserToCheck(u);
+            pos = s.search(tag);
+        }
+        this.iterateUserToCheck();
+    };
+
+    Finder.processGangProfileApiPage = function (req) {
+        var ms = BaseLib.getXMLTags(req.responseText,"<member>");
+        for (var i=0; i < ms.length; i++) {
+            var mid = BaseLib.getXMLTag(ms[i], "<id>");
+            this.addUserToCheck(mid);
+        }
+        this.usersToCheck.reverse();
+        this.iterateUserToCheck();
+    };
+
+    Finder.processUserProfileApiPage = function (req) {
+
+        var uid = BaseLib.getXMLTag(req.responseText, "<id>");
+
+        // show profile owner first
+        this.addUserToCheck(uid);
+
+        var bande = BaseLib.getXMLTag(BaseLib.getXMLTag(req.responseText,"<gang>"), "<id>");
+
+        if (bande == null || bande == "" || bande == "None") {
+            this.iterateUserToCheck();
+        } else {
+            var furl = UrlHandler.createApiUrlGang(bande);
+            var ff = function(rreq, oobj) {
+                if (rreq.readyState == 4 && rreq.status == 200) {
+                    oobj.processGangProfileApiPage(rreq);
+                }
+            };
+            BaseLib.xmlhttpRequest(furl, ff, true, null, this);
+        }
+    };
+
+    Finder.removePagination = function() {
+        var d = document.getElementById('pagination');
+        if (d) {
+            d.parentNode.removeChild(d);
+        }
+    };
+
+    Finder.runBlacklist = function() {
+        var u = Blacklist.get();
+        for (var i=0; i < u.length; i++) {
+            this.addUserToCheck(u[i]);
+        }
+        this.iterateUserToCheck();
+    };
+
+    Finder.runPreferredBums = function() {
+        var u = Config.bot_attack_list;
+        for (var i=0; i < u.length; i++) {
+            this.addUserToCheck(u[i]);
+        }
+        this.iterateUserToCheck();
+        Finder.removePagination();
+    };
+
+    Finder.runAllInConfig = function(oobj, users) {
+        if (oobj == undefined) {
+            oobj = this;
+            var f = function(v) {
+                Finder.runAllInConfig(oobj, v);
+            };
+            GangFights.getLetsFightValues(f);
+            return;
+        }
+
+        for (var i=0; i<users.length; i++) {
+            oobj.addUserToCheck(users[i].uid);
+        }
+        oobj.iterateUserToCheck();
+        Finder.removePagination();
+    };
+
+    Finder.runDownfighters = function(oobj, users) {
+        if (oobj == undefined) {
+            oobj = this;
+            var f = function(v) {
+                Finder.runDownfighters(oobj, v);
+            };
+            UpDownFight.getDownfighters(f);
+            return;
+        }
+
+        for (var i=0; i<users.length; i++) {
+            oobj.addUserToCheck(users[i]);
+        }
+        oobj.iterateUserToCheck();
+        Finder.removePagination();
+    };
+
+    Finder.runUpfighters = function(oobj, users) {
+        if (oobj == undefined) {
+            oobj = this;
+            var f = function(v) {
+                Finder.runUpfighters(oobj, v);
+            };
+            UpDownFight.getUpfighters(f);
+            return;
+        }
+
+        for (var i=0; i<users.length; i++) {
+            oobj.addUserToCheck(users[i]);
+        }
+        oobj.iterateUserToCheck();
+        Finder.removePagination();
+    };
+
+    Finder.runFight = function() {
+
+        if (this.mode.isOldFights()) {
+            var parent = FightTables.getFinishedFightsTable();
+
+            if (parent) {
+
+                var tb = parent.getElementsByTagName('tbody')[0];
+
+                var rows = tb.getElementsByTagName('tr');
+                for (var i = 1; i < rows.length - 1; i++) {
+                    var tdUser = rows[i].getElementsByTagName('td')[2];
+                    if (!tdUser) continue;
+
+                    var profilLinkA = tdUser.getElementsByTagName('a')[0];
+                    if (!profilLinkA) continue;
+                    var profilLink = profilLinkA.href;
+                    if (!profilLink) continue;
+                    var uid = BaseLib.getStringBetweenTags(profilLink, 'id:', '/');
+                    if (!uid || uid.length == 0) continue;
+
+                    this.addUserToCheck(uid);
+                }
+            }
+
+        } else if (this.mode.isIncomingFights()) {
+            var parent = FightTables.getIncomingFightsTable();
+
+            if (parent) {
+                var tb = parent.getElementsByTagName('tbody')[0];
+                var rows = tb.getElementsByTagName('tr');
+
+                for (var i = 1; i < rows.length; i++) {
+                    var tdUser = rows[i].getElementsByTagName('td')[2];
+                    if (!tdUser) continue;
+                    var profilLinkA = tdUser.getElementsByTagName('a')[0];
+                    if (!profilLinkA) continue;
+                    var profilLink = profilLinkA.href;
+                    if (!profilLink) continue;
+                    var uid = BaseLib.getStringBetweenTags(profilLink, 'id:', '/');
+                    if (!uid) continue;
+
+                    Finder.addUserToCheck(uid);
+                }
+            }
+
+        } else if (this.mode.isOutgoingFights()) {
+            var span = FightTables.getOutgoingFightsSpan();
+
+            if (span) {
+                var profilLinkA, profilLink, uid;
+
+                if ((profilLinkA = span.getElementsByTagName('a')[0]) &&
+                    (profilLink = profilLinkA.href) &&
+                    (uid = BaseLib.getStringBetweenTags(profilLink, 'id:', '/')) &&
+                    (uid.length != 0)
+                    ) {
+
+                    Finder.addUserToCheck(uid);
+                }
+            }
+        }
+
+        this.usersToCheck.reverse();
+        this.iterateUserToCheck();
+    };
+
+    Finder.runProfile = function() {
+
+        var id = UrlHandler.getIdFromUrl();
+        var un = UrlHandler.getUsernameFromUrl();
+
+        if (this.mode.isUserProfile()) {
+
+            var process = function(un, uid, oobj) {
+                var f = function(req, oobj) {
+                    if (req.readyState == 4 && req.status == 200 && uid) {
+                        oobj.processUserProfileApiPage(req, uid);
+                    }
+                };
+                BaseLib.xmlhttpRequest(UrlHandler.createApiUrlUser(uid), f, true, null, oobj);
+            };
+
+            if (id) {
+                process('', id, this);
+            } else if (un) {
+                BaseLib.getIDfromUsername(un, process, this);
+            }
+
+        } else if (this.mode.isGangProfile()) {
+
+            if (!Config.zeige_bandenmitglieder)
+                return;
+
+            var url = UrlHandler.createApiUrlGang(id);
+            var f = function(req, oobj) {
+                if (req.readyState == 4 && req.status == 200) {
+                    oobj.processGangProfileApiPage(req, id);
+                }
+            };
+            BaseLib.xmlhttpRequest(url, f, true, null, this);
+        }
+    };
+
+    Finder.runHiPa = function(users) {
+        for (var i=0; i<users.length;i++) {
+            Finder.addUserToCheck(users[i]);
+        }
+        this.iterateUserToCheck();
+    };
+
+    Finder.checkUserFromList = function(req, user, sortNr) {
+        if (req.readyState == 4 && req.status == 200) {
+
+            var cmpProfile = function (p1, p2){
+                return p1.id == p2.id;
+            }
+
+            var u = this.createUserInfoFromXML(user, req);
+            if (sortNr != undefined) u.nr = sortNr;
+
+            var matches  = true;
+
+            if (this.check) {
+                matches = this.checkUser(u);
+            }
+
+            if (matches) {
+                if (!BaseLib.contains(this.sufficientUsers, u, cmpProfile)) this.sufficientUsers.push(u);
+                if (this.mode.isSuperSearch()) {
+                    if (check.money) {
+                        UIHelpers.status('# ' + (u.geld == -1 ? 0 : u.geld) + '&#8364 <a href="' + UrlHandler.createProfilUrlUser(u.id) + '" style="text-decoration:none;">^^^ :)</a>');
+                    } else {
+                        UIHelpers.status('# ' + u.reg + ' <a href="' + UrlHandler.createProfilUrlUser(u.id) + '" style="text-decoration:none;">^^^ :)</a>');
+                    }
+                }
+            }
+
+            this.errorCount = this.maxErrorCount;
+        } else if (this.errorCount--) {
+            this.addUserToCheck(user);
+        } else {
+            UIHelpers.status("Gebe " + user + " auf...");
+            this.errorCount = this.maxErrorCount;
+        }
+    };
+
+    Finder.iterateUserToCheck = function(mobj) {
+
+        if (mobj == undefined) mobj = this;
+
+        var getMax = function() {
+            var max = 0;
+            for (var i=0; i<mobj.usersToCheck.length; i++) {
+                if (mobj.usersToCheck[i].nr > max ) max = mobj.usersToCheck[i].nr;
+            }
+            return max;
+        };
+
+        var userRunningCount = function() {
+            var ret = 0;
+            for (var i=0; i<mobj.usersToCheck.length; i++) {
+                if (mobj.usersToCheck[i].running || mobj.usersToCheck[i].resolv) ret++;
+            }
+            return ret;
+        };
+
+        var userDoneCount = function() {
+            var ret = 0;
+            for (var i=0; i<mobj.usersToCheck.length; i++) {
+                if (mobj.usersToCheck[i].done) ret++;
+            }
+            return ret;
+        };
+
+        if (mobj.usersToCheck.length == 0 ||
+            mobj.usersToCheck.length == userDoneCount()) {
+            if (mobj.callback) {
+                mobj.sufficientUsers.sort(function(p1, p2) { return p1.nr - p2.nr; });
+                mobj.callback(mobj.callee, mobj.sufficientUsers);
+            }
+            return;
+        }
+
+        var user = null;
+        for (var i=0; i<mobj.usersToCheck.length; i++) {
+            if (!mobj.usersToCheck[i].running &&
+                !mobj.usersToCheck[i].done &&
+                !mobj.usersToCheck[i].resolv) {
+                user = mobj.usersToCheck[i];
+                // used to sort by registration date
+                user.nr = getMax() + 1;
+            }
+        }
+
+        if (user) {
+            if (!user.uid) {
+                var cb = function(name, id) {
+                    for (var i=0; i<mobj.usersToCheck.length; i++) {
+                        if (mobj.usersToCheck[i].name == name) {
+                            mobj.usersToCheck[i].uid = id;
+                            mobj.usersToCheck[i].resolv = false;
+                        }
+                    }
+                }
+                UIHelpers.status("Ermittle ID von: " + user.name);
+                user.resolv = true;
+                BaseLib.getIDfromUsername(user.name, cb);
+            } else {
+                UIHelpers.status("Überprüfe: " + user.uid);
+
+                var f = function(req, oobj) {
+                    UIHelpers.status("Fertig: " + user.uid);
+                    oobj.checkUserFromList(req, user.uid, user.nr);
+                    user.running = false;
+                    user.done = true;
+                };
+
+                user.running = true;
+                BaseLib.xmlhttpRequest(UrlHandler.createApiUrlUser(user.uid), f, true, null, mobj);
+            }
+        }
+
+        BaseLib.setTimeoutEx(function() { mobj.iterateUserToCheck(mobj); }, userRunningCount() == mobj.usersToCheck.length ? 300 : 1);
+    };
+
+    return Finder;
+};

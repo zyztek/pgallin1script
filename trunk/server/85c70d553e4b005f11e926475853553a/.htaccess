@@ -1,0 +1,3 @@
+AuthUserFile /home/strato/www/bi/www.biniok.net/htdocs/.htpasswd
+AuthGroupFile /dev/null
+AuthName "User: somein1script Pw: somein1script"

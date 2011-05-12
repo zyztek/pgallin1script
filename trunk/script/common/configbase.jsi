@@ -1,0 +1,664 @@
+/**
+ * @filename configbase.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var ConfigBase = function() {
+    // ########### Config ##############
+
+    var savedColor = '#54514d';
+    var changedColor = '#aa5555';
+
+    this.dirtyCfgKey = undefined;
+    this.modified = false;
+
+    this.init = function() {
+        // use the init function cause UrlHandler may not be defined at ConfigBase creation time!
+        this.dirtyCfgKey = UrlHandler.configPrefix + "_dirty";
+    };
+
+    this.setSubset = function(subset) {
+        this.currentSubset = subset;
+    };
+
+    this.addLocalElement = function(key, type, value, name, description) {
+        return this.addElement(key, type, value, name, description, true);
+    }
+
+    this.addElement = function(key, type, value, name, description, local) {
+        if (local == undefined) local = false;
+        if (type == undefined || type == null) type = '';
+        if (name == undefined) name = '';
+        if (description == undefined) description = '';
+
+        if (!this.configElements)
+            this.configElements = new Array();
+
+        var d = new Object();
+        d.subset      = this.currentSubset;
+        d.key         = key;
+        d.value       = value;
+        d.name        = name;
+        d.description = description;
+        d.type        = type;
+        d.local       = local;
+
+        this.configElements.push(d);
+        return d;
+    };
+
+    this.createTinyElement = function(key, value) {
+        var d = new Object();
+        d.key         = key;
+        d.value       = value;
+        return d;
+    };
+
+    // complexify our config element
+    this.initializeConfig = function() {
+        for (var i = 0; i < this.configElements.length; i++) {
+            var e = this.configElements[i];
+            this.set(e, e.value);
+        }
+    };
+
+    this.getConfigKey = function(key, type) {
+        if (typeof type === 'undefined') type = 'cfg';
+        var r = UrlHandler.configPrefix + "_" + type + "_for_" + UserInfo.uid + "_" + key;
+        return r;
+    };
+
+    this.set = function(e, new_value, oobj) {
+        if (oobj == undefined) oobj = this;
+
+        if (e.type == t_object) {
+            if (!new_value) new_value = {};
+        } else if (e.type == t_bool) {
+            if (!new_value) new_value = false;
+            new_value = (new_value.toString() == 'true');
+        } else if (typeof e.value == 'string') {
+            if (!new_value) new_value = "";
+        } else if (typeof e.value == 'number') {
+            if (!new_value) new_value = 0;
+            new_value = Number(new_value);
+        }
+        oobj[e.key] = new_value;
+    };
+
+    this.get = function(key) {
+        return this[key];
+    };
+
+    this.getTypeByKey = function(key) {
+        for (var i = 0; i < this.configElements.length; i++) {
+            var e = this.configElements[i];
+            if (e.key == key) {
+                return e.type;
+            }
+        }
+        return '';
+    };
+
+    this.readConfigGM = function() {
+        for (var i = 0; i < this.configElements.length; i++) {
+            var e = this.configElements[i];
+            var x;
+            if (e.type == t_version) {
+                x = BaseLib.getVersionString();
+            } else if (e.type == t_object) {
+                try {
+                    x = JSON.parse(GM_getValue(this.getConfigKey(e.key), JSON.stringify(e.value)));
+                } catch (err) {
+                    Log.console('Config:' + "Err: key " + e.key + "; " + err);
+                    x = e.value;
+                }
+            } else {
+                x = GM_getValue(this.getConfigKey(e.key), e.value);
+            }
+
+            this.set(e, x);
+        }
+    };
+
+    this.saveConfigGM = function() {
+        if (!UserInfo.uid) {
+            Log.console('Config:' + "No user id found!!!");
+            return;
+        }
+        for (var i = 0; i < this.configElements.length; i++) {
+            var e = this.configElements[i];
+            var x;
+
+            if (e.type == t_object) {
+                var js = this.get(e.key);
+                x = JSON.stringify(js);
+            } else {
+                x = this.get(e.key);
+            }
+
+            GM_setValue(this.getConfigKey(e.key), x);
+        }
+    };
+
+    this.removeAllKeys = function() {
+        // not used but for debugging purposes
+        var values = GM_listValues();
+        if (values) {
+            for (var i = 0; i < values.length; i++) {
+                if (values[i].search(UrlHandler.configPrefix) == 0) {
+                    GM_deleteValue(values[i]);
+                }
+            }
+        }
+        Log.console("Config: All keys removed!");
+    };
+
+    this.renderConfigSettingsTable = function(t) {
+        var elemExists = false;
+        var lastSubset = '';
+
+        while (1) {
+            var del_row = t.getElementsByTagName('tr')[1];
+            if (!del_row) break;
+            del_row.parentNode.removeChild(del_row);
+        }
+
+        for (var i = 0; i < this.configElements.length; i++) {
+            var e = this.configElements[i];
+            if (e.name == '') {
+                // do not display those empty entries
+            } else {
+                var currentHeading;
+                if (lastSubset != e.subset) {
+                    var htr = document.createElement('tr');
+                    var htd = document.createElement('td');
+                    var ha = document.createElement('a');
+                    var hb = document.createElement('b');
+                    var lastBr;
+
+                    var img = UIHelpers.getImage(GM_getResourceURL("expand.png"));
+
+                    htd.appendChild(document.createElement('br'));
+                    hb.innerHTML = e.subset;
+                    ha.setAttribute('href', UrlHandler.nop);
+                    ha.setAttribute('style', 'text-decoration: none; color: white;');
+                    ha.appendChild(img);
+                    ha.appendChild(hb);
+                    htd.appendChild(ha);
+                    htd.appendChild(document.createElement('br'));
+                    htd.appendChild(lastBr = document.createElement('br'));
+
+                    htr.appendChild(htd);
+                    t.appendChild(htr);
+                    lastSubset = e.subset;
+
+                    var createToggle = function(ha) {
+                        lastBr.style.display = 'none';
+                        var img = ha.getElementsByTagName('img')[0];
+                        ha.managedChilds = new Array();
+                        ha.managedChilds.push(lastBr);
+                        ha.expanded = false;
+
+                        ha.expand = function(expand) {
+                            for (var i = 0; i < ha.managedChilds.length; i++) {
+                                img.setAttribute('src', expand ? GM_getResourceURL("collapse.png") : GM_getResourceURL("expand.png"));
+                                ha.managedChilds[i].style.display = (expand ? '' : 'none');
+                            }
+                            ha.expanded = expand;
+                        };
+
+                        ha.toggle = function() {
+                            ha.expand(!ha.expanded);
+                        };
+
+                        ha.addEventListener('click', ha.toggle, true);
+                    };
+
+                    createToggle(ha);
+                    currentHeading = ha;
+                }
+                var tr = document.createElement('tr');
+                var name = document.createElement('td');
+                var value = document.createElement('td');
+                var input;
+
+                if (currentHeading) {
+                    currentHeading.managedChilds.push(tr);
+                    tr.style.display = 'none';
+                }
+
+                var nameText = '<span title="'+  unescape(e.description) +'">' + unescape(e.name) + '</span>';
+                name.innerHTML = nameText;
+
+                var x = this.get(e.key);
+                var rendered = true;
+
+                if (e.type == t_bool) {
+                    input = document.createElement('select');
+                    var j = document.createElement('option');
+                    j.innerHTML = "Ja";
+                    j.value = true;
+                    var n = document.createElement('option');
+                    n.innerHTML = "Nein";
+                    n.value = false;
+                    input.options[0] = j;
+                    input.options[1] = n;
+                    if (x == true)
+                        input.options[0].selected = true;
+                    if (x == false)
+                        input.options[1].selected = true;
+                } else if (e.type == t_password) {
+                    input = document.createElement('input');
+                    input.value = Base64.decodeString(x);
+                    input.type = 'password';
+                } else if (e.type == t_string ||
+                           e.type == t_date ||
+                           e.type == t_integer) {
+                    input = document.createElement('input');
+                    input.value = x;
+                } else if (e.type == t_object &&
+                           e.key == 'blacklist') {
+                    var mode = new AioMode();
+
+                    var tablebl = document.createElement('table');
+                    var htd = document.createElement('td');
+
+                    htd.setAttribute('colspan', '2');
+                    htd.appendChild(tablebl);
+
+                    mode.setType(mode.modeSettingsBlacklist);
+                    var bltable = new AioTable(mode, nameText, tablebl);
+                    bltable.run();
+
+                    tr.appendChild(htd);
+                    t.appendChild(tr);
+                    rendered = false;
+                } else if (e.type == t_object ||
+                           e.type == t_version ||
+                           e.type == t_intern) {
+                    rendered = false;
+                } else {
+                    input = document.createElement('select');
+                    var a = new Array();
+                    if (e.type == t_sssort) {
+                        a = new Array("keine", "geld", "punkte", "datum", "siege", "siegratio");
+                    } else if (e.type == t_ssdirection) {
+                        a = new Array("auf", "ab");
+                    } else if (e.type == t_botspeed) {
+                        a = new Array(25, 33, 50, 66, 75, 100, 125, 150, 175);
+                    } else if (e.type == t_botenqueuecount) {
+                        var a = new Array();
+                        for (var k = 1; k <= GameType.skillCount; k++) {
+                            a.push(k);
+                        }
+                    } else if (e.type == t_botcollecttime) {
+                        a = new Array(10, 30, 60, 180);
+                    } else if (e.type == t_plundersell) {
+                        a = new Array();
+                        a.push("nix");
+                        for (var j = 0; j < Language.plunderZumVerkaufen.length; j++) {
+                            a.push(Language.plunderZumVerkaufen[j]);
+                        }
+                    } else if (e.type == t_plunderdeposit) {
+                        a = new Array();
+                        a.push("nix");
+                        for (var j = 0; j < Language.plunderZumEinzahlen.length; j++) {
+                            a.push(Language.plunderZumEinzahlen[j]);
+                        }
+                    } else if (e.type == t_plundercreate) {
+                        a = new Array();
+                        a.push("nix");
+                        for (var j = 0; j < Language.plunderZumBasteln.length; j++) {
+                            a.push(Language.plunderZumBasteln[j]);
+                        }
+                    } else if (e.type == t_points) {
+                        a = new Array("normal", "einfach", "alles");
+                    }
+                    for (var j = 0; j < a.length; j++) {
+                        var s = a[j];
+                        var o = document.createElement('option');
+                        o.innerHTML = s;
+                        o.value = s;
+                        input.options[input.options.length] = o;
+                        if (s == x) {
+                            input.options[input.options.length-1].selected = true;
+                        }
+                    }
+                }
+
+                if (rendered) {
+                    input.setAttribute("style", "padding-left: 3px; padding-bottom: 1px; padding-right: 2px; padding-top: 1px; display: inline-block; text-align: left; font-size: 12px; font-family: Arial, Helvetica, Verdana, sans-serif; border-color:black;border-style:solid;border-width:1px;color: #e5e5e5; width:100px");
+
+                    input.addEventListener('change', function () { this.style.backgroundColor = changedColor; }, true);
+                    input.style.backgroundColor = savedColor;
+                    input.id = 'idAllIn1_' + e.key;
+
+                    value.appendChild(input);
+                    tr.appendChild(name);
+                    tr.appendChild(value);
+                    t.appendChild(tr);
+                }
+            }
+        }
+        var tr = document.createElement('tr');
+        var b = document.createElement('td');
+        var save = UIHelpers.createSidebarButton('Speichern', false, 'save');
+        var oobj = this;
+        save.addEventListener('click', function () {
+                                  oobj.saveConfigSettingsTable();
+                                  oobj.save();
+                                  UrlHandler.doReload();
+                              }, true);
+        var cancel = UIHelpers.createSidebarButton('Werkseinstellungen ;)', false, 'werk');
+        cancel.addEventListener('click', function() {
+                                    oobj.initializeConfig();
+                                    oobj.renderConfigSettingsTable(t);
+                                    alert('Bitte klicke auf Speichern um die Werkseinstellungen zu übernehmen.');
+                                }, true);
+        var delFight = UIHelpers.createSidebarButton('Listen zurücksetzen', false, 'zurueck');
+        delFight.addEventListener('click', function() {
+                                      var c = confirm("Wirklich alles loeschen (Kampfstatistik, Blacklist, etc.)?");
+                                      if (!c) return;
+                                      if (Registry.hasObject("FightStats"))    FightStats.remove();
+                                      if (Registry.hasObject("Blacklist"))     Blacklist.removeAll();
+                                      // add more here...
+                                      UrlHandler.doReload();
+                                  }, true);
+
+        var div = document.createElement('div');
+        var div1 = document.createElement('div');
+        var div2 = document.createElement('div');
+        var div3 = document.createElement('div');
+
+        div.setAttribute("style", "padding-top: 20px;");
+        var ss = "width: 125px; float: left; padding-right: 6px;";
+        div1.setAttribute("style", ss);
+        div2.setAttribute("style", ss);
+        div3.setAttribute("style", ss);
+
+        div1.appendChild(save);
+        div2.appendChild(cancel);
+        div3.appendChild(delFight);
+
+        div.appendChild(div1);
+        div.appendChild(div2);
+        div.appendChild(div3);
+
+        if (BaseLib.useInternalCache) {
+            var clearCache = UIHelpers.createSidebarButton('Cache löschen', false, 'clearcache');
+            clearCache.addEventListener('click', function() {
+                                            BaseLib.clearCache();
+                                            UrlHandler.doReload();
+                                        }, true);
+            var div4 = document.createElement('div');
+            div4.setAttribute("style", ss);
+            div4.appendChild(clearCache);
+            div.appendChild(div4);
+        }
+
+        b.setAttribute("colSpan", "3");
+        b.appendChild(div);
+
+        tr.setAttribute("id", "AioSettingsTable");
+        tr.appendChild(b);
+        t.appendChild(tr);
+    };
+
+    this.saveConfigSettingsTable = function() {
+        this.modified = true;
+
+        for (var i = 0; i < this.configElements.length; i++) {
+            var e = this.configElements[i];
+
+            if (e.name == '')
+                continue;
+
+            var elem = document.getElementById('idAllIn1_' + e.key);
+
+            if (elem) {
+                if (e.type == t_bool) {
+                    this.set(e, (elem.options[elem.selectedIndex].value == "true"));
+                } else if (e.type == t_sssort ||
+                           e.type == t_ssdirection ||
+                           e.type == t_botspeed ||
+                           e.type == t_botenqueuecount ||
+                           e.type == t_plundersell ||
+                           e.type == t_plunderdeposit ||
+                           e.type == t_plundercreate ||
+                           e.type == t_points) {
+                    this.set(e, elem.options[elem.selectedIndex].value);
+                } else if (e.type == t_password) {
+                    this.set(e, Base64.encodeString(elem.value));
+                } else {
+                    this.set(e, elem.value);
+                }
+                elem.style.backgroundColor = savedColor;
+            }
+        }
+    };
+
+    this.showSettings = function() {
+        var elem = document.getElementById('content');
+        var div = document.createElement('div');
+        var table = document.createElement('table');
+
+        div.setAttribute('class', 'settingpoint');
+        table.setAttribute('class', 'tieritemA');
+        table.setAttribute('width', '460');
+
+        var s = '<tr><td height="15" colspan="3" align="left" valign="top">';
+        s += '<span class="tiername">AllIn1 Settings</span>';
+        s += '<hr size="1"></td></tr>';
+
+        if (this.debug_mail == "") {
+            var inps = document.getElementsByTagName('input');
+            for (var i=0; i< inps.length; i++) {
+                if (inps[i].value &&
+                    inps[i].value.search("@") != -1) {
+                    this.debug_mail = inps[i].value;
+                    break;
+                }
+            }
+        }
+
+        table.innerHTML = s;
+        div.appendChild(table);
+
+        elem.insertBefore(div, elem.childNodes[0]);
+
+        // append config setting cells and save/cancel button to table
+        this.renderConfigSettingsTable(table);
+    };
+
+    this.setDirtyFlag = function(dirty) {
+        Log.console('Config:' + "mark config " + (dirty ? "" : "not ") + "dirty!");
+        GM_setValue(this.dirtyCfgKey, dirty);
+    };
+
+    this.getDirtyFlag = function() {
+        return GM_getValue(this.dirtyCfgKey, true);
+    };
+
+    this.loadFromServerIfDirty = function(callback) {
+        var oobj = this;
+        if (!UserInfo.uid) {
+            window.setTimeout(function() { oobj.loadFromServerIfDirty(callback); }, 200);
+            return;
+        }
+        // TODO: disable server config for public release
+        if (false && this.getDirtyFlag()) {
+            this.loadFromServer(callback);
+        } else {
+            callback();
+        }
+    };
+
+    this.loadFromServer = function(callback) {
+        if (!UserInfo.uid) {
+            Log.console('Config:' + "No user id found!!!");
+            return;
+        }
+
+        Log.console("Config: Load config from Server");
+
+        var authString = "FILLME";
+        var params = 'mode=get' + '&auth=' + authString + '&uid=' + UserInfo.uid + '&gametype=' + UrlHandler.configPrefix + '&ts=' + (new Date().valueOf());
+
+        var oobj = this;
+        var f = function(req) {
+            if (req.readyState == 4) {
+                if (req.status == 200) {
+                    var saveIt = false;
+                    if (req.responseText.trim() == '') {
+                        Log.console("Config: Create inital Config on Server!");
+                        // create inital config on server
+                        saveIt = true;
+                    } else {
+                        try {
+                            var scfg = JSON.parse(unescape(req.responseText));
+                            for (var j = 0; j < scfg.length; j++) {
+                                var e = scfg[j];
+                                e.type = oobj.getTypeByKey(e.key);
+                                if (e.key == 'empty') {
+                                    saveIt = e.value;
+                                } else if (e.type == t_object) {
+                                    var r = oobj.get(e.key);
+                                    if (typeof r.overwrite === 'function') {
+                                        r.overwrite(e.value);
+                                    } else {
+                                        try {
+                                            oobj.set(e, JSON.parse(e.value), oobj);
+                                        } catch (err) {
+                                            Log.console('Config:' + "Err: key " + e.key + "; " + err);
+                                            oobj.set(e, {}, oobj);
+                                        }
+                                    }
+                                } else if (e.type == t_version) {
+                                    // keep locally generated version string
+                                } else {
+                                    oobj.set(e, e.value, oobj);
+                                }
+                            }
+                        } catch (e) { Log.console('Config:' + e); }
+                    }
+                    oobj.saveConfigGM(); // save config from server locally
+                    if (saveIt) {
+                        oobj.saveToServer(true);
+                    } else {
+                        oobj.setDirtyFlag(false);
+                    }
+                    oobj.modified = false;
+
+                    if (callback != undefined) callback();
+                } else {
+                    // retry to load cfg in some seconds...
+                    BaseLib.setTimeoutEx(function() { oobj.loadFromServer(callback); }, 5000);
+                }
+            }
+        };
+
+        BaseLib.xmlhttpRequest(UrlHandler.configServer + "?" + params, f, false);
+    };
+
+    this.saveToServer = function(stilldirty, cb) {
+
+        /* still dirty cause the config to be reloaded from server. this helps
+           to get server messages earlier */
+        if (stilldirty == undefined) stilldirty = false;
+
+        Log.console("Config: Save to server (StillDirty:" + stilldirty + ")");
+
+        if (!UserInfo.uid) {
+            Log.console('Config:' + "No user id found!!!");
+            return;
+        }
+        var small = new Array();
+
+        for (var i = 0; i < this.configElements.length; i++) {
+            var e = this.configElements[i];
+            var x;
+            if (e.local) {
+                // do not store internal vars like password, etc. at remote cfg
+            } else if (e.type == t_object) {
+                x = this.get(e.key);
+                if (typeof x.toJson === 'function') {
+                    small.push(this.createTinyElement(e.key, x.toJson()));
+                } else {
+                    small.push(this.createTinyElement(e.key, JSON.stringify(x)));
+                }
+            } else {
+                x = this.get(e.key);
+                small.push(this.createTinyElement(e.key, x));
+            }
+        }
+
+        var authString = "FILLME";
+        var json = escape(JSON.stringify(small));
+        var oobj = this;
+        var f = function(req) {
+            if (req.readyState == 4) {
+                if (req.status == 200) {
+                    oobj.setDirtyFlag(stilldirty);
+                    if (cb) cb();
+                } else {
+                    this.saveToServer(stilldirty, cb);
+                }
+            }
+        };
+        var params = [ BaseLib.postParam('mode', 'set') ,
+                       BaseLib.postParam('auth', authString),
+                       BaseLib.postParam('uid', UserInfo.uid),
+                       BaseLib.postParam('gametype', UrlHandler.configPrefix),
+                       BaseLib.postParam('json', json, true) ];
+
+        // TODO: disable server access for public release
+        // BaseLib.xmlhttpPostRequest(UrlHandler.configServer, f, params, null, true);
+    };
+
+    this.save = function() {
+        if (this.getDirtyFlag()) {
+            Log.console("Config: Who the f*** is asking to save a dirty Config!?!?");
+        } else {
+            this.modified = false;
+            this.saveConfigGM();
+            this.saveToServer();
+        }
+    };
+
+    this.onRunlevel = function(runlevel) {
+        if (runlevel == 5) {
+            this.createConfig();
+        } else if (runlevel == 20) {
+            if (UrlHandler.isSettingsUrl()) {
+                /* set the dirty flag to reload the config from remote server when we're logged in */
+                this.setDirtyFlag(true);
+            }
+        } else if (runlevel == 60) {
+            if (UrlHandler.isSettingsUrl()) {
+                this.showSettings();
+            }
+        }
+    };
+
+    this.onRunlevelAsync = function(runlevel, cb) {
+        if (runlevel == 39) {
+            // runlevel 39: load config
+            var converted = (Registry.hasObject("Converter") ? Converter.convert() : false);
+
+            // initialize config from defaults
+            this.initializeConfig();
+            // overwrite config values with the ones stored by GM
+            this.readConfigGM();
+
+            if (converted) {
+                this.saveToServer(false, cb);
+            } else {
+                this.loadFromServerIfDirty(cb);
+            }
+        } else {
+            cb();
+        }
+    };
+};

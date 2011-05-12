@@ -1,0 +1,343 @@
+/** 
+ * @filename supersearch.jsi
+ * @author Jan Biniok <jan@biniok.net>
+ * @author Thomas Rendelmann <thomas@rendelmann.net>
+ * @licence GPL v2
+*/
+
+var SuperSearchLinks = new Object();
+var AioSuperSearch = new Object();
+
+Registry.register("SuperSearchLinks", SuperSearchLinks);
+Registry.register("AioSuperSearch", AioSuperSearch);
+
+AioSuperSearch.init = function() {
+
+    AioSuperSearch.showbyid = 0;
+    AioSuperSearch.showbyidinc = 20;
+    AioSuperSearch.oldshowbyid = 0;
+    AioSuperSearch.supersearch = 0;
+    AioSuperSearch.newsupersearch = 0;
+
+    AioSuperSearch.initialize = function(mode, check, callback, callee) {
+
+        AioSuperSearch.sufficientUsers = new Array();
+        AioSuperSearch.mode = mode;
+        AioSuperSearch.check = check;
+        AioSuperSearch.callback = callback;
+        AioSuperSearch.callee = callee;
+    };
+
+    /* callee ist not used cause it's a 'static' object, but keep for compatibility */
+    AioSuperSearch.searchAgain = function(callee , users) {
+
+        for (var i=0; i < users.length; i++) {
+            AioSuperSearch.addSufficientUser(users[i]);
+        }
+        var notenoughusers = AioSuperSearch.sufficientUsers.length < Config.supersearch_nps;
+        var newpageexists = (Math.abs(AioSuperSearch.newsupersearch) + 1) < Config.supersearch_mpl;
+        var sortedupbypoints = UrlHandler.highscoreSortedUpByPoints();
+        var pagenotelowerthanone = (Number(AioSuperSearch.supersearch) + Number(AioSuperSearch.newsupersearch) - 1) > 0 /* don't load pages < 1*/;
+
+        var search = notenoughusers &&
+                     newpageexists &&
+                     (!sortedupbypoints || pagenotelowerthanone);
+
+        if (search) {
+            if (sortedupbypoints) {
+                AioSuperSearch.newsupersearch--;
+            } else {
+                AioSuperSearch.newsupersearch++;
+            }
+            AioSuperSearch.run();
+        } else {
+            if (AioSuperSearch.callback) {
+                AioSuperSearch.callback(AioSuperSearch.callee, AioSuperSearch.sufficientUsers);
+            }
+        }
+    };
+
+    AioSuperSearch.searchByIdAgain = function(callee , users) {
+
+        for (var i=0; i < users.length; i++) {
+            AioSuperSearch.addSufficientUser(users[i]);
+        }
+        var notenoughusers = AioSuperSearch.sufficientUsers.length < Config.supersearch_nps;
+        var newpageexists = (Math.abs(AioSuperSearch.showbyid - AioSuperSearch.oldshowbyid) / 20 + 1) < Config.supersearch_mpl;
+
+        var search = notenoughusers &&
+                     newpageexists;
+
+        if (search) {
+            AioSuperSearch.showbyid = Number(AioSuperSearch.showbyid) + Number(AioSuperSearch.showbyidinc);
+            AioSuperSearch.runShowById();
+        } else {
+            if (AioSuperSearch.callback) {
+                AioSuperSearch.callback(AioSuperSearch.callee, AioSuperSearch.sufficientUsers);
+            }
+        }
+    };
+
+    AioSuperSearch.searchHiPaAgain = function(callee, users) {
+
+        for (var i=0; i < users.length; i++) {
+            AioSuperSearch.addSufficientUser(users[i]);
+        }
+        var notenoughusers = AioSuperSearch.sufficientUsers.length < Config.supersearch_nps;
+        var newpageexists = (Math.abs(AioSuperSearch.newsupersearch) + 1) < Config.supersearch_mpl;
+        var sortedupbypoints = UrlHandler.highscoreSortedUpByPoints();
+        var pagenotelowerthanone = (Number(AioSuperSearch.supersearch) + Number(AioSuperSearch.newsupersearch) - 1) > 0 /* don't load pages < 1*/;
+
+        var search = notenoughusers &&
+                     newpageexists &&
+                     (!sortedupbypoints || pagenotelowerthanone);
+
+        if (search) {
+            if (sortedupbypoints) {
+                AioSuperSearch.newsupersearch--;
+            } else {
+                AioSuperSearch.newsupersearch++;
+            }
+            AioSuperSearch.run();
+        } else {
+            if (AioSuperSearch.callback) {
+                AioSuperSearch.sufficientUsers = AioSuperSearch.finder.extendUserInfoByHiPaInfos(AioSuperSearch.sufficientUsers);
+                AioSuperSearch.callback(AioSuperSearch.callee, AioSuperSearch.sufficientUsers);
+            }
+        }
+    };
+
+    AioSuperSearch.runShowById = function() {
+        AioSuperSearch.finder.getUsersByShowId(AioSuperSearch.showbyid, AioSuperSearch.showbyidinc);
+    };
+
+    AioSuperSearch.runSearch = function() {
+
+        var url = UrlHandler.createSuperSearchURL(Number(AioSuperSearch.supersearch) + Number(AioSuperSearch.newsupersearch));
+
+        if (Config.kein_cache) {
+            url += (url.match(/\?/) == null ? "?" : "&") + "ts=" + (new Date()).getTime();
+        }
+
+        var f = function(req, oobj) {
+            if (req.readyState == 4 && req.status == 200) {
+                oobj.finder.extractUsersFromPlainHtml(req.responseText);
+            }
+        };
+
+        var t = "Lade Seite " + (Number(AioSuperSearch.supersearch) + Number(AioSuperSearch.newsupersearch));
+        document.title = "SuperSearch: " + t;
+        UIHelpers.status(t);
+        BaseLib.xmlhttpRequest(url, f, true, null, AioSuperSearch);
+    };
+
+    AioSuperSearch.runHiPaSearch = function() {
+
+        var t = "Lade Seite " + (Number(AioSuperSearch.supersearch) + Number(AioSuperSearch.newsupersearch));
+        document.title = "HiPaSearch: " + t;
+        UIHelpers.status(t);
+
+        var f = function (users) {
+            AioSuperSearch.finder.runHiPa(users);
+        };
+
+        var min = UrlHandler.urlGetParam(UrlHandler.highscoreMin, 0);
+        var max = UrlHandler.urlGetParam(UrlHandler.highscoreMax, 0);
+
+        if (min && max) {
+            HighscoreParser.getByPointRangeAndPage(min,
+                                                   max,
+                                                   Number(AioSuperSearch.supersearch) + Number(AioSuperSearch.newsupersearch),
+                                                   f);
+        } else {
+            HighscoreParser.getByHighscorePage(Number(AioSuperSearch.supersearch) + Number(AioSuperSearch.newsupersearch), f);
+        }
+    };
+
+    AioSuperSearch.run = function() {
+
+        if (AioSuperSearch.mode.isShowById()) {
+            AioSuperSearch.oldshowbyid = AioSuperSearch.showbyid;
+            AioSuperSearch.finder = new UserFinder(AioSuperSearch.mode, AioSuperSearch.check, AioSuperSearch.searchByIdAgain, AioSuperSearch);
+            AioSuperSearch.runShowById();
+        } else if (Config.alternate_highscore) {
+            AioSuperSearch.finder = new UserFinder(AioSuperSearch.mode, AioSuperSearch.check, AioSuperSearch.searchHiPaAgain, AioSuperSearch);
+            AioSuperSearch.runHiPaSearch();
+        } else {
+            AioSuperSearch.finder = new UserFinder(AioSuperSearch.mode, AioSuperSearch.check, AioSuperSearch.searchAgain, AioSuperSearch);
+            AioSuperSearch.runSearch();
+        }
+    };
+
+    AioSuperSearch.addSufficientUser = function(u) {
+        var cmpProfile = function (p1, p2){
+            return p1.id == p2.id;
+        };
+        if (!BaseLib.contains(AioSuperSearch.sufficientUsers, u, cmpProfile)) AioSuperSearch.sufficientUsers.push(u);
+    };
+};
+
+SuperSearchLinks.init = function() {
+
+    SuperSearchLinks.addLink = function() {
+        var elem = document.getElementById('highscore');
+
+        if (elem) {
+            var search_start = UrlHandler.getStartPageFromUrl();
+            if (search_start < 1) search_start = 1;
+
+            var url = UrlHandler.createSuperSearchURL(search_start);
+            var html = "<div scope=\"col\" style=\"float:left; width:150px\">Mindestkontostand: </div>\n";
+	    html += "<div style=\"float:left; width:140px\"><input type=\"text\" id=\"supersearch_suche_geld\" scope=\"col\" value=\"__replace_money__\"/></div><br>\n";
+	    html += "<div scope=\"col\" style=\"float:left; width:150px\">max. Seiten: </div>\n";
+	    html += "<div style=\"float:left; width:140px\"><input type=\"text\" id=\"supersearch_mpl\" scope=\"col\" value=\"__replace_pages__\"/></div>\n";
+	    html += "<div scope=\"col\" style=\"float:left; width:150px\">Frühestens registriert: </div>\n";
+	    html += "<div style=\"float:left; width:140px\"><input type=\"text\" id=\"reg_earliest\" scope=\"col\" value=\"__replace_reg_earliest__\"/></div>\n";
+	    html += "<div scope=\"col\" style=\"float:left; width:150px\">Spätestens registriert: </div>\n";
+	    html += "<div style=\"float:left; width:140px\"><input type=\"text\" id=\"reg_latest\" scope=\"col\" value=\"__replace_reg_latest__\"/></div>\n";
+
+            var div = BaseLib.createStdDiv("super_params", html, 1000);
+            var script = "";
+	    script += "var div = document.getElementById('super_params');\n";
+	    script += "var li = document.getElementById('super_li');\n";
+	    script += "if (div && li) {\n";
+	    script += "        div.style.display='__replace_display__';\n";
+	    script += "};";
+
+            var clickfn = "";
+            clickfn += "var elem_mm = document.getElementById('supersearch_suche_geld');\n";
+            clickfn += "if (elem_mm) {\n";
+            clickfn += "     url += '&markmoney='+elem_mm.value;\n";
+            clickfn += "}\n";
+            clickfn += "var elem_mpl = document.getElementById('supersearch_mpl');\n";
+            clickfn += "if (elem_mpl) {\n";
+            clickfn += "     url += '&super_mpl='+elem_mpl.value;\n";
+            clickfn += "}\n";
+            clickfn += "var elem_mpl = document.getElementById('reg_earliest');\n";
+            clickfn += "if (elem_mpl) {\n";
+            clickfn += "     url += '&reg_earliest='+elem_mpl.value;\n";
+            clickfn += "}\n";
+            clickfn += "var elem_mpl = document.getElementById('reg_latest');\n";
+            clickfn += "if (elem_mpl) {\n";
+            clickfn += "     url += '&reg_latest='+elem_mpl.value;\n";
+            clickfn += "}\n";
+            clickfn += "window.location=url;";
+
+            div = div.replace("__replace_money__", Config.supersearch_suche_geld).replace("__replace_pages__", Config.supersearch_mpl).replace("__replace_reg_earliest__", Config.supersearch_dabei_ab).replace("__replace_reg_latest__", Config.supersearch_dabei_bis);
+
+            var searchlnk = document.createElement("h2");
+            var asearchlnk = document.createElement("a");
+            var dsearchlnk = document.createElement("div");
+            var searchspan = document.createElement("span");
+
+            var s;
+            if (UrlHandler.highscoreSortedUpByPoints()) {
+                s = Number(AioSuperSearch.supersearch) + Number(AioSuperSearch.newsupersearch) - 1;
+            } else {
+                s = Number(AioSuperSearch.supersearch) + Number(AioSuperSearch.newsupersearch) + 1;
+            }
+            if (Config.supersearch_check_parameter) {
+                asearchlnk.setAttribute('href', UrlHandler.nop);
+                asearchlnk.setAttribute('onclick', 'var url="' + url + '";' + clickfn);
+            } else {
+                asearchlnk.setAttribute('href', url);
+            }
+
+            searchspan.setAttribute('id', 'super_li');
+            searchspan.setAttribute('onmouseover', script.replace("__replace_display__", "block"));
+            searchspan.setAttribute('onmouseout',  script.replace("__replace_display__", "none"));
+            dsearchlnk.setAttribute('style', 'font-size:11px; color: black; text-transform:none;  font-family: Arial, Helvetica, Verdana, sans-serif;');
+            dsearchlnk.setAttribute('class', 'tiername');
+            dsearchlnk.innerHTML = div;
+            asearchlnk.innerHTML = 'IntelliSearch &trade;';
+            asearchlnk.setAttribute('style', 'color: black;');
+            searchlnk.setAttribute('style', "left: 210px; color: black;");
+            searchspan.appendChild(asearchlnk);
+            searchspan.appendChild(dsearchlnk);
+            searchlnk.appendChild(searchspan);
+            elem.parentNode.insertBefore(searchlnk, elem.nextSibling); // = insertAfter
+        }
+    };
+
+    SuperSearchLinks.modifyShowByIdLinks = function(weiter) {
+        var elem = document.getElementById("pagination");
+        var code = "";
+
+        if (elem) {
+
+            var n = new Array(0, 1, 2, 10, 100, 1000);
+            var p = new Array(1, 2);
+            var currentpage = (Math.ceil((AioSuperSearch.showbyid-1)/20))+1;
+
+            for (var i=0; i<n.length; i++) {
+                p.push(currentpage - n[i]);
+                p.push(currentpage + n[i]);
+            }
+
+            var ssSort = function(p1, p2) {
+                return Number(p1) - Number(p2);
+            }
+
+            var min = UrlHandler.urlGetParam(UrlHandler.highscoreMin, undefined);
+            var max = UrlHandler.urlGetParam(UrlHandler.highscoreMax, undefined);
+
+            p = BaseLib.unique(p.sort(ssSort));
+
+            code +="<ul>";
+
+            for (var i=1; i < p.length; i++) {
+                if (p[i] < 1) continue;
+                if (i > 0 &&
+                    p[i-1] != (p[i]-1) &&
+                    p[i-1] > 1) {
+                    code +="<li>...</li>";
+                }
+                code += '<li><span><a href="';
+                code += UrlHandler.createShowByIdURL( p[i]*20, min, max) + '"';
+                code += (currentpage == p[i]) ? ' class="pagination_current"' : '';
+                code += '>' + p[i] + '</a></span></li>\n';
+            }
+
+            var urlf = UrlHandler.createShowByIdURL(Number(AioSuperSearch.showbyid) + 20, min, max);
+            var s = Math.ceil((Number(AioSuperSearch.showbyid) + 20) / 20);
+
+            if (Number(AioSuperSearch.supersearch) > 0) {
+                code +="<li><span><a href=\"javascript:history.back()\">&lt;&lt;Zurück</a></span></li>";
+            }
+            if (weiter && s > 0) {
+                code +="<li><span><a id=\"supersearchlinkweiter\" href=\"" + urlf + "\">Weiter (" + s + ")&gt;&gt;</a></span></li>";
+            }
+            code +="</ul>";
+            elem.innerHTML = code;
+        }
+    };
+
+    SuperSearchLinks.modifySearchLinks = function (weiter) {
+        if (weiter == undefined) weiter = true;
+
+        var elem = document.getElementById("pagination");
+        var code = "";
+
+        if (elem) {
+            var s;
+            if (UrlHandler.highscoreSortedUpByPoints()) {
+                s = Number(AioSuperSearch.supersearch) + Number(AioSuperSearch.newsupersearch) - 1;
+            } else {
+                s = Number(AioSuperSearch.supersearch) + Number(AioSuperSearch.newsupersearch) + 1;
+            }
+            var urlf = UrlHandler.createSuperSearchURL(s) + "&markmoney=" + Config.supersearch_suche_geld + "&super_mpl=" + Config.supersearch_mpl + "&reg_earliest=" + Config.supersearch_dabei_ab + "&reg_latest=" + Config.supersearch_dabei_bis;
+            var urln = UrlHandler.createSuperSearchURL(0);
+
+            code +="<ul>";
+            code +="<li><span><a href=\"" + urln + "\" id=\"supersearchlinknormal\">Normale Suche</a></span></li>";
+            if (AioSuperSearch.supersearch > 0) {
+                code +="<li><span><a href=\"javascript:history.back()\">&lt;&lt;Zurück</a></span></li>";
+            }
+            if (weiter && s > 0) {
+                code +="<li><span><a id=\"supersearchlinkweiter\" href=\"" + urlf + "\">Weiter (" + s + ")&gt;&gt;</a></span></li>";
+            }
+            code +="</ul>";
+            elem.innerHTML = code;
+        }
+    };
+};

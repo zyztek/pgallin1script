@@ -1,0 +1,10 @@
+guid           B145938C-288E-11E0-870D-F854DFD72085
+appid          TODO
+name           kvAllInOneScript
+version        0.0.1
+namespace      http://knastvoegel.biniok.net
+author         _der_, MajorTom123
+description    Das Schweizer Taschenmesser fuer Knastvoegel!
+include        http://*knastvoegel.de/*
+updateurl      https://ssl-id.de/knastvoegel.biniok.net/
+changelogurl   http://knastvoegel.biniok.net/
